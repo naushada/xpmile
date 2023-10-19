@@ -1,0 +1,11 @@
+
+<clr-vertical-nav style="height:100%; width:100%; cursor: pointer;">
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'createManifest'" (click)="onItemSelect('createManifest')" ><clr-icon shape="new" class="is-solid" clrVerticalNavIcon></clr-icon><b>Create Manifest</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'detailedReport'" (click)="onItemSelect('detailedReport')"><clr-icon shape="view-list" clrVerticalNavIcon></clr-icon><b>Detailed Report</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'findInventory'" (click)="onItemSelect('findInventory')"><clr-icon shape="search" clrVerticalNavIcon></clr-icon><b>Find Inventory</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'inInventory'" (click)="onItemSelect('inInventory')"><clr-icon shape="plus-circle" clrVerticalNavIcon></clr-icon><b>Create Inventory</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'outInventory'" (click)="onItemSelect('outInventory')"><clr-icon shape="minus-circle" clrVerticalNavIcon></clr-icon><b>Out Inventory</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'updateInventory'" (click)="onItemSelect('updateInventory')"><clr-icon shape="attachment" clrVerticalNavIcon></clr-icon><b>Update Inventory</b></a>
+</clr-vertical-nav>
+  
+  

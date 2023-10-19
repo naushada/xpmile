@@ -1,0 +1,69 @@
+<form  clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="createInventoryForm">
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label for="sku">SKU or Product ID</label>
+                <input type="text" clrInput formControlName="sku" name="sku">
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label for="productDescription">Product Description</label>
+                <input type="text" clrInput formControlName="productDescription" name="productDescription">
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label for="qty">Quantity</label>
+                <input type="number" clrInput formControlName="qty" name="qty" type="number">
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-date-container>
+                <label for="currentDate">Current Date</label>
+                <input type="date" clrDate formControlName="currentDate" name="currentDate">
+            </clr-date-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label for="currentTime">Current Time</label>
+                <input type="time" clrInput formControlName="currentTime" name="currentTime" />
+            </clr-input-container>
+
+        </div>
+        
+    </div>
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label for="shelf">Shelf</label>
+                <input type="text" clrInput formControlName="shelf" name="shelf">
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label for="rowNumber">Row Number</label>
+                <input type="text" clrInput formControlName="rowNumber" name="rowNumber">
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label for="createdBy">Created By</label>
+                <input type="text" name="createdBy" clrInput formControlName="createdBy" [value]="this.loggedInUser?.personalInfo?.name">
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-select-container>
+                <label for="accountCode">Account Code</label>
+                <select clrSelect formControlName="accountCode"  name="accountCode">
+                  <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
+                </select>
+            </clr-select-container>
+        </div>
+    </div>
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="createInventory()">Create Inventory</button>
+        </div>
+    </div>
+</form>

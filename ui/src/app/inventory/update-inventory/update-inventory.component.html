@@ -1,0 +1,32 @@
+
+<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="updateInventoryForm">
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-input-container >
+                <label for="sku">SKU or Product ID</label>
+                <input clrInput name="sku" formControlName="sku" />
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container >
+                <label for="qty">Quantity</label>
+                <input clrInput name="qty" type="number" formControlName="qty"/>
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-select-container>
+                <label for="accountCode">Account Code</label>
+                <select clrSelect name="accountCode" formControlName="accountCode">
+                    <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
+                </select>
+            </clr-select-container>
+        </div>
+    </div>
+    
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="updateInventory()">Update Inventory</button>
+        </div>
+    </div>
+</form>
+

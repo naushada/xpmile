@@ -1,0 +1,9 @@
+
+<clr-vertical-nav style="height:100%; width:100%; cursor: pointer;">
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'createAccount'" (click)="onItemSelect('createAccount')" ><clr-icon shape="new" class="is-solid" clrVerticalNavIcon></clr-icon><b>Create Account</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'updateAccount'" (click)="onItemSelect('updateAccount')"><clr-icon shape="edit" clrVerticalNavIcon></clr-icon><b>Update Account</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'listAccount'" (click)="onItemSelect('listAccount')"><clr-icon shape="view-list" clrVerticalNavIcon></clr-icon><b>List Account</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'email'" (click)="onItemSelect('email')"><clr-icon shape="edit" clrVerticalNavIcon></clr-icon><b>E-Mail</b></a>
+</clr-vertical-nav>
+  
+  

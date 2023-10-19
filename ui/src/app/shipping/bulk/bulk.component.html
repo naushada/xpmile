@@ -1,0 +1,26 @@
+<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="bulkShipmentForm">
+
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label>Choose bulk upload excel file</label>
+                <input type="file" clrInput name="excelFileName" formControlName="excelFileName" (change)="onFileSelect($event)" accept=".xls,.excel,.xlsx" >
+            </clr-input-container>
+        </div>
+
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label>Bulk Shipment Template</label>
+            </clr-input-container>
+            <button class="btn btn-sm" (click)="onDownloadTemplate()">Download</button>
+        </div>
+
+    </div>
+    
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="onCreateBulkShipment()">Create Bulk Shipment</button>
+        </div>
+    </div>
+
+</form>

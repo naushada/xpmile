@@ -1,0 +1,126 @@
+<form action="" clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="detailedReportForm">
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-date-container>
+                <label for="shipmentNo">Start Date</label>
+                <input clrDate name="startDate" formControlName="startDate" type="date">
+            </clr-date-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-date-container>
+                <label for="endDate">End Date</label>
+                <input clrDate name="startDate" formControlName="endDate" type="date">
+            </clr-date-container>
+        </div>
+
+        <div class="clr-col-lg-auto">
+            <clr-select-container>
+                <label>Receiver Country</label>
+                <select clrSelect name="receiverCountry" formControlName="receiverCountry">
+                  <option *ngFor="let country of defValue.CountryName" [value]="country">{{country}}</option>
+                </select>
+              </clr-select-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-select-container>
+                <label>Account Code</label>
+                <select clrSelect name="accountCode" formControlName="accountCode" multiple cols="50">
+                  <option *ngFor="let acc of accounts" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
+                </select>
+              </clr-select-container>
+        </div>
+    </div>
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="onSubmit()">Submit</button>
+            <button class="btn btn-primary" (click)="onExcelExport()">Export To Excel</button>
+        </div>
+    </div>
+</form>
+
+
+<clr-datagrid>
+    <clr-dg-column>Tracking Number</clr-dg-column>
+    <clr-dg-column>Alternate Reference Number</clr-dg-column>
+    <clr-dg-column>Account Code</clr-dg-column>
+    <clr-dg-column>Created On</clr-dg-column>
+    <clr-dg-column>Status</clr-dg-column>
+    <clr-dg-column>Notes</clr-dg-column>
+    <clr-dg-column>Updated On</clr-dg-column>
+    <clr-dg-column>Created By</clr-dg-column>
+    <clr-dg-column>Sender Reference Number</clr-dg-column>
+    <clr-dg-column>Sender Name</clr-dg-column>
+    <clr-dg-column>Sender Country</clr-dg-column>
+    <clr-dg-column>Sender Address</clr-dg-column>
+    <clr-dg-column>Sender City</clr-dg-column>
+    <clr-dg-column>Sender State</clr-dg-column>
+    <clr-dg-column>Sender Postal Code</clr-dg-column>
+    <clr-dg-column>Sender Contact</clr-dg-column>
+    <clr-dg-column>Sender Phone</clr-dg-column>
+    <clr-dg-column>Sender Email</clr-dg-column>
+    <clr-dg-column>Service Type	</clr-dg-column>
+    <clr-dg-column>Number Of Items</clr-dg-column>
+    <clr-dg-column>	Goods Description</clr-dg-column>
+    <clr-dg-column>Goods Value</clr-dg-column>
+    <clr-dg-column>Customs Value</clr-dg-column>
+    <clr-dg-column>Weight</clr-dg-column>
+    <clr-dg-column>Weight Unit</clr-dg-column>
+    <clr-dg-column>COD Amount</clr-dg-column>
+    <clr-dg-column>Currency</clr-dg-column>
+    <clr-dg-column>SKU </clr-dg-column>
+    <clr-dg-column>Receiver Name</clr-dg-column>
+    <clr-dg-column>Receiver Address</clr-dg-column>
+    <clr-dg-column>Receiver City</clr-dg-column>
+    <clr-dg-column>Receiver State</clr-dg-column>
+    <clr-dg-column>Receiver Postal Code</clr-dg-column>
+    <clr-dg-column>Receiver Contact</clr-dg-column>
+    <clr-dg-column>Receiver Phone</clr-dg-column>
+    <clr-dg-column>Receiver Email</clr-dg-column>
+    <clr-dg-row *ngFor="let sh of shipments">
+        <clr-dg-cell>{{sh.shipment.awbno}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.accountNo}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.createdOn}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[sh.shipment.shipmentInformation.activity.length - 1].event}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[sh.shipment.shipmentInformation.activity.length - 1].notes}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[sh.shipment.shipmentInformation.activity.length - 1].date}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[sh.shipment.shipmentInformation.activity.length - 1].updatedBy}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.referenceNo}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.name}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.country}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.address}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.city}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.state}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.postalCode}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.contact}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.phoneNumber}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.senderInformation.email}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.service}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.numberOfItems}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.goodsDescription}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.goodsValue}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.customsValue}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.weight}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.weightUnits}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.codAmount}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.currency}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.skuNo}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.name}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.address}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.city}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.state}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.postalCode}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.contact}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.phone}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.email}}</clr-dg-cell>
+
+    </clr-dg-row>
+
+    <clr-dg-footer>
+		<clr-dg-pagination #pagination [clrDgPageSize]="10">
+			<clr-dg-page-size [clrPageSizeOptions]="[10,20,50,100]">Shipment per page</clr-dg-page-size>
+        {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}}
+        of {{pagination.totalItems}} shipments
+    </clr-dg-pagination>
+    </clr-dg-footer>
+</clr-datagrid>

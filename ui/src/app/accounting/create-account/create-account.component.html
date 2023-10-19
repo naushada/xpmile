@@ -1,0 +1,160 @@
+
+<form [formGroup]="accountForm" clrForm clrLayout="vertical" clrLabelSize="2">
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-checkbox-wrapper>
+                <input type="checkbox" clrCheckbox name="isAccountCodeAutoGen" value="" formControlName="isAccountCodeAutoGen">
+                <label for="">Autogenerate Account Code</label>
+            </clr-checkbox-wrapper>
+        </div>
+    </div>
+    <div class="clr-row">
+        <!--element 1-->
+        <div class="clr-col-lg-auto" formGroupName="loginCredentials">
+            <clr-input-container>
+                <label for="accountCode">Account Code</label>
+                <input clrInput name="accountCode" formControlName="accountCode">
+            </clr-input-container>
+        </div>
+        <!--element 2-->
+        <div class="clr-col-lg-auto" formGroupName="loginCredentials">
+            <clr-input-container>
+                <label for="accountPassword">Account Password</label>
+                <input clrInput name="accountPassword" formControlName="accountPassword">
+            </clr-input-container>
+        </div>
+        <!--element 3-->
+        <div class="clr-col-lg-auto" formGroupName="customerInfo">
+            <clr-input-container>
+                <label for="companyName">Company Name</label>
+                <input clrInput name="companyName" formControlName="companyName">
+            </clr-input-container>
+        </div>
+        <!--element 4-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-select-container>
+                <label>Role</label>
+                <select clrSelect name="role" formControlName="role">
+                  <option *ngFor="let rl of this.defVal?.Role" [value]="rl">{{rl}}</option>
+                  
+                </select>
+              </clr-select-container>
+        </div>
+        <!--element 5-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-input-container>
+                <label for="name">Name</label>
+                <input clrInput name="name" formControlName="name">
+            </clr-input-container>
+        </div>
+        <!--element 6-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-input-container>
+                <label for="city">City</label>
+                <input clrInput name="city" formControlName="city">
+            </clr-input-container>
+        </div>
+    </div>
+    <div class="clr-row">
+        <!--element 1-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-textarea-container>
+                <label for="address">Address</label>
+                <textarea clrTextarea name="address" placeholder="Address" formControlName="address"></textarea>
+            </clr-textarea-container>
+        </div>
+        <!--element 2-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-input-container>
+                <label for="postalCode">Postal Code</label>
+                <input clrInput name="postalCode" formControlName="postalCode">
+            </clr-input-container>
+        </div>
+        <!--element 3-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-input-container>
+                <label for="state">State</label>
+                <input clrInput name="state" formControlName="state">
+            </clr-input-container>
+        </div>
+        <!--element 4-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-select-container>
+                <label>Event Location</label>
+                <select clrSelect name="eventLocation" formControlName="eventLocation">
+                    <option *ngFor="let evtLoc of this.defVal?.EventLocation" [value]="evtLoc">{{evtLoc}}</option>
+                    
+                </select>
+            </clr-select-container>
+        </div>
+        <!--element 5-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-input-container>
+                <label for="state">Contact</label>
+                <input clrInput name="contact" formControlName="contact">
+            </clr-input-container>
+        </div>
+        <!--element 6-->
+        <div class="clr-col-lg-auto" formGroupName="personalInfo">
+            <clr-input-container>
+                <label for="email">E-mail</label>
+                <input clrInput name="email" formControlName="email">
+            </clr-input-container>
+        </div>
+    </div>
+    <div class="clr-row" >
+        <!--element 1-->
+        <div class="clr-col-lg-auto" formGroupName="customerInfo">
+            <clr-input-container>
+                <label for="quotedAmount">Quoted Amount</label>
+                <input clrInput name="quotedAmount" formControlName="quotedAmount">
+            </clr-input-container>
+        </div>
+        <!--element 2-->
+        <div class="clr-col-lg-auto" formGroupName="customerInfo">
+            <clr-input-container>
+                <label for="tradingLicense">Trading License</label>
+                <input clrInput name="tradingLicense" formControlName="tradingLicense">
+            </clr-input-container>
+        </div>
+        <!--element 3-->
+        <div class="clr-col-lg-auto" formGroupName="customerInfo">
+            <clr-input-container>
+                <label for="vat">VAT</label>
+                <input clrInput name="vat" formControlName="vat">
+            </clr-input-container>
+        </div>
+        <!--element 4-->
+        <div class="clr-col-lg-auto" formGroupName="customerInfo">
+            <clr-select-container>
+                <label>Currency</label>
+                <select clrSelect name="currency" formControlName="currency">
+                    <option *ngFor="let currency of this.defVal?.Currency" [value]="currency">
+                        {{currency}}
+                    </option>
+                </select>
+              </clr-select-container>
+        </div>
+        <!--element 5-->
+        <div class="clr-col-lg-auto" formGroupName="customerInfo">
+            <clr-input-container>
+                <label for="vat">Bank Account Number</label>
+                <input clrInput name="bankAccountNumber" formControlName="bankAccountNumber">
+            </clr-input-container>
+        </div>
+        <!--element 6-->
+        <div class="clr-col-lg-auto" formGroupName="customerInfo">
+            <clr-input-container>
+                <label for="vat">IBAN</label>
+                <input clrInput name="iban" formControlName="iban">
+            </clr-input-container>
+        </div>
+    </div>
+    
+    
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="createAccount()">Submit</button>
+        </div>
+    </div>
+</form>

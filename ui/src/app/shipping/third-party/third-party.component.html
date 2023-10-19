@@ -1,0 +1,45 @@
+<form clrForm clrLayout="vertical" clrLabelSize="3">
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-radio-container >
+                <label>Choose lastmile delivery service vendor </label>
+                <clr-radio-wrapper>
+                    <input type="radio" clrRadio name="options" required value="Ajoul" />
+                    <label>Ajoul</label>
+                </clr-radio-wrapper>
+                <clr-radio-wrapper>
+                    <input type="radio" clrRadio name="options" required value="Sipsy"  />
+                    <label>Sipsy</label>
+                </clr-radio-wrapper>
+                <clr-radio-wrapper>
+                    <input type="radio" clrRadio name="options" required value="Dhl"  />
+                    <label>DHL Express</label>
+                </clr-radio-wrapper>
+                <clr-radio-wrapper>
+                    <input type="radio" clrRadio name="options" required value="BlueDart"  />
+                    <label>Blue DartExpress</label>
+                </clr-radio-wrapper>
+            <!--<clr-control-helper>Helper text</clr-control-helper>-->
+                <clr-control-error>This field is required!</clr-control-error>
+            </clr-radio-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label>Choose bulk upload excel file</label>
+                <input clrInput name="name" type="file"/>
+              </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label>Excel Template</label>
+            </clr-input-container>
+            <button class="btn">Download</button>
+        </div>
+    </div>
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary">Create Bulk Shipment</button>
+        </div>
+    </div>    
+    
+</form>

@@ -1,0 +1,75 @@
+<form clrForm clrLayout="vertical" clrLabelSize="1" [formGroup]="shipmentListForm">
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-date-container>
+                <label>Start Date</label>
+                <input type="date" clrDate name="startDate" formControlName="startDate">
+            </clr-date-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-date-container>
+                <label>End Date</label>
+                <input type="date" clrDate name="endDate" formControlName="endDate">
+            </clr-date-container>
+            
+        </div>
+    </div>
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="retrieveShipmentList()">Submit</button>
+            <button class="btn btn-primary" (click)="onClear()">Clear</button>
+        </div>
+        
+    </div>
+</form>
+
+<div class="btn-group">
+    <button class="btn" (click)="onCreateA2Label()">
+        <clr-icon shape="printer" aria-label="print"></clr-icon>A2
+    </button>
+    <button class="btn" (click)="onCreateA4Label()">
+        <clr-icon shape="printer"></clr-icon>A4
+    </button>
+    <button class="btn" (click)="onCreateA6Label()">
+        <clr-icon shape="printer"></clr-icon>A6
+    </button>
+</div>
+
+<clr-datagrid  (clrDgSelectedChange)="onSelectionChanged($event)" [(clrDgSelected)]="rowsSelected">
+    <clr-dg-column >Serial No</clr-dg-column>
+    <clr-dg-column >Shipment No</clr-dg-column>
+    <clr-dg-column >Alternate ReferenceNo</clr-dg-column>
+    <clr-dg-column >Created By</clr-dg-column>
+    <clr-dg-column >Created On</clr-dg-column>
+    <clr-dg-column >Service</clr-dg-column>
+    <clr-dg-column >Receipient</clr-dg-column>
+    <clr-dg-column >Location</clr-dg-column>
+    <clr-dg-column >Country</clr-dg-column>
+    
+    
+    <clr-dg-row *clrDgItems="let sh of shipments; let idx = index" [clrDgItem]="sh">
+        
+        <clr-dg-cell>{{idx + 1}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.awbno}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.createdBy}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.createdOn}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.service}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.name}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[0].eventLocation}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.country}}</clr-dg-cell>
+        
+    </clr-dg-row>
+
+	<!-- Inside the full datagrid declaration -->
+	<clr-dg-footer>
+		<clr-dg-pagination #pagination [clrDgPageSize]="10">
+			<clr-dg-page-size [clrPageSizeOptions]="[10,20,50,100]">Shipment per page</clr-dg-page-size>
+        {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}}
+        of {{pagination.totalItems}} shipments
+    </clr-dg-pagination>
+</clr-dg-footer>
+</clr-datagrid>
+
+
+

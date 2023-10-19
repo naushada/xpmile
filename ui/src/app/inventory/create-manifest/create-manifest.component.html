@@ -1,0 +1,23 @@
+<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="manifestForm">
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <clr-input-container >
+                <label for="sku">SKU or Product ID</label>
+                <input clrInput name="sku" formControlName="sku" type="text"/>
+            </clr-input-container>
+        </div>
+        <div class="clr-col-lg-auto">
+            <clr-input-container >
+                <label for="qty">Quantity</label>
+                <input clrInput name="qty" formControlName="qty" type="number"/>
+            </clr-input-container>
+                            
+        </div>
+    </div>
+    
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="onCreateA2Label()">Create Manifest</button>
+        </div>
+    </div>
+</form>

@@ -1,0 +1,60 @@
+
+<form [formGroup]="emailForm" clrForm clrLayout="vertical" clrLabelSize="8">
+    <!--element 1-->
+    <div class="clr-row">
+        <div class="clr-col">
+            <clr-input-container>
+                <label for="accountCode">To:</label>
+                <input clrInput name="to" formControlName="to" size="50">
+                <clr-control-helper>email address will be seperated by comma(,)</clr-control-helper>
+            </clr-input-container>
+        </div>
+    </div>
+    <!--element 2-->
+    <div class="clr-row">
+        <div class="clr-col">
+            <clr-input-container>
+                <label for="cc">Cc:</label>
+                <input clrInput name="cc" formControlName="cc" size="50">
+                <clr-control-helper>email address will be seperated by comma(,)</clr-control-helper>
+            </clr-input-container>
+        </div>
+    </div>
+    <!--element 3-->
+    <div class="clr-row">
+        <div class="clr-col">
+            <clr-input-container>
+                <label for="bcc">Bcc:</label>
+                <input clrInput name="bcc" formControlName="bcc" size="50">
+                <clr-control-helper>email address will be seperated by comma(,)</clr-control-helper>
+            </clr-input-container>
+        </div>
+    </div>
+
+    <!--element 4-->
+    <div class="clr-row">
+        <div class="clr-col">
+            <clr-input-container>
+                <label for="subject">Subject:</label>
+                <input clrInput name="subject" formControlName="subject" size="50">
+            </clr-input-container>
+        </div>
+    </div>
+
+    <!--element 5-->
+    <div class="clr-row">
+        <div class="clr-col">
+            <clr-textarea-container>
+                <label for="emailbody">Message</label>
+                <textarea clrTextarea name="emailbody" formControlName="emailbody" rows="20" cols="100"></textarea>
+            </clr-textarea-container>
+        </div>
+    </div>
+    
+    
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="sendEmail()">Send Email</button>
+        </div>
+    </div>
+</form>

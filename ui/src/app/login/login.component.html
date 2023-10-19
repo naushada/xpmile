@@ -1,0 +1,40 @@
+<div class="login-wrapper">
+    <form class="login" [formGroup]="loginForm">
+        <section class="title">
+            <h3 class="welcome">Welcome to</h3>
+            Last Mile Delivery Services
+            <h5 class="hint">Use your Company ID to sign in</h5>
+        </section>
+        <div class="login-group">
+            <clr-input-container>
+                <label class="clr-sr-only">Corporate name</label>
+                <input type="text" name="corporatename" clrInput placeholder="Corporate name" formControlName="corporatename" />
+                <clr-control-error>Corporate name (Organization name) is required!</clr-control-error>
+            </clr-input-container>
+
+            <clr-input-container>
+                <label class="clr-sr-only">Username</label>
+                <input type="text" name="username" clrInput placeholder="Username" formControlName="username" />
+                <clr-control-error>Username is required!</clr-control-error>
+            </clr-input-container>
+            <clr-password-container>
+                <label class="clr-sr-only">Password</label>
+                <input type="password" name="password" clrPassword placeholder="Password" formControlName="password"/>
+                <clr-control-error>Password is required!</clr-control-error>
+            </clr-password-container>
+        </div>
+        <button  (click) = "onLogin()" class="btn btn-primary">Login</button>
+        <button  (click) = "onPasswordReset()" class="btn btn-primary">Reset Password</button>
+        
+    </form>
+</div>
+
+<clr-modal [(clrModalOpen)]="isPasswordReset">
+    <div class="modal-body">
+        <app-password-reset></app-password-reset>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-outline" (click)="isPasswordReset = false">Cancel</button>
+        <button type="button" class="btn btn-primary" (click)="isPasswordReset = false">Ok</button>
+    </div>
+</clr-modal>

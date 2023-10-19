@@ -1,0 +1,7 @@
+
+<clr-vertical-nav style="height:100%; width:100%; cursor: pointer;">
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'detailedReport'" (click)="onItemSelect('detailedReport')" ><clr-icon shape="details" class="is-solid" clrVerticalNavIcon></clr-icon><b>Deatiled Report</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'invoice'" (click)="onItemSelect('invoice')"><clr-icon shape="form" clrVerticalNavIcon></clr-icon><b>Invoice</b></a>
+</clr-vertical-nav>
+  
+  

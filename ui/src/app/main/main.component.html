@@ -1,0 +1,106 @@
+<clr-main-container>
+    <clr-header>
+        <div class="branding">
+            <img src="assets/express-delivery.png"  width="100px" />
+            <a class = "nav-link nav-text"  (click)="onMenuSelect('dashboard')" style="cursor: pointer">
+              <span class="title">Dashboard</span>
+            </a>
+        </div>
+      <form class="search">
+        <label for="search_input">
+          <input
+            id="search_input"
+            type="text"
+            placeholder="Search for shipment..."
+          />
+        </label>
+      </form>
+      
+      <div class="header-nav" style="cursor: pointer">
+        <a class = "nav-link nav-text" [class.active] = "selectedMenuItem === 'shipping'"     (click)="onMenuSelect('shipping')">Shipping</a>
+        <a class = "nav-link nav-text" [class.active] = "selectedMenuItem === 'tracking'"     (click)="onMenuSelect('tracking')">Tracking</a>
+        <a class = "nav-link nav-text" [class.active] = "selectedMenuItem === 'reporting'"    (click)="onMenuSelect('reporting')">Reporting</a>
+        <a class = "nav-link nav-text" [class.active] = "selectedMenuItem === 'accounting'"   (click)="onMenuSelect('accounting')">Accounting</a>
+        <a class = "nav-link nav-text" [class.active] = "selectedMenuItem === 'inventory'"    (click)="onMenuSelect('inventory')">Inventory</a>
+      </div>
+
+      <div class="header-actions">
+        <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role === 'Customer'">{{this.loggedInUser?.customerInfo?.companyName}}</span>
+        <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role != 'Customer'">{{this.loggedInUser?.personalInfo?.name}}</span>
+        <clr-dropdown>
+            <button class="nav-icon" clrDropdownTrigger aria-label="toggle settings menu">
+                <clr-icon shape="user" ></clr-icon>
+            </button>
+            <clr-dropdown-menu *clrIfOpen clrPosition="bottom-right">
+                <a href="..." clrDropdownItem>About</a>
+                <a href="..." clrDropdownItem>Preferences</a>
+                <a [routerLink]="['/login']" clrDropdownItem>Log out</a>
+            </clr-dropdown-menu>
+        </clr-dropdown>
+      </div>
+    </clr-header>
+    
+
+    <div class="content-container">
+      <ng-container *ngIf="selectedMenuItem === 'dashboard'">
+        <app-dashboard></app-dashboard>
+      </ng-container>
+      <ng-container *ngIf="selectedMenuItem === 'shipping'">
+        <app-submenu (evt)="onReceiveEvt($event)"></app-submenu>
+        <div class="content-area">
+          <app-single *ngIf="selectedNavItem === 'singleShipment'"></app-single>
+          <app-bulk *ngIf="selectedNavItem === 'bulkShipment'"></app-bulk>
+          <app-third-party *ngIf="selectedNavItem === 'thirdPartyShipment'"></app-third-party>
+          <app-modify *ngIf="selectedNavItem === 'updateShipment'"></app-modify>
+          <app-list *ngIf="selectedNavItem === 'listShipment'"></app-list>
+          <app-create-drs *ngIf="selectedNavItem === 'createDRS'"></app-create-drs>
+          <app-api-integration *ngIf="selectedNavItem === 'apiIntegration'"></app-api-integration>
+        </div>
+      </ng-container>
+
+      <!-- Tracking -->
+      <ng-container *ngIf="selectedMenuItem === 'tracking'">
+        <app-snav-bar (evt)="onReceiveEvt($event)"></app-snav-bar>
+        <div class="content-area">
+          <app-single-shipment *ngIf="selectedNavItem === 'singleShipmentStatus'"></app-single-shipment>
+          <app-multiple-shipment *ngIf="selectedNavItem === 'multipleShipmentStatus'"></app-multiple-shipment>
+          <app-update-shipment *ngIf="selectedNavItem === 'updateShipmentStatus'"></app-update-shipment>
+          <app-email *ngIf="selectedNavItem === 'email'"></app-email>
+        </div>
+      </ng-container>
+
+      <!-- Reporting -->
+      <ng-container *ngIf="selectedMenuItem === 'reporting'">
+        <app-rnav-bar (evt)="onReceiveEvt($event)"></app-rnav-bar>
+        <div class="content-area">
+          <app-detailed-report *ngIf="selectedNavItem === 'detailedReport'"></app-detailed-report>
+          <app-invoice *ngIf="selectedNavItem === 'invoice'"></app-invoice>
+        </div>
+      </ng-container>
+
+      <!--Accounting -->
+      <ng-container *ngIf="selectedMenuItem === 'accounting'">
+        <app-anav-bar (evt)="onReceiveEvt($event)"></app-anav-bar>
+        <div class="content-area">
+          <app-create-account *ngIf="selectedNavItem === 'createAccount'"></app-create-account>
+          <app-update-account *ngIf="selectedNavItem === 'updateAccount'"></app-update-account>
+          <app-list-account *ngIf="selectedNavItem === 'listAccount'"></app-list-account>
+          <app-email *ngIf="selectedNavItem === 'email'"></app-email>
+        </div>
+      </ng-container>
+
+      <!--Inventory -->
+      <ng-container *ngIf="selectedMenuItem === 'inventory'">
+        <app-inav-bar (evt)="onReceiveEvt($event)"></app-inav-bar>
+        <div class="content-area">
+          <app-create-manifest *ngIf="selectedNavItem === 'createManifest'"></app-create-manifest>
+          <app-inventory-report *ngIf="selectedNavItem === 'detailedReport'"></app-inventory-report>
+          <app-find-inventory *ngIf="selectedNavItem === 'findInventory'"></app-find-inventory>
+          <app-in-inventory *ngIf="selectedNavItem === 'inInventory'"></app-in-inventory>
+          <app-out-inventory *ngIf="selectedNavItem === 'outInventory'"></app-out-inventory>
+          <app-update-inventory *ngIf="selectedNavItem === 'updateInventory'"></app-update-inventory>
+        </div>
+      </ng-container>
+
+    </div>
+  </clr-main-container>

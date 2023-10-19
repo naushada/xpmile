@@ -1,0 +1,10 @@
+<clr-modal [(clrModalOpen)]="isOpened" [clrModalSize]="'xl'">
+    <h3 class="modal-title">Shipment Status</h3>
+    <div class="modal-body">
+        <app-single-shipment></app-single-shipment>
+    </div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-outline" (click)="onClick()">Cancel</button>
+        <button type="button" class="btn btn-primary" (click)="onClick()">Ok</button>
+    </div>
+</clr-modal>

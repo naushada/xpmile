@@ -1,0 +1,20 @@
+/* You can add global styles to this file, and also import other style files */
+// Your Application Theme File
+/*@import "./theme.scss";*/
+
+// Clarity Component SCSS
+@import "../node_modules/@clr/ui/src/utils/components.clarity";
+
+@import 'modern-normalize/modern-normalize.css';
+@import '../node_modules/@cds/core/global.min.css';
+@import '../node_modules/@cds/core/styles/theme.dark.min.css'; // to allow dark mode with cds-theme="dark"
+@import '../node_modules/@cds/city/css/bundles/default.css';
+//@import '../node_modules/@cds/core/styles/shim.clr-ui.min.css'; // the shim file
+@import '../node_modules/@clr/ui/clr-ui.min.css'; // clr-ui CSS
+
+//@import 'modern-normalize.css/modern-normalize.css';
+@import '../node_modules/@cds/core/styles/module.reset.min.css';
+@import '../node_modules/@cds/core/styles/module.tokens.min.css';
+@import '../node_modules/@cds/core/styles/module.layout.min.css';
+@import '../node_modules/@cds/core/styles/module.typography.min.css';
+@import '../node_modules/@cds/city/css/bundles/default.min.css';

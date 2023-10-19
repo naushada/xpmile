@@ -1,0 +1,8 @@
+<clr-vertical-nav style="height:100%; width:100%; cursor: pointer;">
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'singleShipmentStatus'" (click)="onItemSelect('singleShipmentStatus')" ><clr-icon shape="search" class="is-solid" clrVerticalNavIcon></clr-icon><b>Single Shipment Status</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'multipleShipmentStatus'" (click)="onItemSelect('multipleShipmentStatus')" ><clr-icon shape="search" class="is-solid" clrVerticalNavIcon></clr-icon><b>Multiple Shipment Status</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'updateShipmentStatus'" (click)="onItemSelect('updateShipmentStatus')" ><clr-icon shape="highlighter" class="is-solid" clrVerticalNavIcon></clr-icon><b>Update Shipment Status</b></a>
+    <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'email'" (click)="onItemSelect('email')" ><clr-icon shape="highlighter" class="is-solid" clrVerticalNavIcon></clr-icon><b>E-Mail</b></a>
+</clr-vertical-nav>
+  
+  
