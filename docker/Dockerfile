@@ -65,10 +65,10 @@ RUN make && make install
 RUN ldconfig
 
 WORKDIR /root
-RUN git clone -b release/v1.0 https://github.com/naushada/granada.git
-RUN cd granada
-RUN mkdir ix86_64x
-WORKDIR /root/granada/ix86_64x
+RUN git clone https://github.com/naushada/xpmile.git
+WORKDIR /root/xpmile/backend
+RUN mkdir build
+WORKDIR /root/xpmile/backend/build
 RUN cmake .. && make
 
 #node installation
@@ -78,13 +78,13 @@ RUN apt-get -y upgrade
 #RUN apt-get -y install build-essential
 #RUN apt-get -y install nodejs npm
 
-WORKDIR /root
-RUN mkdir webgui && cd webgui
-RUN mkdir webclient && cd webclient
+WORKDIR /root/xpmile/ui
+#RUN mkdir webgui && cd webgui
+#RUN mkdir webclient && cd webclient
 
-WORKDIR /root/webgui/webclient
-RUN git clone https://github.com/naushada/lms.git webui
-RUN cd webui
+#WORKDIR /root/webgui/webclient
+#RUN git clone https://github.com/naushada/lms.git webui
+#RUN cd webui
 
 
 ########## installing dependencies node_module ######################
@@ -94,7 +94,7 @@ RUN apt-get -y install curl && \
 #RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
 #RUN apt-get -y install nodejs
 
-WORKDIR /root/webgui/webclient/webui
+WORKDIR /root/xpmile/ui
 
 RUN npm install
 RUN npm update
@@ -104,7 +104,7 @@ RUN npm update
 
 ##### Compile the Angular webgui #################
 RUN npm install -g @angular/cli
-RUN ng add @angular/material
+#RUN ng add @angular/material
 RUN npm install xlsx
 RUN npm install file-saver
 RUN npm install jspdf
@@ -115,7 +115,7 @@ RUN npm install pdfmake
 #RUN ng add @clr/angular
 RUN npm install @clr/icons @clr/angular @clr/ui @cds/core
 ENV NODE_OPTIONS=--max_old_space_size=4096
-WORKDIR /root/webgui/webclient/webui
+WORKDIR /root/xpmile/ui
 RUN ng build --configuration production --aot --base-href /webui/
 
 RUN cd /opt
@@ -124,7 +124,7 @@ RUN cd xAPP
 RUN mkdir webgui
 RUN cd webgui
 WORKDIR /opt/xAPP/webgui
-RUN cp -r /root/webgui/webclient/webui/dist/ui .
+RUN cp -r /root/xpmile/ui/webui/dist/ui .
 
 WORKDIR /opt/xAPP
 RUN mkdir granada
