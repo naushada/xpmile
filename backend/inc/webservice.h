@@ -22,6 +22,11 @@
 #include "ace/Thread_Manager.h"
 #include "ace/Get_Opt.h"
 #include "ace/Signal.h"
+#include "ace/SSL/SSL_SOCK.h"
+#include "ace/SSL/SSL_SOCK_Stream.h"
+#include "ace/SSL/SSL_SOCK_Connector.h"
+#include "ace/Semaphore.h"
+
 
 #include "mongodbc.h"
 
@@ -53,6 +58,9 @@ enum class CommandArgumentName : std::uint32_t {
     DB_URI,
     DB_CONN_POOL,
     DB_NAME,
+    EMAIL_FROM_NAME,
+    EMAIL_FROM_ID,
+    EMAIL_FROM_PASSWORD,
     MAX_CMD_ARG
 };
 
@@ -65,8 +73,8 @@ class MicroService : public ACE_Task<ACE_MT_SYNCH> {
 
         ACE_INT32 handle_signal(int signum, siginfo_t *s, ucontext_t *u) override;
 
-        MicroService(ACE_Thread_Manager *thrMgr);
-        ~MicroService();
+        MicroService(ACE_Thread_Manager *thrMgr, WebServer *parent);
+        virtual ~MicroService();
 
         ACE_thread_t myThreadId() {
           return(m_threadId);
@@ -77,21 +85,46 @@ class MicroService : public ACE_Task<ACE_MT_SYNCH> {
           return(ACE_Thread_Manager::ACE_THR_RUNNING == st);
         }
 
-        ACE_INT32 process_request(ACE_HANDLE handle, ACE_Message_Block& mb, Mongodbc& dbInst);
-        ACE_Message_Block* handle_OPTIONS(std::string& in);
-        ACE_Message_Block* handle_GET(std::string& in, Mongodbc& dbInst);
-        ACE_Message_Block* handle_POST(std::string& in, Mongodbc& dbInst);
-        ACE_Message_Block* handle_PUT(std::string& in, Mongodbc& dbInst);
-        ACE_Message_Block* handle_DELETE(std::string& in, Mongodbc& dbInst);
-        ACE_Message_Block* build_responseOK(std::string http_body, std::string content_type="application/json");
-        ACE_Message_Block* build_responseCreated();
+        WebServer& webServer() const {
+            return(*m_parent);
+        }
+
+        std::int32_t process_request(ACE_HANDLE handle, ACE_Message_Block& mb, MongodbClient& dbInst);
+        std::int32_t process_request(ACE_HANDLE handle, std::string& req, MongodbClient& dbInst);
+        std::string handle_OPTIONS(std::string& in);
+
+        std::string handle_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_shipment_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_account_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_inventory_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_email_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_document_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_config_GET(std::string& in, MongodbClient& dbInst);
+
+        std::string handle_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_shipment_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_account_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_inventory_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_email_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_document_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_config_POST(std::string& in, MongodbClient& dbInst);
+
+        std::string handle_PUT(std::string& in, MongodbClient& dbInst);
+        std::string handle_shipment_PUT(std::string& in, MongodbClient& dbInst);
+        std::string handle_inventory_PUT(std::string& in, MongodbClient& dbInst);
+        std::string handle_account_PUT(std::string& in, MongodbClient& dbInst);
+
+        std::string handle_DELETE(std::string& in, MongodbClient& dbInst);
+        std::string build_responseOK(std::string http_body, std::string content_type="application/json");
+        std::string build_responseCreated();
         std::string get_contentType(std::string _ext);
-        ACE_Message_Block* build_responseERROR(std::string httpBody, std::string error);
+        std::string build_responseERROR(std::string httpBody, std::string error);
 
     private:
         bool m_continue;
         ACE_thread_t m_threadId;
         bool m_iAmDone;
+        WebServer *m_parent;
         
 };
 
@@ -104,7 +137,7 @@ class WebConnection : public ACE_Event_Handler {
         ACE_HANDLE get_handle() const override;
 
         WebConnection(WebServer* parent);
-        ~WebConnection();
+        virtual ~WebConnection();
 
         long timerId() const {
             return(m_timerId);  
@@ -156,7 +189,7 @@ class WebServer : public ACE_Event_Handler {
         ACE_HANDLE get_handle() const override;
 
         WebServer(std::string _ip, ACE_UINT16 _port, ACE_UINT32 workerPool, std::string dbUri, std::string dbConnPool, std::string dbName);
-        ~WebServer();
+        virtual ~WebServer();
         bool start();
         bool stop();
 
@@ -183,9 +216,14 @@ class WebServer : public ACE_Event_Handler {
             return(curr);
         }
 
-        Mongodbc* mongodbcInst() {
-            return(mMongodbc);
+        MongodbClient* mongodbcInst() {
+            return(mMongodbc.get());
         }
+
+        ACE_Semaphore& semaphore() const {
+            return(*m_semaphore.get());
+        }
+
     private:
         ACE_Message_Block m_mb;
         ACE_SOCK_Stream m_stream;
@@ -196,7 +234,8 @@ class WebServer : public ACE_Event_Handler {
         std::vector<MicroService*> m_workerPool;
         std::vector<MicroService*>::iterator m_currentWorker;
         /* mongo db interface */
-        Mongodbc* mMongodbc;
+        std::unique_ptr<MongodbClient> mMongodbc;
+        std::unique_ptr<ACE_Semaphore> m_semaphore;
 
 };
 

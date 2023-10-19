@@ -29,7 +29,7 @@ Http::Http(const std::string& in)
 
 Http::~Http()
 {
-
+  m_tokenMap.clear();
 }
 
 void Http::parse_uri(const std::string& in)
@@ -63,11 +63,16 @@ void Http::parse_uri(const std::string& in)
           endCode[3] = (std::int8_t)input.get();
 
           std::string p((const char *)endCode, 4);
+
           if(!p.compare("HTTP")) {
+
             if(!isQsPresent) {
+
               m_uriName = parsed_string;
               parsed_string.clear();
+
             } else {
+
               value = parsed_string;
               add_element(param, value);
             }
@@ -236,7 +241,7 @@ std::string Http::get_body(const std::string& in)
   std::string body_delimeter("\r\n\r\n");
   std::string ty("application/json");
 
-  if(ct.length() && !ct.compare("application/json")) {
+  if(ct.length() && !ct.compare("application/json") && contentLen.length()) {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json CL %d hdrlen %d\n"), std::stoi(contentLen), header().length()));
 
     size_t body_offset = in.find(body_delimeter.c_str(), 0, body_delimeter.length());

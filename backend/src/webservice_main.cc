@@ -2,6 +2,7 @@
 #define __webservice_main_cc__
 
 #include "webservice.h"
+#include "emailservice.hpp"
 
 int main(int argc, char* argv[])
 {
@@ -21,10 +22,10 @@ int main(int argc, char* argv[])
 
    cmdOpt.fill("");
 
-   ACE_LOG_MSG->open (argv[0]);
+   ACE_LOG_MSG->open (argv[0], ACE_LOG_MSG->STDERR|ACE_LOG_MSG->SYSLOG);
 
    /* The last argument tells from where to start in argv - offset of argv array */
-   ACE_Get_Opt opts (argc, argv, ACE_TEXT ("s:p:w:u:c:h:d:"), 1);
+   ACE_Get_Opt opts (argc, argv, ACE_TEXT ("s:p:w:u:c:h:d:n:i:o:"), 1);
 
    opts.long_option(ACE_TEXT("server-ip"), 's', ACE_Get_Opt::ARG_REQUIRED);
    opts.long_option(ACE_TEXT("server-port"), 'p', ACE_Get_Opt::ARG_REQUIRED);
@@ -32,6 +33,11 @@ int main(int argc, char* argv[])
    opts.long_option(ACE_TEXT("mongo-db-uri"), 'u', ACE_Get_Opt::ARG_REQUIRED);
    opts.long_option(ACE_TEXT("mongo-db-connection-pool"), 'c', ACE_Get_Opt::ARG_REQUIRED);
    opts.long_option(ACE_TEXT("mongo-db-name"), 'd', ACE_Get_Opt::ARG_REQUIRED);
+   /* email client configuration */
+   opts.long_option(ACE_TEXT("email-from-name"), 'n', ACE_Get_Opt::ARG_REQUIRED);
+   opts.long_option(ACE_TEXT("email-from-id"), 'i', ACE_Get_Opt::ARG_REQUIRED);
+   opts.long_option(ACE_TEXT("email-from-password"), 'o', ACE_Get_Opt::ARG_REQUIRED);
+
    opts.long_option(ACE_TEXT("help"), 'h', ACE_Get_Opt::ARG_REQUIRED);
 
    int c = 0;
@@ -74,6 +80,21 @@ int main(int argc, char* argv[])
          ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [master:%t] %M %N:%l Database Name %s\n"), std::get<std::size_t(CommandArgumentName::DB_NAME)>(cmdOpt).c_str()));
          break;
 
+       case 'n':
+         cmdOpt[std::size_t(CommandArgumentName::EMAIL_FROM_NAME)] = std::string(opts.opt_arg());
+         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [master:%t] %M %N:%l email from name %s\n"), std::get<std::size_t(CommandArgumentName::EMAIL_FROM_NAME)>(cmdOpt).c_str()));
+         break;
+
+       case 'i':
+         cmdOpt[std::size_t(CommandArgumentName::EMAIL_FROM_ID)] = std::string(opts.opt_arg());
+         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [master:%t] %M %N:%l email from email-id %s\n"), std::get<std::size_t(CommandArgumentName::EMAIL_FROM_ID)>(cmdOpt).c_str()));
+         break;
+
+       case 'o':
+         cmdOpt[std::size_t(CommandArgumentName::EMAIL_FROM_PASSWORD)] = std::string(opts.opt_arg());
+         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [master:%t] %M %N:%l email from emai-password %s\n"), std::get<std::size_t(CommandArgumentName::EMAIL_FROM_PASSWORD)>(cmdOpt).c_str()));
+         break;
+
        case 'h':
        default:
           ACE_ERROR_RETURN ((LM_ERROR,
@@ -112,6 +133,15 @@ int main(int argc, char* argv[])
                   std::get<std::size_t(CommandArgumentName::DB_URI)>(cmdOpt),
                   std::get<std::size_t(CommandArgumentName::DB_CONN_POOL)>(cmdOpt),
                   std::get<std::size_t(CommandArgumentName::DB_NAME)>(cmdOpt));
+
+   /* filling email for sending updateds */
+    
+   SMTP::Account::instance().from_name(std::get<std::size_t(CommandArgumentName::EMAIL_FROM_NAME)>(cmdOpt));
+   SMTP::Account::instance().from_email(std::get<std::size_t(CommandArgumentName::EMAIL_FROM_ID)>(cmdOpt));
+   SMTP::Account::instance().from_password(std::get<std::size_t(CommandArgumentName::EMAIL_FROM_PASSWORD)>(cmdOpt));
+   
+   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l from_name:%s\n"), SMTP::Account::instance().from_name().c_str()));
+
    inst.start();
 
    return(0);
