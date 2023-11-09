@@ -53,10 +53,10 @@ RUN ldconfig
 
 WORKDIR /root
 
-RUN git clone https://github.com/naushada/granada.git
-RUN cd granada
+RUN git clone https://github.com/naushada/xpmile.git
+RUN cd xpmile/backend
 RUN mkdir ix86_64x
-WORKDIR /root/granada/ix86_64x
+WORKDIR /root/xpmile/backend/ix86_64x
 RUN cmake .. && make
 
 #node installation
@@ -67,16 +67,8 @@ RUN apt-get -y install curl
 RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
 RUN apt-get -y install nodejs
 RUN npm install -g @angular/cli
-WORKDIR /root
 
-RUN mkdir webclient && cd webclient
-WORKDIR /root/webclient
-RUN git  clone https://github.com/naushada/lms.git webui
-
-RUN cd webui
-
-WORKDIR /root/webclient/webui
-
+WORKDIR /root/xpmile/ui
 
 ##### Compile the Angular webgui #################
 RUN npm install xlsx
@@ -86,11 +78,8 @@ RUN npm install jsbarcode
 RUN npm install pdfmake
 RUN npm install @clr/icons @clr/angular @clr/ui @cds/core --save
 
-WORKDIR /root/webclient/webui
+WORKDIR /root/xpmile/ui
 
-#RUN npm install
-#RUN npm update
-#RUN npm update
 RUN ng build --configuration production --aot --base-href /webui/
 
 RUN cd /opt
@@ -99,14 +88,14 @@ RUN cd xAPP
 RUN mkdir webgui
 RUN cd webgui
 WORKDIR /opt/xAPP/webgui
-RUN cp -r /root/webclient/webui/dist/webui .
+RUN cp -r /root/xpmile/ui/dist/webui .
 
 WORKDIR /opt/xAPP
 RUN mkdir granada
 RUN cd granada
 WORKDIR /opt/xAPP/granada
 # copy from previoud build stage
-RUN cp /root/granada/ix86_64x/uniservice .
+RUN cp /root/xpmile/backend/ix86_64x/uniservice .
 
 # CMD_ARGS will be : --server-ip <ip> --server-port <port> --server-worker <number of worker> --mongo-db-name <name> --mongo-db-connection-pool <conn-pool> --mongo-db-uri <uri>
 
