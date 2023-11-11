@@ -34,7 +34,7 @@ TEST(HttpTestSuite, doGetTestIndex)
     uri << "GET / HTTP/1.1\r\n";
     header << "Host: " << "www.dummyhost.com\r\n"
            << "Connection: " << "Keep-Alive\r\n";
-    delim  << "\r\n\r\n";
+    delim  << "\r\n";
     //       << "Content-Length: " << 0 << "\r\n";
     req << uri.str() << header.str() << delim.str();
     

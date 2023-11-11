@@ -222,20 +222,19 @@ std::string Http::get_header(const std::string& in)
 
   //if(std::string::npos != in.find("Content-Type: application/json")) 
   {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json\n")));
-    std::string body_delimeter("\r\n\r\n");
-    //size_t body_offset = in.find_first_of(body_delimeter.c_str(), 0, body_delimeter.length());
+    std::string body_delimeter("\r\n");
+
     size_t body_offset = in.rfind(body_delimeter);
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset %d\n"), body_offset));
  
     if(std::string::npos != body_offset) {
-      //body_offset += body_delimeter.length();
       std::string document = in.substr(0, body_offset);
 
       ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is %s"), document.c_str()));
       return(document);
     }
   }
+
   return(std::string(in));
 }
 
