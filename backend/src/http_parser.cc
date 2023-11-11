@@ -40,7 +40,7 @@ void Http::parse_uri(const std::string& in)
   if(std::string::npos != offset) {
     /* Qstring */
     std::string req = in.substr(0, offset);
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The request string is %s\n"), req.c_str()));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The uri string is %s\n"), req.c_str()));
     std::stringstream input(req);
     std::string parsed_string;
     std::string param;
@@ -181,9 +181,10 @@ void Http::parse_mime_header(const std::string& in)
           while((c = _line.get()) != EOF) {
             switch(c) {
               case '\r':
+              case '\n':
               case ' ':
                 /* get rid of \r character */
-                break;
+                continue;
 
               default:
                 parsed_string.push_back(c);
@@ -219,15 +220,19 @@ void Http::dump(void) const
 std::string Http::get_header(const std::string& in)
 {
 
-  if(std::string::npos != in.find("Content-Type: application/json")) {
+  //if(std::string::npos != in.find("Content-Type: application/json")) 
+  {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json\n")));
     std::string body_delimeter("\r\n\r\n");
-    size_t body_offset = in.find(body_delimeter.c_str(), 0, body_delimeter.length());
+    //size_t body_offset = in.find_first_of(body_delimeter.c_str(), 0, body_delimeter.length());
+    size_t body_offset = in.rfind(body_delimeter);
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset %d\n"), body_offset));
+ 
     if(std::string::npos != body_offset) {
-      body_offset += body_delimeter.length();
+      //body_offset += body_delimeter.length();
       std::string document = in.substr(0, body_offset);
 
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is %s\n"), document.c_str()));
+      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is %s"), document.c_str()));
       return(document);
     }
   }
@@ -250,26 +255,13 @@ std::string Http::get_body(const std::string& in)
       std::string bdy(in.substr((body_delimeter.length() + body_offset), std::stoi(contentLen)));
       //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s\n"), bdy.length(), bdy.c_str()));
 
-      if(contentLen.length() && (in.length() == header().length() + std::stoi(contentLen))) {
+      if(contentLen.length() && (in.length() == header().length() + std::stoi(contentLen) + body_delimeter.length())) {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s\n"), bdy.length(), bdy.c_str()));
         return(bdy);
       }
     }
-
-    return(std::string());
-
-    #if 0
-    std::string body_delimeter("\r\n\r\n");
-    size_t body_offset = in.find(body_delimeter, 0);
-    if(std::string::npos != body_offset) {
-      body_offset += body_delimeter.length();
-      std::string document = in.substr(body_offset);
-
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The body is %s\n"), document.c_str()));
-      return(document);
-    }
-    #endif
   }
+
   return(std::string());
 }
 

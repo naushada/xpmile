@@ -17,7 +17,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -g -Wall -Wextra")
 #However, the file(GLOB...) allows for wildcard additions:
 file(GLOB SOURCES "*.cc" "../mongodbc/src/mongodbc.cc" 
                          "../src/emailservice.cc" 
-                         "../src/emailservice_fsm.cc")
+                         "../src/emailservice_fsm.cc"
+                         "../src/http_parser.cc")
 
 enable_testing()
 
