@@ -39,9 +39,12 @@ TEST(HttpTestSuite, doGetTestIndex)
     req << uri.str() << header.str() << delim.str();
     
     Http http(req.str());
-    std::cout << " Http.body() " << http.body() <<  " length: " << http.body().length() << " header.length() " << http.header().length() << std::endl;
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), http.header().c_str()));
+
     EXPECT_EQ("/", http.get_uriName());
     EXPECT_EQ(uri.str() + header.str(), http.header());
+    EXPECT_EQ(http.get_element("Host") , "www.dummyhost.com");
+    EXPECT_EQ(http.get_element("Connection") , "Keep-Alive");
 }
 
 #endif /*__httpparser_cc__ */
