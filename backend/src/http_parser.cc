@@ -182,7 +182,6 @@ void Http::parse_mime_header(const std::string& in)
             switch(c) {
               case '\r':
               case '\n':
-              case ' ':
                 /* get rid of \r character */
                 continue;
 
@@ -218,23 +217,18 @@ void Http::dump(void) const
 }
 
 std::string Http::get_header(const std::string& in)
-{
+{ 
+  std::string body_delimeter("\r\n");
 
-  //if(std::string::npos != in.find("Content-Type: application/json")) 
-  {
-    std::string body_delimeter("\r\n");
-
-    size_t body_offset = in.rfind(body_delimeter);
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset %d\n"), body_offset));
+  size_t body_offset = in.rfind(body_delimeter);
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset %d\n"), body_offset));
  
-    if(std::string::npos != body_offset) {
-      std::string document = in.substr(0, body_offset);
+  if(std::string::npos != body_offset) {
+    std::string document = in.substr(0, body_offset);
 
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is %s"), document.c_str()));
-      return(document);
-    }
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
+    return(document);
   }
-
   return(std::string(in));
 }
 
@@ -242,22 +236,16 @@ std::string Http::get_body(const std::string& in)
 {
   std::string ct = get_element("Content-Type");
   std::string contentLen = get_element("Content-Length");
-  std::string body_delimeter("\r\n\r\n");
-  std::string ty("application/json");
 
   if(ct.length() && !ct.compare("application/json") && contentLen.length()) {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json CL %d hdrlen %d\n"), std::stoi(contentLen), header().length()));
 
-    size_t body_offset = in.find(body_delimeter.c_str(), 0, body_delimeter.length());
+    size_t body_offset = get_header(in).length() + 2 /* \r\n delimeter's length which seperator between header and body */;
 
-    if(std::string::npos != body_offset) {
-      std::string bdy(in.substr((body_delimeter.length() + body_offset), std::stoi(contentLen)));
-      //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s\n"), bdy.length(), bdy.c_str()));
-
-      if(contentLen.length() && (in.length() == header().length() + std::stoi(contentLen) + body_delimeter.length())) {
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s\n"), bdy.length(), bdy.c_str()));
-        return(bdy);
-      }
+    if(body_offset) {
+      std::string document(in.substr(body_offset, std::stoi(contentLen)));
+      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s"), document.length(), document.c_str()));
+      return(document);
     }
   }
 
