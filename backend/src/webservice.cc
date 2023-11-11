@@ -2121,11 +2121,7 @@ ACE_HANDLE WebConnection::get_handle() const
 
 bool WebConnection::isCompleteRequestReceived()
 {
-    if((m_req != NULL) && ((ACE_INT32)m_req->length() == m_expectedLength)) {
-        return(true);
-    }
-
-    return(false);
+    return((m_req != NULL) && ((ACE_INT32)m_req->length() == m_expectedLength));
 }
 
 bool WebConnection::isBufferingOfRequestCompleted() 
