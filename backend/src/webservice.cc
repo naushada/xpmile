@@ -2143,7 +2143,7 @@ bool WebConnection::isBufferingOfRequestCompleted()
                 if(CT.length() && !CT.compare("application/json")) {
                     /* This Must be POST or PUT Method. */
                     if(CL.length()) {
-                        std::int32_t expected_length = http.header().length() + std::stoi(CL);
+                        std::int32_t expected_length = http.header().length() + std::stoi(CL) + 2 /* for \r\n delimeter */;
                         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Expected Length %d received length %d\n"), expected_length, len));
 
                         /* +512 is to avoid buffer overflow */

@@ -75,6 +75,7 @@ TEST(HttpTestSuite, doPostTestShipment)
     EXPECT_EQ(uri.str() + header.str(), http.header());
     //EXPECT_EQ(http.get_element("Host") , "www.dummyhost.com");
     EXPECT_EQ(http.body() , document.str());
+    EXPECT_EQ(req.str().length() , http.body().length() + http.header().length() + 2);
 }
 
 #endif /*__httpparser_cc__ */
