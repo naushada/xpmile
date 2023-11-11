@@ -683,6 +683,23 @@ std::string MicroService::handle_GET(std::string& in, MongodbClient& dbInst)
               ifs.close();
               return(build_responseOK(_str.str(), cntType));
           }
+        } else {
+            std::string newFile = "../webgui/webui/index.html";
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"), newFile.c_str()));
+            /* Open the index.html file and send it to web browser. */
+            std::ifstream ifs(newFile.c_str(), ios::binary);
+            std::stringstream _str("");
+            std::string cntType("");
+
+            if(ifs.is_open()) {
+                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"), uri.c_str()));
+
+                cntType = "text/html";
+                _str << ifs.rdbuf();
+                ifs.close();
+
+                return(build_responseOK(_str.str(), cntType));
+            }
         }
     } else if(!uri.compare(0, 8, "/assets/")) {
         /* build the file name now */
