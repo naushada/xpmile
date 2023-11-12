@@ -2026,30 +2026,48 @@ ACE_INT32 WebConnection::handle_timeout(const ACE_Time_Value &tv, const void *ac
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input on handle %d\n"), m_handle));
-    if(!isBufferingOfRequestCompleted()) {
-        return(0);
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input on handle %d\n"), handle));
+    std::vector<char> in(2048);
+    std::int32_t effectiveLength = 0;
+    std::stringstream ss("");
+    auto rc = ::recv(handle, in.data(), in.max_size(), MSG_PEEK);
+
+    if(rc <= in.max_size()) {
+        //
+        Http http(std::string(in.data(), rc));
+        if(http.get_element("Content-Length").length()) {
+            effectiveLength = http.header().length() + http.get_element("Content-Length").length() + 2; 
+        } else {
+            effectiveLength = http.header().length() + 2;
+        }
     }
 
-    if(!m_expectedLength) {
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\n"), effectiveLength));
+    std::int32_t offset = 0;
 
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Request of length %d on connection %d" 
-                                        " memory will be reclaimed upon timer expiry\n"), m_expectedLength, m_handle));
-        if(timerId() > 0) {
-            /* start 1/2 second timer i.e. 500 milli second*/
-            ACE_Time_Value to(0,1);
-            parent()->stop_conn_cleanup_timer(timerId());
-            m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+    do {
+
+        rc = ::recv(handle, in.data(), in.max_size(), 0);
+        if(rc < 0) {
+            //Error handling
+            if(timerId() > 0) {
+                /* start 1/2 second timer i.e. 500 milli second*/
+                ACE_Time_Value to(0,1);
+                parent()->stop_conn_cleanup_timer(timerId());
+                m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+            }
             return(-1);
         }
 
-        return(-1);
-    }
+        offset += rc;
+        ss << std::string(in.data(), rc);
+
+    } while(offset != effectiveLength);
 
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
-    ACE_NEW_NORETURN(req, ACE_Message_Block((size_t) (m_expectedLength + 512)));
+    ACE_NEW_NORETURN(req, ACE_Message_Block((size_t) (effectiveLength + 512)));
     req->reset();
     req->msg_type(ACE_Message_Block::MB_DATA);
 
@@ -2073,14 +2091,14 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     //req->copy((char *)&parent_inst, sizeof(uintptr_t));
     req->wr_ptr(sizeof(uintptr_t));
 
-    std::int32_t len = m_req->length();
-    std::memcpy(req->wr_ptr(), m_req->rd_ptr(), len);
+    std::int32_t len = ss.str().length();
+    std::memcpy(req->wr_ptr(), ss.str().data(), len);
     //req->copy(m_req->rd_ptr(), len);
     req->wr_ptr(len);
 
     /* Reclaim the memory now */
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l m_req->reference_count() %d \n"), m_req->reference_count()));
-    m_req->release();
+    //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l m_req->reference_count() %d \n"), m_req->reference_count()));
+    //m_req->release();
     
     m_expectedLength = -1;
 
