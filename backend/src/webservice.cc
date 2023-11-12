@@ -2103,13 +2103,13 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     inst = reinterpret_cast<std::uintptr_t>(parent());
     data.write(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
     /* Payload length */
-    data.write(reinterpret_cast<char *>(&ss.str().length()), sizeof(std::uint32_t));
+    data.write(reinterpret_cast<char *>(ss.str().length()), sizeof(std::uint32_t));
     data << ss.str();
 
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
-    ACE_NEW_NORETURN(req, ACE_Message_Block(reinterpret_cast<const char *>(&data.str().c_str()), data.str().length()));
+    ACE_NEW_NORETURN(req, ACE_Message_Block(reinterpret_cast<const char *>(data.str().c_str()), data.str().length()));
     req->msg_type(ACE_Message_Block::MB_DATA);
 
 #if 0
