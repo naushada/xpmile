@@ -1638,10 +1638,10 @@ int MicroService::svc()
                 ACE_HANDLE handle;
                 istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
                 std::uintptr_t inst;
-                istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
-                MongodbClient* dbInst = reinterpret_cast<MongodbClient*>(inst);
-                istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
-                WebServer* parent = reinterpret_cast<WebServer*>(inst);
+                istrstr.read(reinterpret_cast<char *>(inst), sizeof(std::uintptr_t));
+                MongodbClient* dbInst = reinterpret_cast<MongodbClient*>(*inst);
+                istrstr.read(reinterpret_cast<char *>(inst), sizeof(std::uintptr_t));
+                WebServer* parent = reinterpret_cast<WebServer*>(*inst);
                 std::uint32_t len = 0;
                 istrstr.read(reinterpret_cast<char *>(&len), sizeof(len));
                 std::string request("");
