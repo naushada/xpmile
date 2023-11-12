@@ -2049,7 +2049,18 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     std::stringstream ss("");
     auto rc = ::recv(handle, in.data(), in.max_size(), MSG_PEEK);
 
-    if(rc <= in.max_size()) {
+    if(rc <= 0) {
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle %d\n"), handle));
+
+        if(timerId() > 0) {
+            /* start 1/2 second timer i.e. 500 milli second*/
+            //ACE_Time_Value to(0,1);
+            parent()->stop_conn_cleanup_timer(timerId());
+            //m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+        }
+
+        return(-1);
+    } else if(rc <= in.max_size()) {
         //
         Http http(std::string(in.data(), rc));
         if(http.get_element("Content-Length").length()) {
@@ -2065,13 +2076,13 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     do {
 
         rc = ::recv(handle, in.data(), in.max_size(), 0);
-        if(rc < 0) {
+        if(rc <= 0) {
             //Error handling
             if(timerId() > 0) {
                 /* start 1/2 second timer i.e. 500 milli second*/
-                ACE_Time_Value to(0,1);
+                //ACE_Time_Value to(0,1);
                 parent()->stop_conn_cleanup_timer(timerId());
-                m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+                //m_timerId = parent()->start_conn_cleanup_timer(handle, to);
             }
             return(-1);
         }
