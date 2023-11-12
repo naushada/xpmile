@@ -2051,7 +2051,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 
     if(rc <= 0) {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle %d\n"), handle));
-
+        rc = ::recv(handle, in.data(), in.max_size(), 0);
         if(timerId() > 0) {
             /* start 1/2 second timer i.e. 500 milli second*/
             //ACE_Time_Value to(0,1);
@@ -2082,7 +2082,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
                 /* start 1/2 second timer i.e. 500 milli second*/
                 //ACE_Time_Value to(0,1);
                 parent()->stop_conn_cleanup_timer(timerId());
-                //m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+                m_timerId = parent()->start_conn_cleanup_timer(handle, to);
             }
             return(-1);
         }
@@ -2146,7 +2146,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     req->wr_ptr(len);
 #endif
     /* Reclaim the memory now */
-    //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l m_req->reference_count() %d \n"), m_req->reference_count()));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l req->reference_count() %d \n"), req->reference_count()));
     //m_req->release();
     
     m_expectedLength = -1;
@@ -2176,7 +2176,8 @@ ACE_INT32 WebConnection::handle_signal(int signum, siginfo_t *s, ucontext_t *u)
 ACE_INT32 WebConnection::handle_close (ACE_HANDLE handle, ACE_Reactor_Mask mask)
 {
     ACE_UNUSED_ARG(mask);
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::handle_close handle %d will be closed upon timer expiry\n"), handle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::handle_close handle %d is closed\n"), handle));
+    ::close(handle);
     return(0);
 }
 
