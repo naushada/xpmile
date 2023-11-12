@@ -1633,6 +1633,22 @@ int MicroService::svc()
                  | 4-bytes handle   | 4-bytes db instance pointer   | request (payload) |
                  |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ _|
                 */
+                std::istringstream istrstr;
+                istrstr.rdbuf()->pubsetbuf(mb->rd_ptr(), mb->length());
+                ACE_HANDLE handle;
+                istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
+                std::uintptr_t inst;
+                istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
+                MongodbClient* dbInst = reinterpret_cast<MongodbClient*>(inst);
+                istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
+                WebServer* parent = reinterpret_cast<WebServer*>(inst);
+                std::uint32_t len = 0;
+                istrstr.read(reinterpret_cast<char *>(&len), sizeof(len));
+                std::string request("");
+                istrstr.read(reinterpret_cast<char *>(&request.data()), len);
+                request.resize(len);
+
+            #if 0
                 ACE_HANDLE handle = *((ACE_HANDLE *)&mb->rd_ptr()[offset]);
                 //mb->rd_ptr(sizeof(ACE_HANDLE));
                 offset += sizeof(ACE_HANDLE);
@@ -1657,6 +1673,7 @@ int MicroService::svc()
                 std::string request((char *)&mb->rd_ptr()[offset], (mb->length() - offset)); 
                 /*! Process The Request */
                 //process_request(handle, *mb, *dbInst);
+            #endif
                 process_request(handle, request, *dbInst);
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l mb->reference_count() %d \n"), mb->reference_count()));
                 mb->release();
@@ -2064,17 +2081,38 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 
     } while(offset != effectiveLength);
 
+#if 0
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
     ACE_NEW_NORETURN(req, ACE_Message_Block((size_t) (effectiveLength + 512)));
     req->reset();
     req->msg_type(ACE_Message_Block::MB_DATA);
+#endif
 
     /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
      | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance |request (payload) |
      |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ |
      */
+    std::stringstream data;
+    data.write(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
+    /* db instance */
+    std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
+    data.write(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
+    /* parent instance */
+    inst = reinterpret_cast<std::uintptr_t>(parent());
+    data.write(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
+    /* Payload length */
+    data.write(reinterpret_cast<char *>(&ss.str().length()), sizeof(std::uint32_t));
+    data << ss.str();
+
+    /* Request is buffered now start processing it */
+    ACE_Message_Block* req = NULL;
+
+    ACE_NEW_NORETURN(req, ACE_Message_Block(reinterpret_cast<const char *>(&data.str().c_str()), data.str().length()));
+    req->msg_type(ACE_Message_Block::MB_DATA);
+
+#if 0
     *((ACE_HANDLE *)req->wr_ptr()) = handle;
     //req->copy((char *)&handle, sizeof(ACE_HANDLE));
     req->wr_ptr(sizeof(ACE_HANDLE));
@@ -2095,7 +2133,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     std::memcpy(req->wr_ptr(), ss.str().data(), len);
     //req->copy(m_req->rd_ptr(), len);
     req->wr_ptr(len);
-
+#endif
     /* Reclaim the memory now */
     //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l m_req->reference_count() %d \n"), m_req->reference_count()));
     //m_req->release();
