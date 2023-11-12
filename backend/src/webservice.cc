@@ -2082,7 +2082,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
                 /* start 1/2 second timer i.e. 500 milli second*/
                 //ACE_Time_Value to(0,1);
                 parent()->stop_conn_cleanup_timer(timerId());
-                m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+                //m_timerId = parent()->start_conn_cleanup_timer(handle, to);
             }
             return(-1);
         }
