@@ -1629,6 +1629,7 @@ int MicroService::svc()
             {
             case ACE_Message_Block::MB_DATA:
             {
+                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l svc::ACE_Message_Block::MB_DATA\n")));
                 /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
                  | 4-bytes handle   | 4-bytes db instance pointer   | request (payload) |
                  |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ _|
