@@ -1645,10 +1645,10 @@ int MicroService::svc()
                 WebServer* parent = reinterpret_cast<WebServer*>(inst);
                 std::uint32_t len = 0;
                 istrstr.read(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
-                std::string request("");
-                request.reserve(len);
-                istrstr.read(reinterpret_cast<char *>(request.data()), len);
+                std::vector<char> str(len);
+                istrstr.read(reinterpret_cast<char *>(str.data()), len);
                 //request.resize(len);
+                std::string request(str.begin(), str.end());
 
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l len:%d svc::request is\n%s"),len, request.c_str()));
 
@@ -2122,7 +2122,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     data.write(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
     data << ss.str();
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:%s\n"), len, ss.str().c_str()));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
 
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
