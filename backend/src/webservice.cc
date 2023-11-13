@@ -2121,6 +2121,8 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     data.write(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
     data << ss.str();
 
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:%s\n"), len, ss.str().c_str()));
+
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
