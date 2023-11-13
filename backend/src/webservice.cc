@@ -1644,10 +1644,12 @@ int MicroService::svc()
                 istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
                 WebServer* parent = reinterpret_cast<WebServer*>(inst);
                 std::uint32_t len = 0;
-                istrstr.read(reinterpret_cast<char *>(&len), sizeof(len));
+                istrstr.read(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
                 std::string request("");
                 istrstr.read(reinterpret_cast<char *>(request.data()), len);
                 request.resize(len);
+
+                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l len:%d svc::request is\n%s"),len, request.c_str()));
 
             #if 0
                 ACE_HANDLE handle = *((ACE_HANDLE *)&mb->rd_ptr()[offset]);
@@ -2055,9 +2057,9 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         rc = ::recv(handle, in.data(), in.max_size(), 0);
         if(timerId() > 0) {
             /* start 1/2 second timer i.e. 500 milli second*/
-            //ACE_Time_Value to(0,1);
+            ACE_Time_Value to(0,1);
             parent()->stop_conn_cleanup_timer(timerId());
-            //m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+            m_timerId = parent()->start_conn_cleanup_timer(handle, to);
         }
 
         return(-1);
@@ -2081,9 +2083,9 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
             //Error handling
             if(timerId() > 0) {
                 /* start 1/2 second timer i.e. 500 milli second*/
-                //ACE_Time_Value to(0,1);
+                ACE_Time_Value to(0,1);
                 parent()->stop_conn_cleanup_timer(timerId());
-                //m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+                m_timerId = parent()->start_conn_cleanup_timer(handle, to);
             }
             return(-1);
         }
