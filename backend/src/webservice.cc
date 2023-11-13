@@ -1649,7 +1649,7 @@ int MicroService::svc()
                 istrstr.read(reinterpret_cast<char *>(str.data()), len);
                 std::string request(str.begin(), str.end());
 
-                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l len:%d svc::request is\n%s"),len, request.c_str()));
+                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l handle: %d len:%d svc::request is\n%s"),handle, len, request.c_str()));
 
             #if 0
                 ACE_HANDLE handle = *((ACE_HANDLE *)&mb->rd_ptr()[offset]);
