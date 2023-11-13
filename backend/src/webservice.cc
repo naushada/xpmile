@@ -1646,8 +1646,9 @@ int MicroService::svc()
                 std::uint32_t len = 0;
                 istrstr.read(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
                 std::string request("");
+                request.reserve(len);
                 istrstr.read(reinterpret_cast<char *>(request.data()), len);
-                request.resize(len);
+                //request.resize(len);
 
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l len:%d svc::request is\n%s"),len, request.c_str()));
 
