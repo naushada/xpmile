@@ -1741,7 +1741,7 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
     ACE_UNUSED_ARG(tv);
     std::uintptr_t _handle = reinterpret_cast<std::uintptr_t>(act);
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timedout for connection %d\n"), _handle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timeout for connection %d\n"), _handle));
     auto conIt = m_connectionPool.find(_handle);
 
     if(conIt != std::end(m_connectionPool)) {
@@ -2034,7 +2034,7 @@ WebConnection::~WebConnection()
 ACE_INT32 WebConnection::handle_timeout(const ACE_Time_Value &tv, const void *act)
 {
     (void)tv;
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Webconnection::handle_timedout\n")));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Webconnection::handle_timeout\n")));
     std::uintptr_t handle = reinterpret_cast<std::uintptr_t>(act);
     auto conIt = m_parent->connectionPool().find(handle);
 
@@ -2062,7 +2062,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
             m_timerId = parent()->start_conn_cleanup_timer(handle, to);
         }
 
-        return(-1);
+        return(0);
     } else if(rc <= in.max_size()) {
         //
         Http http(std::string(in.data(), rc));
@@ -2087,7 +2087,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
                 parent()->stop_conn_cleanup_timer(timerId());
                 m_timerId = parent()->start_conn_cleanup_timer(handle, to);
             }
-            return(-1);
+            return(0);
         }
 
         offset += rc;
