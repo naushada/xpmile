@@ -1647,7 +1647,6 @@ int MicroService::svc()
                 istrstr.read(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
                 std::vector<char> str(len);
                 istrstr.read(reinterpret_cast<char *>(str.data()), len);
-                //request.resize(len);
                 std::string request(str.begin(), str.end());
 
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l len:%d svc::request is\n%s"),len, request.c_str()));
@@ -2128,11 +2127,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     ACE_Message_Block* req = NULL;
 
     ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast<const char *>(data.str().c_str())));
-    //ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length() + 64));
-    //req->init(reinterpret_cast<const char *>(data.str().c_str()), data.str().length());
-    //req->copy(data.str().c_str(), data.str().length());
     req->wr_ptr(data.str().length());
-    //req->msg_type(ACE_Message_Block::MB_DATA);
 
 #if 0
     *((ACE_HANDLE *)req->wr_ptr()) = handle;
