@@ -4,6 +4,9 @@
 #include "webservice.h"
 #include "http_parser.h"
 #include "emailservice.hpp"
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 /**
  * @brief This member function processes the DELETE for a given uri.
