@@ -1637,7 +1637,7 @@ int MicroService::svc()
                 std::istringstream istrstr;
                 istrstr.rdbuf()->pubsetbuf(mb->rd_ptr(), mb->length());
                 ACE_HANDLE handle;
-                istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
+                istrstr.read(reinterpret_cast<char *>(&handle), sizeof(handle));
                 std::uintptr_t inst;
                 istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
                 MongodbClient* dbInst = reinterpret_cast<MongodbClient*>(inst);
@@ -2127,17 +2127,23 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
 
-    /* Request is buffered now start processing it */
-    ACE_Message_Block* req = NULL;
-
-    ACE_NEW_NORETURN(req, ACE_Message_Block(1, ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
-    req->wr_ptr(data.str().length());
 
     std::istringstream istr;
     istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
     ACE_HANDLE myHandle;
     istr.read(reinterpret_cast<char *>(&myHandle), sizeof(myHandle));
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d"), myHandle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d handle: %d\n"), myHandle, handle));
+    
+    /* Request is buffered now start processing it */
+    ACE_Message_Block* req = NULL;
+
+    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
+    req->wr_ptr(data.str().length());
+
+    
+    istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
+    istr.read(reinterpret_cast<char *>(&myHandle), sizeof(myHandle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d handle: %d\n"), myHandle, handle));
 
 #if 0
     *((ACE_HANDLE *)req->wr_ptr()) = handle;
