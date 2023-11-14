@@ -2104,21 +2104,21 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     req->msg_type(ACE_Message_Block::MB_DATA);
 #endif
 
-    /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-     | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance |request (payload) |
-     |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ |
+    /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _________________________
+     | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance | 4 bytes payload length |request (payload) |
+     |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ _________________________|
      */
     std::stringstream data;
-    data.write(reinterpret_cast<char *>(&handle), sizeof(handle));
+    data.write(reinterpret_cast <char *>(&handle), sizeof(handle));
     /* db instance */
     std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
-    data.write(reinterpret_cast<char *>(&inst), sizeof(inst));
+    data.write(reinterpret_cast <char *>(&inst), sizeof(inst));
     /* parent instance */
     inst = reinterpret_cast<std::uintptr_t>(parent());
-    data.write(reinterpret_cast<char *>(&inst), sizeof(inst));
+    data.write(reinterpret_cast <char *>(&inst), sizeof(inst));
     /* Payload length */
     auto len = ss.str().length();
-    data.write(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
+    data.write(reinterpret_cast <char *>(&len), sizeof(std::uint32_t));
     data << ss.str();
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
