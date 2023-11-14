@@ -2113,23 +2113,23 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
      |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ _________________________|
      */
     std::stringstream data;
-    data.write(reinterpret_cast <char *>(&handle), sizeof(handle));
+    data.write(reinterpret_cast <const char *>(&handle), sizeof(handle));
     /* db instance */
     std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
-    data.write(reinterpret_cast <char *>(&inst), sizeof(inst));
+    data.write(reinterpret_cast <const char *>(&inst), sizeof(inst));
     /* parent instance */
     inst = reinterpret_cast<std::uintptr_t>(parent());
-    data.write(reinterpret_cast <char *>(&inst), sizeof(inst));
+    data.write(reinterpret_cast <const char *>(&inst), sizeof(inst));
     /* Payload length */
     auto len = ss.str().length();
-    data.write(reinterpret_cast <char *>(&len), sizeof(std::uint32_t));
-    data.write(reinterpret_cast<char *>(ss.str().data()),  len);
+    data.write(reinterpret_cast <const char *>(&len), sizeof(std::uint32_t));
+    data.write(reinterpret_cast <const char *>(ss.str().data()),  len);
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
 
-
-    std::istringstream istr;
-    istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
+    std::string nn(data.str().data(), data.str().length());
+    std::istringstream istr(nn);
+    //istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
     ACE_HANDLE myHandle;
     istr.read(reinterpret_cast<char *>(&myHandle), sizeof(myHandle));
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d handle: %d\n"), myHandle, handle));
@@ -2141,7 +2141,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     req->wr_ptr(data.str().length());
 
     
-    istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
+    //istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
     istr.read(reinterpret_cast<char *>(&myHandle), sizeof(myHandle));
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d handle: %d\n"), myHandle, handle));
 
