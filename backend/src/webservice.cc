@@ -2131,8 +2131,13 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
-    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
-    req->wr_ptr(data.str().length());
+    //ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
+    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length()));
+    if(req->copy(data.str().data(), data.str().length()) < 0) {
+        ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l copy failed\n")));
+    }
+    //req->msg_type(ACE_Message_Block::MB_DATA);
+    //req->wr_ptr(data.str().length());
 
 #if 0
     *((ACE_HANDLE *)req->wr_ptr()) = handle;
