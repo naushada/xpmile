@@ -1634,8 +1634,9 @@ int MicroService::svc()
                  | 4-bytes handle   | 4-bytes db instance pointer   | request (payload) |
                  |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ _|
                 */
-                std::istringstream istrstr;
-                istrstr.rdbuf()->pubsetbuf(mb->rd_ptr(), mb->length());
+                std::string ss(mb->rd_ptr(), mb->length());
+                std::istringstream istrstr(ss);
+                //istrstr.rdbuf()->pubsetbuf(mb->rd_ptr(), mb->length());
                 ACE_HANDLE handle;
                 istrstr.read(reinterpret_cast<char *>(&handle), sizeof(handle));
                 std::uintptr_t inst;
