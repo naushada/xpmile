@@ -1636,7 +1636,6 @@ int MicroService::svc()
                 */
                 std::string ss(mb->rd_ptr(), mb->length());
                 std::istringstream istrstr(ss);
-                //istrstr.rdbuf()->pubsetbuf(mb->rd_ptr(), mb->length());
                 ACE_HANDLE handle;
                 istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
                 std::uintptr_t inst;
@@ -1649,41 +1648,7 @@ int MicroService::svc()
                 std::vector<char> str(len);
                 istrstr.read(reinterpret_cast<char *>(str.data()), len);
                 std::string request(str.begin(), str.end());
-
-                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l mb->length: %d handle: %d len:%d svc::request is\n%s"),mb->length(), handle, len, request.c_str()));
-                //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l URI %s dbName %s\n"), dbInst->get_uri().c_str(), dbInst->get_database().c_str()));
-                //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l handle %d length %d \n"), handle, mb->length()));
-
-                //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l httpReq length %d\n"), mb->length()));
-
-            #if 0
-                ACE_HANDLE handle = *((ACE_HANDLE *)&mb->rd_ptr()[offset]);
-                //mb->rd_ptr(sizeof(ACE_HANDLE));
-                offset += sizeof(ACE_HANDLE);
-
-                std::uintptr_t inst = *((std::uintptr_t *)&mb->rd_ptr()[offset]);
-                MongodbClient* dbInst = reinterpret_cast<MongodbClient*>(inst);
-                //mb->rd_ptr(sizeof(uintptr_t));
-                offset += sizeof(std::uintptr_t);
-                /* Parent instance */
-                std::uintptr_t parent_inst = *((std::uintptr_t *)&mb->rd_ptr()[offset]);
-                WebServer* parent = reinterpret_cast<WebServer*>(parent_inst);
-                //mb->rd_ptr(sizeof(uintptr_t));
-                offset += sizeof(uintptr_t);
-
-                ACE_UNUSED_ARG(parent);
-
-                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l URI %s dbName %s\n"), dbInst->get_uri().c_str(), dbInst->get_database().c_str()));
-                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l handle %d length %d \n"), handle, mb->length()));
-
-                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l httpReq length %d\n"), mb->length()));
-               
-                std::string request((char *)&mb->rd_ptr()[offset], (mb->length() - offset)); 
-                /*! Process The Request */
-                //process_request(handle, *mb, *dbInst);
-            #endif
                 process_request(handle, request, *dbInst);
-                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l mb->reference_count() %d \n"), mb->reference_count()));
                 mb->release();
 		
                 break;
@@ -1787,7 +1752,7 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle)
         } else {
             ACE_NEW_RETURN(connEnt, WebConnection(this), -1);
             m_connectionPool[peerStream.get_handle()] = connEnt;
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l New connection is created and handle is %d peer ip address %u (%s) peer port %d\n"), 
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l New connection is created for handle: %d peer ip address: %u (%s) peer port %d\n"), 
                 peerStream.get_handle(),
                 peerAddr.get_ip_address(), peerAddr.get_host_addr(), peerAddr.get_port_number()));
 
@@ -1796,7 +1761,7 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle)
             connEnt->timerId(tId);
             connEnt->handle(peerStream.get_handle());
             connEnt->connAddr(peerAddr);
-
+            //Discrete event handler for each connected client.
             ACE_Reactor::instance()->register_handler(connEnt, 
                                                       ACE_Event_Handler::READ_MASK |
                                                       ACE_Event_Handler::TIMER_MASK | 
@@ -2026,8 +1991,7 @@ WebConnection::WebConnection(WebServer* parent)
     m_timerId = -1;
     m_handle = -1;
     m_parent = parent;
-    m_req = NULL;
-    m_expectedLength = -1;
+    
 }
 
 WebConnection::~WebConnection()
@@ -2058,16 +2022,14 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     auto rc = ::recv(handle, in.data(), in.max_size(), MSG_PEEK);
 
     if(rc <= 0) {
+
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle %d\n"), handle));
         rc = ::recv(handle, in.data(), in.max_size(), 0);
-        if(timerId() > 0) {
-            /* start 1/2 second timer i.e. 500 milli second*/
-            ACE_Time_Value to(0,1);
-            parent()->stop_conn_cleanup_timer(timerId());
-            m_timerId = parent()->start_conn_cleanup_timer(handle, to);
-        }
-
+        /* start 1/2 second timer i.e. 500 milli second*/
+        ACE_Time_Value to(0,0);
+        parent()->restart_conn_cleanup_timer(handle, to);
         return(0);
+
     } else if(rc <= in.max_size()) {
         //
         Http http(std::string(in.data(), rc));
@@ -2086,12 +2048,9 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         rc = ::recv(handle, in.data(), in.max_size(), 0);
         if(rc <= 0) {
             //Error handling
-            if(timerId() > 0) {
-                /* start 1/2 second timer i.e. 500 milli second*/
-                ACE_Time_Value to(0,1);
-                parent()->stop_conn_cleanup_timer(timerId());
-                m_timerId = parent()->start_conn_cleanup_timer(handle, to);
-            }
+            /* start 1/2 second timer i.e. 500 milli second*/
+            ACE_Time_Value to(0,0);
+            parent()->restart_conn_cleanup_timer(handle, to);
             return(0);
         }
 
@@ -2099,15 +2058,6 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         ss << std::string(in.data(), rc);
 
     } while(offset != effectiveLength);
-
-#if 0
-    /* Request is buffered now start processing it */
-    ACE_Message_Block* req = NULL;
-
-    ACE_NEW_NORETURN(req, ACE_Message_Block((size_t) (effectiveLength + 512)));
-    req->reset();
-    req->msg_type(ACE_Message_Block::MB_DATA);
-#endif
 
     /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _________________________
      | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance | 4 bytes payload length |request (payload) |
@@ -2129,43 +2079,12 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
     
     /* Request is buffered now start processing it */
-    ACE_Message_Block* req = NULL;
-
-    //ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
+    ACE_Message_Block* req = nullptr;
+    
     ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length()));
     if(req->copy(data.str().data(), data.str().length()) < 0) {
         ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l copy failed\n")));
     }
-    //req->msg_type(ACE_Message_Block::MB_DATA);
-    //req->wr_ptr(data.str().length());
-
-#if 0
-    *((ACE_HANDLE *)req->wr_ptr()) = handle;
-    //req->copy((char *)&handle, sizeof(ACE_HANDLE));
-    req->wr_ptr(sizeof(ACE_HANDLE));
-
-    /* db instance */
-    std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
-    *((std::uintptr_t* )req->wr_ptr()) = inst;
-    //req->copy((char *)&inst, sizeof(uintptr_t));
-    req->wr_ptr(sizeof(uintptr_t));
-
-    /* parent instance */
-    std::uintptr_t parent_inst = reinterpret_cast<std::uintptr_t>(parent());
-    *((std::uintptr_t* )req->wr_ptr()) = parent_inst;
-    //req->copy((char *)&parent_inst, sizeof(uintptr_t));
-    req->wr_ptr(sizeof(uintptr_t));
-
-    std::int32_t len = ss.str().length();
-    std::memcpy(req->wr_ptr(), ss.str().data(), len);
-    //req->copy(m_req->rd_ptr(), len);
-    req->wr_ptr(len);
-#endif
-    /* Reclaim the memory now */
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l req->reference_count() %d \n"), req->reference_count()));
-    //m_req->release();
-    
-    m_expectedLength = -1;
 
     auto it = m_parent->currentWorker();
     MicroService* mEnt = *it;
@@ -2201,112 +2120,6 @@ ACE_HANDLE WebConnection::get_handle() const
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::get_handle - handle %d\n"), m_handle));
     return(m_handle);
-}
-
-bool WebConnection::isCompleteRequestReceived()
-{
-    return((m_req != NULL) && ((ACE_INT32)m_req->length() == m_expectedLength));
-}
-
-bool WebConnection::isBufferingOfRequestCompleted() 
-{
-    /* This is a new Request */
-    std::array<std::uint8_t, 2048> scratch_pad;
-    std::int32_t len = -1;
-    /** read first 2048 bytes or less */
-    scratch_pad.fill(0);
-
-    if(m_expectedLength < 0) {
-        len = recv(handle(), scratch_pad.data(), scratch_pad.size(), 0);
-
-        if(len < 0) {
-            ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Receive failed for handle %d\n"), m_handle));
-            return(len);
-        } else {
-
-            if(!len) {
-                /* Connection is closed now */
-                m_expectedLength = len;
-                return(true);
-            }
-
-            std::string pre_process_req((const char*)scratch_pad.data(), len);
-            Http http(pre_process_req);
-
-            if(http.header().length()) {
-                std::string CT = http.get_element("Content-Type");
-                std::string CL = http.get_element("Content-Length");
-
-                if(CT.length() && !CT.compare("application/json")) {
-                    /* This Must be POST or PUT Method. */
-                    if(CL.length()) {
-                        std::int32_t expected_length = http.header().length() + std::stoi(CL) + 2 /* for \r\n delimeter */;
-                        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Expected Length %d received length %d\n"), expected_length, len));
-
-                        /* +512 is to avoid buffer overflow */
-                        ACE_NEW_NORETURN(m_req, ACE_Message_Block((size_t)(expected_length + 512)));
-                        /* copy the read buffer into m_req data member */
-                        std::memcpy(m_req->wr_ptr(), scratch_pad.data(), len);
-                        m_req->wr_ptr(len);
-                        //m_req->copy((char *)scratch_pad.data(), len);
-                        m_expectedLength = expected_length;
-
-                    } else {
-
-                        /* +512 is to avoid buffer overflow */
-                        ACE_NEW_NORETURN(m_req, ACE_Message_Block((size_t)(len + 512)));
-                        /* copy the read buffer into m_req data member */
-                        std::memcpy(m_req->wr_ptr(), scratch_pad.data(), len);
-                        m_req->wr_ptr(len);
-                        m_expectedLength = len;
-
-                    }
-                } else {
-                    /* Content-Length: is not present in the Header */
-                    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Expected Length %d received length %d\n"), len, len));
-                    /* +512 is to avoid buffer overflow */
-                    ACE_NEW_NORETURN(m_req, ACE_Message_Block((size_t)(len + 512)));
-                    /* copy the read buffer into m_req data member */
-                    std::memcpy(m_req->wr_ptr(), scratch_pad.data(), len);
-                    m_req->wr_ptr(len);
-                    //m_req->copy((char *)scratch_pad.data(), len);
-                    m_expectedLength = len;
-                }
-            }
-
-            return(isCompleteRequestReceived());
-        }
-    } else {
-
-        /* Keep buffering the remaining request */
-        std::int32_t remainingLength = m_expectedLength - m_req->length();
-        std::int32_t offset = 0;
-        char* buf = (char* )m_req->wr_ptr();
-
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Reading in loop for handle %d\n"), m_handle));
-        do {
-
-            len = recv(handle(), (buf + offset), (remainingLength - offset), 0);
-            if(len < 0) {
-                ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Receive failed for handle %d\n"), m_handle));
-                return(true);
-            }
-
-            offset += len;
-            m_req->wr_ptr(len);
-
-        }while(offset != remainingLength);
-
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l offset %d remainingLength %d\n"), offset, remainingLength));
-
-        if(len < 0) {
-            ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Receive failed for handle %d\n"), m_handle));
-            return(true);
-        } else {
-            /* do we have all contents of a request? */
-            return(isCompleteRequestReceived());
-        }
-    }
 }
 
 #endif /* __webservice_cc__*/

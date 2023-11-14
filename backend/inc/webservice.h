@@ -163,21 +163,11 @@ class WebConnection : public ACE_Event_Handler {
             return(m_parent);
         }
 
-        void expectedLength(ACE_INT32 len) {
-            m_expectedLength = len;
-        }
-
-        bool isCompleteRequestReceived();
-        bool isBufferingOfRequestCompleted();
-
-
     private:
         long m_timerId;
         ACE_HANDLE m_handle;
         ACE_INET_Addr m_connAddr;
         WebServer* m_parent;
-        ACE_Message_Block* m_req;
-        ACE_INT32 m_expectedLength;
 };
 
 class WebServer : public ACE_Event_Handler {
