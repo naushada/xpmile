@@ -1638,7 +1638,7 @@ int MicroService::svc()
                 std::istringstream istrstr(ss);
                 //istrstr.rdbuf()->pubsetbuf(mb->rd_ptr(), mb->length());
                 ACE_HANDLE handle;
-                istrstr.read(reinterpret_cast<char *>(&handle), sizeof(handle));
+                istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
                 std::uintptr_t inst;
                 istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
                 MongodbClient* dbInst = reinterpret_cast<MongodbClient*>(inst);
@@ -2127,24 +2127,12 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     data.write(reinterpret_cast <const char *>(ss.str().data()),  len);
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
-
-    std::string nn(data.str().data(), data.str().length());
-    std::istringstream istr(nn);
-    //istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
-    ACE_HANDLE myHandle;
-    istr.read(reinterpret_cast<char *>(&myHandle), sizeof(myHandle));
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d handle: %d\n"), myHandle, handle));
     
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
     ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
     req->wr_ptr(data.str().length());
-
-    
-    //istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
-    istr.read(reinterpret_cast<char *>(&myHandle), sizeof(myHandle));
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d handle: %d\n"), myHandle, handle));
 
 #if 0
     *((ACE_HANDLE *)req->wr_ptr()) = handle;
