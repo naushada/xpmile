@@ -2112,7 +2112,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
      | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance | 4 bytes payload length |request (payload) |
      |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ _________________________|
      */
-    std::stringstream data("");
+    std::stringstream data;
     data.write(reinterpret_cast <char *>(&handle), sizeof(handle));
     /* db instance */
     std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
@@ -2123,7 +2123,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     /* Payload length */
     auto len = ss.str().length();
     data.write(reinterpret_cast <char *>(&len), sizeof(std::uint32_t));
-    data << ss.str();
+    data.write(reinterpret_cast<char *>(ss.str().data()),  len);
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
 
