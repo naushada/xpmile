@@ -2109,13 +2109,13 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
      |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ |
      */
     std::stringstream data;
-    data.write(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
+    data.write(reinterpret_cast<char *>(&handle), sizeof(handle));
     /* db instance */
     std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
-    data.write(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
+    data.write(reinterpret_cast<char *>(&inst), sizeof(inst));
     /* parent instance */
     inst = reinterpret_cast<std::uintptr_t>(parent());
-    data.write(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
+    data.write(reinterpret_cast<char *>(&inst), sizeof(inst));
     /* Payload length */
     auto len = ss.str().length();
     data.write(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
