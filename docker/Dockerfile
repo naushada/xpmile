@@ -64,7 +64,7 @@ RUN apt-get -y update
 RUN apt-get -y upgrade
 ########## installing dependencies node_module ######################
 RUN apt-get -y install curl
-RUN curl -sL https://deb.nodesource.com/setup_18.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_lts.x | bash -
 RUN apt-get -y install nodejs
 RUN npm install -g @angular/cli
 

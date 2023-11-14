@@ -2126,7 +2126,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
-    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast<const char *>(data.str().c_str())));
+    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast<const char *>(data.data())));
     req->wr_ptr(data.str().length());
 
 #if 0
