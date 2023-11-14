@@ -1654,7 +1654,7 @@ int MicroService::svc()
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l handle %d length %d \n"), handle, mb->length()));
 
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l httpReq length %d\n"), mb->length()));
-                
+
             #if 0
                 ACE_HANDLE handle = *((ACE_HANDLE *)&mb->rd_ptr()[offset]);
                 //mb->rd_ptr(sizeof(ACE_HANDLE));
@@ -2112,7 +2112,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
      | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance | 4 bytes payload length |request (payload) |
      |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ _________________________|
      */
-    std::stringstream data;
+    std::stringstream data("");
     data.write(reinterpret_cast <char *>(&handle), sizeof(handle));
     /* db instance */
     std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
@@ -2130,8 +2130,14 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = NULL;
 
-    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length(), ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
+    ACE_NEW_NORETURN(req, ACE_Message_Block(1, ACE_Message_Block::MB_DATA, 0, reinterpret_cast <const char *>(data.str().data())));
     req->wr_ptr(data.str().length());
+
+    std::istringstream istr;
+    istr.rdbuf()->pubsetbuf(data.str().data(), data.str().length());
+    ACE_HANDLE myHandle;
+    istr.read(reinterpret_cast<char *>(&myHandle), sizeof(myHandle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l myHandle %d"), myHandle));
 
 #if 0
     *((ACE_HANDLE *)req->wr_ptr()) = handle;
