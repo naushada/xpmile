@@ -2056,10 +2056,13 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         rc = ::recv(handle, in.data(), in.max_size(), 0);
         if(rc <= 0) {
             //Error handling
-            /* start 1/2 second timer i.e. 500 milli second*/
-            ACE_Time_Value to(0,1);
-            parent()->restart_conn_cleanup_timer(handle, to);
-            return(0);
+            if(timerId() > 0) {
+                /* start 1/2 second timer i.e. 500 milli second*/
+                ACE_Time_Value to(0,1);
+                parent()->restart_conn_cleanup_timer(handle, to);
+                m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+            }
+            return(-1);
         }
 
         offset += rc;
