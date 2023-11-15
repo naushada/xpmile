@@ -1969,7 +1969,7 @@ long WebServer::start_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to)
 
 void WebServer::stop_conn_cleanup_timer(long timerId) 
 {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webconnection cleanup timer is stoppinh\n")));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webconnection cleanup timer is stopping\n")));
     if(ACE_Reactor::instance()->cancel_timer(timerId)) {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Running timer is stopped succesfully\n")));
     }
