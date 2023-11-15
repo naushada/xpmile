@@ -2117,7 +2117,7 @@ ACE_INT32 WebConnection::handle_signal(int signum, siginfo_t *s, ucontext_t *u)
 ACE_INT32 WebConnection::handle_close (ACE_HANDLE handle, ACE_Reactor_Mask mask)
 {
     ACE_UNUSED_ARG(mask);
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::handle_close handle %d will be closed upon timer expiry\n"), handle))
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::handle_close handle %d will be closed upon timer expiry\n"), handle));
     return(0);
 }
 
