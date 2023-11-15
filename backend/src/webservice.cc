@@ -1714,7 +1714,7 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
     ACE_UNUSED_ARG(tv);
     std::uintptr_t _handle = reinterpret_cast<std::uintptr_t>(act);
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timeout for connection %d\n"), _handle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timeout for handle %d\n"), _handle));
     auto conIt = m_connectionPool.find(_handle);
 
     if(conIt != std::end(m_connectionPool)) {
@@ -1723,12 +1723,13 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
         m_connectionPool.erase(conIt);
         /* let the reactor call handle_close on this handle */
         ACE_Reactor::instance()->remove_handler(_handle, ACE_Event_Handler::READ_MASK | 
-                                                         ACE_Event_Handler::TIMER_MASK | 
+                                                         /*ACE_Event_Handler::TIMER_MASK | */
                                                          ACE_Event_Handler::SIGNAL_MASK);
         stop_conn_cleanup_timer(connEnt->timerId());
         /* reclaim the heap memory */
         delete connEnt;
         close(_handle);
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle: %d for webconnection is closed successfully\n"), _handle));
 
     } else {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timedout no connEnt found for handle %d\n"), _handle));
@@ -1767,7 +1768,7 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle)
             //Discrete event handler for each connected client.
             ACE_Reactor::instance()->register_handler(connEnt, 
                                                       ACE_Event_Handler::READ_MASK |
-                                                      ACE_Event_Handler::TIMER_MASK | 
+                                                      /*ACE_Event_Handler::TIMER_MASK | */
                                                       ACE_Event_Handler::SIGNAL_MASK);
         }
     } else {
@@ -1962,17 +1963,18 @@ long WebServer::start_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to)
     /* 30 minutes */
     //ACE_Time_Value to(1800,0);
     timerId = ACE_Reactor::instance()->schedule_timer(this, (const void *)handle, to);
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webserver cleanup timer is started for handle %d\n"), handle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webconnection cleanup timer is started for handle %d\n"), handle));
     return(timerId);
 }
 
 void WebServer::stop_conn_cleanup_timer(long timerId) 
 {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webserver connection cleanup timer is stopped\n")));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webconnection cleanup timer is stoppinh\n")));
     if(ACE_Reactor::instance()->cancel_timer(timerId)) {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Running timer is stopped succesfully\n")));
     }
 }
+
 void WebServer::restart_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to)
 {
     //ACE_Time_Value to(20,0);
@@ -2028,10 +2030,13 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle %d\n"), handle));
         rc = ::recv(handle, in.data(), in.max_size(), 0);
-        /* start 1/2 second timer i.e. 500 milli second*/
-        ACE_Time_Value to(0,1);
-        parent()->restart_conn_cleanup_timer(handle, to);
-        return(0);
+        if(timerId() > 0) {
+            /* start 1/2 second timer i.e. 500 milli second*/
+            ACE_Time_Value to(0,1);
+            parent()->stop_conn_cleanup_timer(timerId);
+            m_timerId = parent()->start_conn_cleanup_timer(handle, to);
+        }
+        return(-1);
 
     } else if(rc <= in.max_size()) {
         //
