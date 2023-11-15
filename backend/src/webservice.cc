@@ -1790,9 +1790,11 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t* s, ucontext_t* ctx)
 
             semaphore().acquire();
             ACE_Message_Block* req = nullptr;
-            ACE_NEW_NORETURN(req, ACE_Message_Block((size_t)MemorySize::SIZE_1KB));
+            ACE_NEW_NORETURN(req, ACE_Message_Block(1));
             req->msg_type(ACE_Message_Block::MB_PCSIG);
-            ms->putq(req);
+            if(ms->putq(req) < 0) {
+                req->release();
+            }
             ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Sending to Worker Node\n")));
 
         });
