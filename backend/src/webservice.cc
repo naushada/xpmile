@@ -2029,7 +2029,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle %d\n"), handle));
         rc = ::recv(handle, in.data(), in.max_size(), 0);
         /* start 1/2 second timer i.e. 500 milli second*/
-        ACE_Time_Value to(0,0);
+        ACE_Time_Value to(0,1);
         parent()->restart_conn_cleanup_timer(handle, to);
         return(0);
 
@@ -2052,7 +2052,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         if(rc <= 0) {
             //Error handling
             /* start 1/2 second timer i.e. 500 milli second*/
-            ACE_Time_Value to(0,0);
+            ACE_Time_Value to(0,1);
             parent()->restart_conn_cleanup_timer(handle, to);
             return(0);
         }
