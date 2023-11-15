@@ -1723,7 +1723,6 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
         m_connectionPool.erase(conIt);
         /* let the reactor call handle_close on this handle */
         ACE_Reactor::instance()->remove_handler(_handle, ACE_Event_Handler::READ_MASK | 
-                                                         /*ACE_Event_Handler::TIMER_MASK | */
                                                          ACE_Event_Handler::SIGNAL_MASK);
         stop_conn_cleanup_timer(connEnt->timerId());
         /* reclaim the heap memory */
@@ -1768,7 +1767,6 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle)
             //Discrete event handler for each connected client.
             ACE_Reactor::instance()->register_handler(connEnt, 
                                                       ACE_Event_Handler::READ_MASK |
-                                                      /*ACE_Event_Handler::TIMER_MASK | */
                                                       ACE_Event_Handler::SIGNAL_MASK);
         }
     } else {
