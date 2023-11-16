@@ -217,15 +217,16 @@ void Http::dump(void) const
 
 std::string Http::get_header(const std::string& in)
 { 
-  std::string body_delimeter("\r\n\r\n");
+  std::string delimeter("\r\n\r\n");
 
-  size_t body_offset = in.rfind(body_delimeter);
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset:%d\n"), body_offset));
+  auto offset = 0;
+  offset = in.rfind(delimeter);
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l offset:%d\n"), offset));
  
-  if(std::string::npos != body_offset) {
-    std::string document = in.substr(0, body_offset + 2);
+  if(std::string::npos != offset) {
+    std::string document = in.substr(0, offset + 2);
 
-    //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
     return(document);
   }
 
