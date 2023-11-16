@@ -2032,20 +2032,14 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     } else if(rc <= in.max_size()) {
         // pre-parsing of Http request.
         Http http(std::string(in.data(), rc));
-        auto method = http.method();
-
-        auto offset = 2;
-        if(method != "GET") {
-            offset = 4;
-        }
-
-        if(http.get_element("Content-Length").length()) {
-            effectiveLength = http.header().length() + http.get_element("Content-Length").length() + offset; 
-        } else {
-            effectiveLength = http.header().length() + offset;
-        }
         
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\nheader:%s body:%s"), effectiveLength, http.header(), http.body()));
+        if(http.get_element("Content-Length").length()) {
+            effectiveLength = http.header().length() + http.get_element("Content-Length").length() + 2; 
+        } else {
+            effectiveLength = http.header().length();
+        }
+
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\nheader:%s body:%s\n"), effectiveLength, http.header(), http.body()));
     }
 
     std::int32_t offset = 0;
