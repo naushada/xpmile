@@ -21,7 +21,6 @@ Http::Http(const std::string& in)
   if(m_header.length()) {
     parse_uri(m_header);
     parse_mime_header(m_header);
-    //dump();
   }
 
   m_body = get_body(in);
@@ -219,17 +218,23 @@ void Http::dump(void) const
 std::string Http::get_header(const std::string& in)
 { 
   std::string body_delimeter("\r\n");
+  auto m = this->method(in);
+  if(m != "GET") {
+    body_delimeter = "\r\n\r\n";
+  }
 
   size_t body_offset = in.rfind(body_delimeter);
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset %d\n"), body_offset));
+  //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset %d\n"), body_offset));
  
   if(std::string::npos != body_offset) {
     std::string document = in.substr(0, body_offset);
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
+    //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
     return(document);
   }
-  return(std::string(in));
+
+  ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [worker:%t] %M %N:%l The header empty")));
+  return(std::string());
 }
 
 std::string Http::get_body(const std::string& in)
@@ -238,17 +243,23 @@ std::string Http::get_body(const std::string& in)
   std::string contentLen = get_element("Content-Length");
 
   if(ct.length() && !ct.compare("application/json") && contentLen.length()) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json CL %d hdrlen %d\n"), std::stoi(contentLen), header().length()));
+    //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json CL %d hdrlen %d\n"), std::stoi(contentLen), header().length()));
 
-    size_t body_offset = get_header(in).length() + 2 /* \r\n delimeter's length which seperator between header and body */;
+    size_t body_offset = header().length() + 2 /* \r\n delimeter's length which seperator between header and body */;
+    auto m = this->method(in);
+
+    if(m != "GET") {
+      body_offset = header().length() + 4 /*\r\n\r\n*/;
+    }
 
     if(body_offset) {
       std::string document(in.substr(body_offset, std::stoi(contentLen)));
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s"), document.length(), document.c_str()));
+      //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s"), document.length(), document.c_str()));
       return(document);
     }
   }
 
+  ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [master:%t] %M %N:%l The header empty")));
   return(std::string());
 }
 

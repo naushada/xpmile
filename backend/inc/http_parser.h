@@ -14,12 +14,22 @@ class Http {
     Http(const std::string& in);
     ~Http();
 
-    std::string get_uriName() const {
+    std::string uri() const {
       return(m_uriName);
     }
 
-    void set_uriName(std::string uriName) {
+    void uri(std::string uriName) {
       m_uriName = uriName;
+    }
+
+    std::string method(const std::string& in) {
+      std::stringstream ss(in);
+      ss >> m_method;
+      return(m_method);
+    }
+
+    std::string method() const {
+      return(m_method);
     }
 
     void add_element(std::string key, std::string value) {
@@ -27,7 +37,7 @@ class Http {
     }
 
     std::string get_element(const std::string key) {
-        auto it = m_tokenMap.find(key);
+        auto it = std::find_if(m_tokenMap.begin(), m_tokenMap.end(), [&](const std::pair<std::string, std::string>& in) ->bool {return (in.first == key);});
         if(it != m_tokenMap.end()) {
             return(it->second);
         }
@@ -53,6 +63,7 @@ class Http {
     std::string m_uriName;
     std::string m_header;
     std::string m_body;
+    std::string m_method;
 };
 
 #endif /* __http_parser_h__ */

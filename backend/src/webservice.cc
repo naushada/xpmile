@@ -20,7 +20,7 @@ std::string MicroService::handle_DELETE(std::string& in, MongodbClient& dbInst)
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
     std::string document("");
 
     if(!uri.compare("/api/v1/shipment/awblist")) {
@@ -226,7 +226,7 @@ std::string MicroService::handle_POST(std::string& in, MongodbClient& dbInst)
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare(0, 16, "/api/v1/shipment")) {
         return(handle_shipment_POST(in, dbInst));
@@ -257,7 +257,7 @@ std::string MicroService::handle_config_POST(std::string& in, MongodbClient& dbI
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/config/db")) {
         std::string content = http.body();
@@ -281,7 +281,7 @@ std::string MicroService::handle_shipment_POST(std::string& in, MongodbClient& d
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/shipment/shipping")) {
         std::string collectionName("shipping");
@@ -501,7 +501,7 @@ std::string MicroService::handle_account_POST(std::string& in, MongodbClient& db
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/account/account")) {
         std::string collectionName("account");
@@ -530,7 +530,7 @@ std::string MicroService::handle_inventory_POST(std::string& in, MongodbClient& 
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/inventory")) {
         /* Creating sku for inventory */
@@ -556,7 +556,7 @@ std::string MicroService::handle_document_POST(std::string& in, MongodbClient& d
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/document")) {
         std::string content = http.body();
@@ -595,7 +595,7 @@ std::string MicroService::handle_email_POST(std::string& in, MongodbClient& dbIn
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/email")) {
         /* Send e-mail with POST request */
@@ -648,7 +648,7 @@ std::string MicroService::handle_GET(std::string& in, MongodbClient& dbInst)
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
     if(!uri.compare(0, 16, "/api/v1/shipment")) {
         return(handle_shipment_GET(in, dbInst));
 
@@ -775,7 +775,7 @@ std::string MicroService::handle_shipment_GET(std::string& in, MongodbClient& db
     /* Check for Query string */
     Http http(in);
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
     std::string collectionName("shipping");
 
     if(!uri.compare("/api/v1/shipment/shipping")) {
@@ -1132,7 +1132,7 @@ std::string MicroService::handle_account_GET(std::string& in, MongodbClient& dbI
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"), uri.c_str()));
 
@@ -1202,7 +1202,7 @@ std::string MicroService::handle_inventory_GET(std::string& in, MongodbClient& d
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/inventory")) {
       /* GET for inventory - could be all or based on sku */
@@ -1249,7 +1249,7 @@ std::string MicroService::handle_document_GET(std::string& in, MongodbClient& db
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/document")) {
         //Getting the contents of attachment
@@ -1298,7 +1298,7 @@ std::string MicroService::handle_PUT(std::string& in, MongodbClient& dbInst)
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare(0, 16, "/api/v1/shipment")) {
         return(handle_shipment_PUT(in, dbInst));
@@ -1322,7 +1322,7 @@ std::string MicroService::handle_shipment_PUT(std::string& in, MongodbClient& db
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/shipment/shipping")) {
         /** Update on Shipping */
@@ -1410,7 +1410,7 @@ std::string MicroService::handle_inventory_PUT(std::string& in, MongodbClient& d
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/inventory")) {
       /* Updating inventory */
@@ -1461,7 +1461,7 @@ std::string MicroService::handle_account_PUT(std::string& in, MongodbClient& dbI
     Http http(in);
 
     /* Action based on uri in get request */
-    std::string uri(http.get_uriName());
+    std::string uri(http.uri());
 
     if(!uri.compare("/api/v1/account/account")) {
         /* Updating inventory */
@@ -2015,7 +2015,7 @@ ACE_INT32 WebConnection::handle_timeout(const ACE_Time_Value &tv, const void *ac
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input on handle %d\n"), handle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input on handle:%d\n"), handle));
     std::vector<char> in(2048);
     std::int32_t effectiveLength = 0;
     std::stringstream ss("");
@@ -2023,7 +2023,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 
     if(rc <= 0) {
 
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle %d\n"), handle));
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle:%d rc:%d\n"), handle, rc));
         rc = ::recv(handle, in.data(), in.max_size(), 0);
         if(timerId() > 0) {
             /* start 1/2 second timer i.e. 500 milli second*/
@@ -2034,12 +2034,19 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         return(-1);
 
     } else if(rc <= in.max_size()) {
-        //
+        // pre-parsing of Http request.
         Http http(std::string(in.data(), rc));
+        auto method = http.method();
+        
+        auto offset = 2;
+        if(method != "GET") {
+            offset = 4;
+        }
+
         if(http.get_element("Content-Length").length()) {
-            effectiveLength = http.header().length() + http.get_element("Content-Length").length() + 2; 
+            effectiveLength = http.header().length() + http.get_element("Content-Length").length() + offset; 
         } else {
-            effectiveLength = http.header().length() + 2;
+            effectiveLength = http.header().length() + offset;
         }
     }
 
@@ -2047,7 +2054,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     std::int32_t offset = 0;
 
     do {
-
+        in.clear();
         rc = ::recv(handle, in.data(), in.max_size(), 0);
         if(rc <= 0) {
             //Error handling
@@ -2061,7 +2068,8 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         }
 
         offset += rc;
-        ss << std::string(in.data(), rc);
+        std::string rr(in.data(), rc);
+        ss << rr;
 
     } while(offset != effectiveLength);
 
