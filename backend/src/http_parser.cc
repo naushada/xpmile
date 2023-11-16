@@ -219,8 +219,8 @@ std::string Http::get_header(const std::string& in)
 { 
   std::string delimeter("\r\n\r\n");
 
-  auto offset = 0;
-  offset = in.rfind(delimeter);
+  //auto offset = 0;
+  std::string::size_type offset = in.rfind(delimeter);
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l offset:%d\n"), offset));
  
   if(std::string::npos != offset) {
