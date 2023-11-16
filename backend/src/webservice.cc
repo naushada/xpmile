@@ -2044,9 +2044,10 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         } else {
             effectiveLength = http.header().length() + offset;
         }
+        
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\nheader:%s body:%s"), effectiveLength, http.header(), http.body()));
     }
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\n"), effectiveLength));
     std::int32_t offset = 0;
 
     do {
