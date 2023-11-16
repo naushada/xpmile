@@ -220,16 +220,15 @@ std::string Http::get_header(const std::string& in)
   std::string body_delimeter("\r\n\r\n");
 
   size_t body_offset = in.rfind(body_delimeter);
-  //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset %d\n"), body_offset));
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l body_offset:%d\n"), body_offset));
  
   if(std::string::npos != body_offset) {
-    std::string document = in.substr(0, body_offset+ 2);
+    std::string document = in.substr(0, body_offset + 2);
 
     //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
     return(document);
   }
 
-  ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [worker:%t] %M %N:%l The header empty\n")));
   return(in);
 }
 
@@ -244,7 +243,7 @@ std::string Http::get_body(const std::string& in)
     size_t body_offset = header().length() + 2 /* \r\n delimeter's length which seperator between header and body */;
     if(body_offset) {
       std::string document(in.substr(body_offset, std::stoi(contentLen)));
-      //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s"), document.length(), document.c_str()));
+      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s"), document.length(), document.c_str()));
       return(document);
     }
   }

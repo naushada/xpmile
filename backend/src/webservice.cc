@@ -2034,12 +2034,12 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         Http http(std::string(in.data(), rc));
         
         if(http.get_element("Content-Length").length()) {
-            effectiveLength = http.header().length() + http.get_element("Content-Length").length() + 2; 
+            effectiveLength = http.header().length() + std::stoi(http.get_element("Content-Length")) + 2; 
         } else {
             effectiveLength = http.header().length();
         }
 
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\nheader:%s body:%s\n"), effectiveLength, http.header(), http.body()));
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\n"), effectiveLength));
     }
 
     std::int32_t offset = 0;
