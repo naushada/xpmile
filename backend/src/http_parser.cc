@@ -241,9 +241,9 @@ std::string Http::get_body(const std::string& in)
   if(ct.length() && !ct.compare("application/json") && contentLen.length()) {
     //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json CL %d hdrlen %d\n"), std::stoi(contentLen), header().length()));
 
-    size_t body_offset = header().length() + 2 /* \r\n delimeter's length which seperator between header and body */;
-    if(body_offset) {
-      std::string document(in.substr(body_offset, std::stoi(contentLen)));
+    auto offset = header().length() + 2 /* \r\n delimeter's length which seperator between header and body */;
+    if(offset) {
+      std::string document(in.substr(offset, std::stoi(contentLen)));
       ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s"), document.length(), document.c_str()));
       return(document);
     }
