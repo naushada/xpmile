@@ -224,7 +224,7 @@ std::string Http::get_header(const std::string& in)
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l offset:%d\n"), offset));
  
   if(std::string::npos != offset) {
-    std::string document = in.substr(0, offset + 2);
+    std::string document = in.substr(0, offset + delimeter.length());
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
     return(document);
