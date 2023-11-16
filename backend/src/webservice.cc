@@ -1714,7 +1714,7 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
     ACE_UNUSED_ARG(tv);
     std::uintptr_t _handle = reinterpret_cast<std::uintptr_t>(act);
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timeout for handle %d\n"), _handle));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timeout for handle:%d\n"), _handle));
     auto conIt = m_connectionPool.find(_handle);
 
     if(conIt != std::end(m_connectionPool)) {
@@ -1727,8 +1727,8 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
         stop_conn_cleanup_timer(connEnt->timerId());
         /* reclaim the heap memory */
         delete connEnt;
-        close(_handle);
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle: %d for webconnection is closed successfully\n"), _handle));
+        //close(_handle);
+        //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle: %d for webconnection is closed successfully\n"), _handle));
 
     } else {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timedout no connEnt found for handle %d\n"), _handle));
@@ -1996,34 +1996,30 @@ WebConnection::WebConnection(WebServer* parent)
     m_timerId = -1;
     m_handle = -1;
     m_parent = parent;
-    
 }
 
 WebConnection::~WebConnection()
 {
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle:%d for webconnection is closed successfully\n"), m_handle));
     close(m_handle);
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection dtor is invoked\n")));
 }
 
 ACE_INT32 WebConnection::handle_timeout(const ACE_Time_Value &tv, const void *act)
 {
     (void)tv;
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Webconnection::handle_timeout do nothing\n")));
-    
     return(0);
 }
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input on handle:%d\n"), handle));
     std::vector<char> in(2048);
     std::int32_t effectiveLength = 0;
     std::stringstream ss("");
     auto rc = ::recv(handle, in.data(), in.max_size(), MSG_PEEK);
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input handle:%d rc:%d\n"), handle, rc));
 
     if(rc <= 0) {
-
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l closing the connection for handle:%d rc:%d\n"), handle, rc));
         rc = ::recv(handle, in.data(), in.max_size(), 0);
         if(timerId() > 0) {
             /* start 1/2 second timer i.e. 500 milli second*/
@@ -2037,7 +2033,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         // pre-parsing of Http request.
         Http http(std::string(in.data(), rc));
         auto method = http.method();
-        
+
         auto offset = 2;
         if(method != "GET") {
             offset = 4;
@@ -2061,7 +2057,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
             if(timerId() > 0) {
                 /* start 1/2 second timer i.e. 500 milli second*/
                 ACE_Time_Value to(0,1);
-                parent()->restart_conn_cleanup_timer(handle, to);
+                parent()->stop_conn_cleanup_timer(timerId());
                 m_timerId = parent()->start_conn_cleanup_timer(handle, to);
             }
             return(-1);

@@ -259,7 +259,7 @@ std::string Http::get_body(const std::string& in)
     }
   }
 
-  ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [master:%t] %M %N:%l The header empty")));
+  ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [master:%t] %M %N:%l The body empty\n")));
   return(std::string());
 }
 
