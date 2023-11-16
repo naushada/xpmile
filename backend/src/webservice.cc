@@ -2034,7 +2034,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         Http http(std::string(in.data(), rc));
         
         if(http.get_element("Content-Length").length()) {
-            effectiveLength = http.header().length() + std::stoi(http.get_element("Content-Length")) + 2; 
+            effectiveLength = http.header().length() + std::stoi(http.get_element("Content-Length")); 
         } else {
             effectiveLength = http.header().length();
         }
