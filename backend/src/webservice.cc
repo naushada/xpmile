@@ -1641,8 +1641,9 @@ int MicroService::svc()
                  |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ _|
                 */
                 std::string ss(mb->rd_ptr(), mb->length());
-                mb->rd_ptr(mb->length());
-                mb->release();
+                //mb->rd_ptr(mb->length());
+                delete mb;
+
                 std::istringstream istrstr(ss);
                 ACE_HANDLE handle;
                 istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
@@ -1657,8 +1658,6 @@ int MicroService::svc()
                 istrstr.read(reinterpret_cast<char *>(str.data()), len);
                 std::string request(str.begin(), str.end());
                 process_request(handle, request, *dbInst);
-                
-		
                 break;
             }
             case ACE_Message_Block::MB_PCSIG:
@@ -1725,13 +1724,13 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
     if(conIt != std::end(m_connectionPool)) {
 
         WebConnection* connEnt = conIt->second;
-        m_connectionPool.erase(conIt);
         /* let the reactor call handle_close on this handle */
         ACE_Reactor::instance()->remove_handler(_handle, ACE_Event_Handler::READ_MASK | 
                                                          ACE_Event_Handler::SIGNAL_MASK);
         stop_conn_cleanup_timer(connEnt->timerId());
         /* reclaim the heap memory */
         delete connEnt;
+        m_connectionPool.erase(conIt);
         //close(_handle);
         //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle: %d for webconnection is closed successfully\n"), _handle));
 
@@ -2037,11 +2036,10 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     } else if(rc <= in.max_size()) {
         // pre-parsing of Http request.
         Http http(std::string(in.data(), rc));
-        
+        effectiveLength = http.header().length();
+
         if(http.get_element("Content-Length").length()) {
             effectiveLength = http.header().length() + std::stoi(http.get_element("Content-Length")); 
-        } else {
-            effectiveLength = http.header().length();
         }
 
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\n"), effectiveLength));
@@ -2064,8 +2062,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         }
 
         offset += rc;
-        std::string rr(in.data(), rc);
-        ss << rr;
+        ss << std::string(in.data(), rc);
 
     } while(offset != effectiveLength);
 
@@ -2100,7 +2097,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     MicroService* mEnt = *it;
     if(mEnt->putq(req) < 0) {
         ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Failed to send request to worker\n")));
-        req->release();
+        delete req;
 	}
 
     return(0);
