@@ -1526,6 +1526,7 @@ std::string MicroService::build_responseCreated()
     http_header += "Connection: keep-alive\r\n";
     http_header += "Access-Control-Allow-Origin: *\r\n";
     http_header += "Content-Length: 0\r\n";
+    http_header += "\r\n";
 
     //ACE_NEW_RETURN(rsp, ACE_Message_Block(256), nullptr);
 
@@ -1553,6 +1554,7 @@ std::string MicroService::build_responseOK(std::string httpBody, std::string con
 
     } else {
         http_header += "Content-Length: 0\r\n";
+        http_header += "\r\n";
     }
     rsp = http_header;
 
@@ -1580,6 +1582,7 @@ std::string MicroService::build_responseERROR(std::string httpBody, std::string 
 
     } else {
         http_header += "Content-Length: 0\r\n";
+        http_header += "\r\n";
     }
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l respone length:%d response header:%s"), (http_header.length() + httpBody.length()), http_header.c_str()));
@@ -1638,6 +1641,8 @@ int MicroService::svc()
                  |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ _|
                 */
                 std::string ss(mb->rd_ptr(), mb->length());
+                mb->rd_ptr(mb->length());
+                mb->release();
                 std::istringstream istrstr(ss);
                 ACE_HANDLE handle;
                 istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
@@ -1652,7 +1657,7 @@ int MicroService::svc()
                 istrstr.read(reinterpret_cast<char *>(str.data()), len);
                 std::string request(str.begin(), str.end());
                 process_request(handle, request, *dbInst);
-                mb->release();
+                
 		
                 break;
             }
@@ -2094,6 +2099,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     auto it = m_parent->currentWorker();
     MicroService* mEnt = *it;
     if(mEnt->putq(req) < 0) {
+        ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Failed to send request to worker\n")));
         req->release();
 	}
 
