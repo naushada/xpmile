@@ -230,6 +230,40 @@ class WebServer : public ACE_Event_Handler {
 };
 
 class WebServiceEntry {
+    public:
+        WebServiceEntry() = default;
+        ~WebServiceEntry() = default;
+
+        std::int32_t process_request(ACE_HANDLE handle, std::string& req, MongodbClient& dbInst);
+        std::string handle_OPTIONS(std::string& in);
+        std::string handle_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_shipment_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_account_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_inventory_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_email_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_document_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_config_GET(std::string& in, MongodbClient& dbInst);
+        std::string handle_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_shipment_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_account_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_inventory_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_email_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_document_POST(std::string& in, MongodbClient& dbInst);
+        std::string handle_config_POST(std::string& in, MongodbClient& dbInst);
+
+        std::string handle_PUT(std::string& in, MongodbClient& dbInst);
+        std::string handle_shipment_PUT(std::string& in, MongodbClient& dbInst);
+        std::string handle_inventory_PUT(std::string& in, MongodbClient& dbInst);
+        std::string handle_account_PUT(std::string& in, MongodbClient& dbInst);
+
+        std::string handle_DELETE(std::string& in, MongodbClient& dbInst);
+        std::string build_responseOK(std::string http_body, std::string content_type="application/json");
+        std::string build_responseCreated();
+        std::string get_contentType(std::string _ext);
+        std::string build_responseERROR(std::string httpBody, std::string error);
+
+    private:
+
 };
 
 
