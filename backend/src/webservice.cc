@@ -2101,7 +2101,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 	}
 #endif
     WebServiceEntry wentry;
-    std::string rr(ss.str(), len);
+    std::string rr(ss.str().c_str(), len);
     wentry.process_request(handle, rr, *(parent()->mongodbcInst()));
     return(0);
 }
