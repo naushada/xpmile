@@ -2088,7 +2088,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = nullptr;
     
-    ACE_NEW_NORETURN(req, ACE_Message_Block(/*data.str().length()*/1));
+    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length()));
     if(req->copy(data.str().data(), data.str().length()) < 0) {
         ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l copy failed\n")));
     }
