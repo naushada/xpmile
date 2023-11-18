@@ -1723,13 +1723,13 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
 
     if(conIt != std::end(m_connectionPool)) {
 
-        WebConnection* connEnt = conIt->second;
+        std::unique_ptr<WebConnection> connEnt = std::move(conIt->second);
         /* let the reactor call handle_close on this handle */
         ACE_Reactor::instance()->remove_handler(_handle, ACE_Event_Handler::READ_MASK | 
                                                          ACE_Event_Handler::SIGNAL_MASK);
         stop_conn_cleanup_timer(connEnt->timerId());
         /* reclaim the heap memory */
-        delete connEnt;
+        //delete connEnt;
         m_connectionPool.erase(conIt);
         //close(_handle);
         //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle: %d for webconnection is closed successfully\n"), _handle));
@@ -1755,10 +1755,11 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle)
         auto it = m_connectionPool.find(peerStream.get_handle());
         if(it != std::end(m_connectionPool)) {
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Existing connection on handle %d found in connection pool\n"), peerStream.get_handle()));
-            connEnt = it->second;
+            //connEnt = it->second;
         } else {
-            ACE_NEW_RETURN(connEnt, WebConnection(this), -1);
-            m_connectionPool[peerStream.get_handle()] = connEnt;
+            //ACE_NEW_RETURN(connEnt, WebConnection(this), -1);
+            auto connEnt = std::make_unique<WebConnection>(this);
+            
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l New connection is created for handle: %d peer ip address: %u (%s) peer port %d\n"), 
                 peerStream.get_handle(),
                 peerAddr.get_ip_address(), peerAddr.get_host_addr(), peerAddr.get_port_number()));
@@ -1769,9 +1770,11 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle)
             connEnt->handle(peerStream.get_handle());
             connEnt->connAddr(peerAddr);
             //Discrete event handler for each connected client.
-            ACE_Reactor::instance()->register_handler(connEnt, 
+            ACE_Reactor::instance()->register_handler(connEnt.get(), 
                                                       ACE_Event_Handler::READ_MASK |
                                                       ACE_Event_Handler::SIGNAL_MASK);
+            // Transfer ownershipt to STL container
+            m_connectionPool[peerStream.get_handle()] = std::move(connEnt);
         }
     } else {
         ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Accept to new connection failed\n")));
@@ -1805,16 +1808,21 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t* s, ucontext_t* ctx)
     if(!connectionPool().empty()) {
       for(auto it = connectionPool().begin(); it != connectionPool().end();) {
 
-        auto wc = it->second;
-        it = connectionPool().erase(it);
-        stop_conn_cleanup_timer(wc->timerId());
+        //This is done explicitly for scoping of stack variable ---- don't remove it.
+        {
+            auto wc = std::move(it->second);
+            // increamenting it to next element.
+            it = connectionPool().erase(it);
+            stop_conn_cleanup_timer(wc->timerId());
+        }
+        //wc will be destroyed here.
         ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l its name %S is received for WebServer\n"), signum));
-        delete wc;
+        //delete wc;
 
       }
-      
       connectionPool().clear();
     }
+
 
     ACE_Reactor::instance()->remove_handler(m_server.get_handle(), ACE_Event_Handler::ACCEPT_MASK | 
                                                          ACE_Event_Handler::TIMER_MASK | 
@@ -1883,6 +1891,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort, ACE_UINT32 worker
     //mMongodbc = new MongodbClient(uri);
     mMongodbc = std::make_unique<MongodbClient>(uri);
 
+#if 0
     //ACE_NEW_NORETURN(m_semaphore, ACE_Semaphore());
     m_semaphore = std::make_unique<ACE_Semaphore>();
 
@@ -1900,7 +1909,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort, ACE_UINT32 worker
     }
 
     m_currentWorker = std::begin(m_workerPool);
-
+#endif
     /* Start listening for incoming connection */
     int reuse_addr = 1;
     if(m_server.open(m_listen, reuse_addr)) {
@@ -1985,14 +1994,13 @@ void WebServer::restart_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to)
     auto conIt = connectionPool().find(handle);
 
     if(conIt != std::end(connectionPool())) {
-        auto connEnt = conIt->second;
+        auto &connEnt = conIt->second;
         long tId = connEnt->timerId();
 
         if(!ACE_Reactor::instance()->reset_timer_interval(tId, to)) {
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webserver connection cleanup timer is re-started for handle %d\n"), handle));
         }
     }
-
 }
 
 WebConnection::WebConnection(WebServer* parent)

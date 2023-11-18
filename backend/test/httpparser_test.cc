@@ -34,9 +34,9 @@ TEST(HttpTestSuite, doGetTestIndex)
     uri << "GET / HTTP/1.1\r\n";
     header << "Host: " << "www.dummyhost.com\r\n"
            << "Connection: " << "Keep-Alive\r\n";
-    //delim  << "\r\n";
+    delim  << "\r\n";
     //       << "Content-Length: " << 0 << "\r\n";
-    req << uri.str() << header.str();
+    req << uri.str() << header.str() << delim.str();
     
     Http http(req.str());
     //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), http.header().c_str()));

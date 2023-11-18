@@ -187,7 +187,7 @@ class WebServer : public ACE_Event_Handler {
         void stop_conn_cleanup_timer(long timerId);
         void restart_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to = ACE_Time_Value(60,0));
 
-        std::unordered_map<ACE_HANDLE, WebConnection*>& connectionPool() {
+        std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>>& connectionPool() {
           return(m_connectionPool);
         }
 
@@ -220,7 +220,7 @@ class WebServer : public ACE_Event_Handler {
         ACE_INET_Addr m_listen;
         ACE_SOCK_Acceptor m_server;
         bool m_stopMe;
-        std::unordered_map<ACE_HANDLE, WebConnection*> m_connectionPool;
+        std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>> m_connectionPool;
         std::vector<MicroService*> m_workerPool;
         std::vector<MicroService*>::iterator m_currentWorker;
         /* mongo db interface */
