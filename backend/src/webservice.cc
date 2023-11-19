@@ -2154,7 +2154,8 @@ std::string WebServiceEntry::handle_DELETE(std::string& in, MongodbClient& dbIns
 
     /* Action based on uri in get request */
     std::string uri(http.uri());
-    std::string document("");
+    //std::string document("");
+    json document = json::object();
 
     if(!uri.compare("/api/v1/shipment/awblist")) {
         /** Delete Shipment */
@@ -2177,30 +2178,59 @@ std::string WebServiceEntry::handle_DELETE(std::string& in, MongodbClient& dbIns
             lst += "\"" + awbNo.substr(start) + "\"";
             lst += "]";
 
-            document = "{\"shipmentNo\": {\"$in\" : " + lst + "}}";
+            //document = "{\"shipmentNo\": {\"$in\" : " + lst + "}}";
+            document = {
+                {"shipmentNo", {
+                        {"$in", lst}
+                    }
+                }
+            };
 
         } else if(startDate.length() && endDate.length()) {
             // deleting awb based on start & end date - bulk delete
-            document = "{\"createdOn\": {\"$gte\" : \"" + startDate + "\"," + "\"$lte\" :\"" + endDate +"\"" +"}}";
+            //document = "{\"createdOn\": {\"$gte\" : \"" + startDate + "\"," + "\"$lte\" :\"" + endDate +"\"" +"}}";
+            document = {
+                {"createdOn", {
+                    {"$gte", startDate},
+                    {"$lte", endDate}
+                    }
+                }
+            };
         } else {
 
             std::string err("400 Bad Request");
-            std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid AWB Bill No.\", \"error\" : 400}");
-            return(build_responseERROR(err_message, err));
+            //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid AWB Bill No.\", \"error\" : 400}");
+            json err_message = json::object();
+            err_message = {
+                {"status", "failure"},
+                {"cause", "Invalid AWB Number"},
+                {"error", 400}
+            };
+            return(build_responseERROR(err_message.dump(), err));
         }
 
-        bool rsp = dbInst.delete_document(coll, document);
+        bool rsp = dbInst.delete_document(coll, document.dump());
 
         if(rsp) {
-            std::string r("");
-            r = "{\"status\": \"success\"}";
+            //std::string r("");
+            json r ; json::object();
+            //r = "{\"status\": \"success\"}";
+            r = {
+                {"status", "success"}
+            };
             return(build_responseOK(r));
         } 
     }
 
     std::string err("400 Bad Request");
-    std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid AWB Bill No.\", \"error\" : 400}");
-    return(build_responseERROR(err_message, err));
+    //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid AWB Bill No.\", \"error\" : 400}");
+    json err_message = json::object();
+    err_message = {
+        {"status", "failure"},
+        {"cause", "Invalid AWB Bill Number"},
+        {"error", 400}
+    };
+    return(build_responseERROR(err_message.dump(), err));
 }
 
 
@@ -2402,12 +2432,22 @@ std::string WebServiceEntry::handle_shipment_POST(std::string& in, MongodbClient
             std::int32_t cnt = dbInst.create_bulk_document(dbInst.get_database() ,coll, content);
 
             if(cnt) {
-                std::string rec = "{\"createdShipments\": " + std::to_string(cnt) + "}";
-                return(build_responseOK(rec));
+                //std::string rec = "{\"createdShipments\": " + std::to_string(cnt) + "}";
+                json rec = json::object();
+                rec = {
+                    {"createdShipments", std::to_string(cnt)}
+                };
+                return(build_responseOK(rec.dump()));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Bulk Shipment Creation is failed\", \"errorCode\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Bulk Shipment Creation is failed\", \"errorCode\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Bulk Shipment Creation Failed"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         }
 
@@ -2605,10 +2645,14 @@ std::string WebServiceEntry::handle_account_POST(std::string& in, MongodbClient&
 
             if(oid.length()) {
                 //std::string rsp = dbInst.get_byOID(collectionName, projection, oid);
-                std::string rsp("");
-                rsp = "{\"oid\" : \"" + oid + "\"}";
+                //std::string rsp("");
+                json rsp = json::object();
+                rsp = {
+                    {"oid", oid}
+                };
+                //rsp = "{\"oid\" : \"" + oid + "\"}";
 
-                return(build_responseOK(rsp));
+                return(build_responseOK(rsp.dump()));
             }
         }
     }
@@ -2632,9 +2676,13 @@ std::string WebServiceEntry::handle_inventory_POST(std::string& in, MongodbClien
             std::string record = dbInst.create_document(dbInst.get_database(), coll, content);
 
             if(record.length()) {
-                std::string rsp("");
-                rsp = "{\"oid\" : \"" + record + "\"}";
-                return(build_responseOK(rsp));
+                //std::string rsp("");
+                json rsp = json::object();
+                rsp = {
+                    {"oid", record}
+                };
+                //rsp = "{\"oid\" : \"" + record + "\"}";
+                return(build_responseOK(rsp.dump()));
             }
         }
     }
@@ -2665,14 +2713,24 @@ std::string WebServiceEntry::handle_document_POST(std::string& in, MongodbClient
             std::string record = dbInst.create_document(dbInst.get_database(), coll, content);
 
             if(record.length()) {
-                std::string rsp("");
-                rsp = "{\"oid\" : \"" + record + "\"}";
+                //std::string rsp("");
+                json rsp = json::object();
+                //rsp = "{\"oid\" : \"" + record + "\"}";
+                rsp = {
+                    {"oid", record}
+                };
                 return(build_responseOK(rsp));
 
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"attachment upload failed\", \"errorCode\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"attachment upload failed\", \"errorCode\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Attachment Upload Failed"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
 
             }
         }
@@ -2922,22 +2980,40 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             lst += "\"" + awbNo.substr(start) + "\"";
             lst += "]";
         
-            /* do an authentication with DB now */
-            std::stringstream document("");
-            document << "{\"shipment.awbno\": {\"$in\": " << lst << "}}";
+            //std::stringstream document("");
+            json document = json::object();
+            //document << "{\"shipment.awbno\": {\"$in\": " << lst << "}}";
+            document = {
+                {"shipment.awbno", {
+                        {"$in", lst}
+                    }
+                }
+            };
+
             /*
             auto document = "{\"shipmentNo\" : {\"$in\" :" +
                                lst + "}}";*/
             
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document.str(), projection);
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l document:%s awbNo response:%s\n"), document.str().c_str(),record.c_str()));
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l document:%s awbNo response:%s\n"), document.dump().c_str(),record.c_str()));
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid AWB Bill No.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid AWB Bill No.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Way Bill Number"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         } else if(http.get_element("altRefNo").length() && http.get_element("accountCode").length()) {
             
@@ -2959,22 +3035,39 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             lst += "\"" + altRefNo.substr(start) + "\"";
             lst += "]";
         
-            /* do an authentication with DB now */
-            auto document = "{\"altRefNo\" : {\"$in\" :" +
-                               lst + "}, \"accountCode\": \"" +
-                               accountCode + "\" " +
-                            "}";
-        
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            
+            //auto document = "{\"altRefNo\" : {\"$in\" :" +
+            //                   lst + "}, \"accountCode\": \"" +
+            //                   accountCode + "\" " +
+            //                "}";
+            json document = json::object();
+            document = {
+                {"altRefNo", {
+                        {"$in", lst}
+                    }
+                },
+                {"accountCode", accountCode}
+            };
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l altRefNo response:%s\n"), record.c_str()));
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid ALT REF No.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid ALT REF No.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid ALT Reference Number"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
             
         } else if(http.get_element("altRefNo").length()) {
@@ -2994,21 +3087,38 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             lst += "\"" + altRefNo.substr(start) + "\"";
             lst += "]";
         
-            /* do an authentication with DB now */
-            auto document = "{\"altRefNo\" : {\"$in\" :" +
-                               lst + "}" +
-                            "}";
+            //auto document = "{\"altRefNo\" : {\"$in\" :" +
+            //                   lst + "}" +
+            //                "}";
+            json document = json::object();
+            document = {
+                {"altRefNo", {
+                        {"$in", lst}
+                    }
+                }
+            };
             
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l altRefNo response:%s\n"), record.c_str()));
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid ALT REF No.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid ALT REF No.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid ALT REF Number"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         } else if(http.get_element("senderRefNo").length() && http.get_element("accountCode").length()) {
         
@@ -3030,21 +3140,41 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             lst += "\"" + senderRefNo.substr(start) + "\"";
             lst += "]";
         
-            auto document = "{\"senderRefNo\" : {\"$in\" :" +
-                               lst + "}, \"accountCode\": \"" +
-                               accountCode + "\" " +
-                            "}";
-        
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            //auto document = "{\"senderRefNo\" : {\"$in\" :" +
+            //                   lst + "}, \"accountCode\": \"" +
+            //                   accountCode + "\" " +
+            //                "}";
+
+            json document = json::object();
+            document = {
+                {"senderRefNo", {
+                        {"$in", lst}
+                    }
+                },
+                {"accountCode", accountCode}
+            };
+
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l senderRefNo response:%s\n"), record.c_str()));
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Sender REF No.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Sender REF No.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Sender Reference Number"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
             
         } else if(http.get_element("senderRefNo").length()) {
@@ -3065,20 +3195,37 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             lst += "\"" + senderRefNo.substr(start) + "\"";
             lst += "]";
         
-            auto document = "{\"senderRefNo\" : {\"$in\" :" +
-                               lst + "}" +
-                            "}";
-            
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            //auto document = "{\"senderRefNo\" : {\"$in\" :" +
+            //                   lst + "}" +
+            //                "}";
+            json document = json::object();
+            document = {
+                {"senderRefNo", {
+                        {"$in", lst}
+                    }
+                }
+            };
+
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l senderRefNo response:%s\n"), record.c_str()));
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Sender REF No.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Sender REF No.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Sender Reference Number"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         } else if(http.get_element("fromDate").length() && 
                   http.get_element("toDate").length() && 
@@ -3089,7 +3236,8 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             auto toDate = http.get_element("toDate");
             auto country = http.get_element("country");
             auto accCode = http.get_element("accountCode");
-            std::string document("");
+            //std::string document("");
+            json document = json::object();
 
             std::string lst("[");
             std::string delim = ",";
@@ -3104,24 +3252,48 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             lst +=  accCode.substr(start);
             lst += "]";
 
-            document = "{\"shipment.senderInformation.accountNo\" : {\"$in\" : " +
-                        lst + 
-                        "}," +
-                        "\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
-                        "\"$lte\": \"" + toDate + "\"}," +
-                        "\"shipment.receiverInformation.country\" :\"" + country + "\"}"; 
-        
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.c_str()));
+            //document = "{\"shipment.senderInformation.accountNo\" : {\"$in\" : " +
+            //            lst + 
+            //            "}," +
+            //            "\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
+            //            "\"$lte\": \"" + toDate + "\"}," +
+            //            "\"shipment.receiverInformation.country\" :\"" + country + "\"}"; 
 
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            document = {
+                {"shipment.senderInformation.accountNo", {
+                        {"$in", lst}
+                    }
+                },
+                {"shipment.shipmentInformation.createdOn", {
+                        {"$gte", fromDate},
+                        {"$lte", toDate}
+                    }
+                },
+                {"shipment.receiverInformation.country", country}
+            };
+        
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.dump().c_str()));
+
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Input"},
+                    {"error", 400}
+                };
+
+                return(build_responseERROR(err_message.dump(), err));
             }
         } else if(http.get_element("fromDate").length() && 
                   http.get_element("toDate").length() && 
@@ -3130,7 +3302,8 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             auto fromDate = http.get_element("fromDate");
             auto toDate = http.get_element("toDate");
             auto accCode = http.get_element("accountCode");
-            std::string document("");
+            //std::string document("");
+            json document = json::object();
 
             std::string lst("[");
             std::string delim = ",";
@@ -3145,23 +3318,44 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             lst +=  accCode.substr(start);
             lst += "]";
 
-            document = "{\"shipment.senderInformation.accountNo\" : {\"$in\" : " +
-                        lst + 
-                        "}," +
-                        "\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
-                        "\"$lte\": \"" + toDate + "\"}}"; 
-        
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.c_str()));
+            //document = "{\"shipment.senderInformation.accountNo\" : {\"$in\" : " +
+            //            lst + 
+            //            "}," +
+            //            "\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
+            //            "\"$lte\": \"" + toDate + "\"}}"; 
+            document = {
+                {"shipment.senderInformation.accountNo", {
+                        {"$in", lst}
+                    }
+                },
+                {"shipment.shipmentInformation.createdOn", {
+                        {"$gte", fromDate},
+                        {"$lte", toDate}
+                    }
+                }
+            };
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.dump().c_str()));
 
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Input for detailed report"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         } else if(http.get_element("fromDate").length() && 
                   http.get_element("toDate").length() && 
@@ -3171,45 +3365,83 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             auto toDate = http.get_element("toDate");
             auto country = http.get_element("country");
             
-            std::string document("");
+            //std::string document("");
+            json document = json::object();
 
-            document = "{\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
-                        "\"$lte\": \"" + toDate + "\"}," +
-                        "\"shipment.receiverInformation.country\" :\"" + country + "\"}"; 
+            //document = "{\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
+            //            "\"$lte\": \"" + toDate + "\"}," +
+            //            "\"shipment.receiverInformation.country\" :\"" + country + "\"}"; 
+
+            document = {
+                {"shipment.shipmentInformation.createdOn", {
+                        {"$gte", fromDate},
+                        {"$lte", toDate}
+                    }
+                },
+                {"shipment.receiverInformation.country", country}
+            };
         
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.c_str()));
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.dump().c_str()));
 
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid input for detailed report"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         } else if(http.get_element("fromDate").length() && 
                   http.get_element("toDate").length()) {
 
             auto fromDate = http.get_element("fromDate");
             auto toDate = http.get_element("toDate");
-            std::string document("");
+            //std::string document("");
 
-            document = "{\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
-                        "\"$lte\": \"" + toDate + "\"}}"; 
+            //document = "{\"shipment.shipmentInformation.createdOn\" : {\"$gte\": \""  + fromDate + "\"," + 
+            //            "\"$lte\": \"" + toDate + "\"}}"; 
+            json document = json::object();
+            document = {
+                {"shipment.shipmentInformation.createdOn", {
+                        {"$gte", fromDate},
+                        {"$lte", toDate}
+                    }
+                }
+            };
         
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.c_str()));
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The query:%s\n"), document.dump().c_str()));
 
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_documents(collectionName, document, projection);
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+            std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
 
             if(record.length()) {
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid input for detailed report.\", \"error\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid input for detailed report"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         }
     }
@@ -3235,18 +3467,34 @@ std::string WebServiceEntry::handle_account_GET(std::string& in, MongodbClient& 
 
         if(user.length() && pwd.length()) {
             /* do an authentication with DB now */
-            std::string document = "{\"loginCredentials.accountCode\" : \"" +  user + "\", " + 
-                                   "\"loginCredentials.accountPassword\" : \"" + pwd + "\"" + 
-                                    "}";
+            //std::string document = "{\"loginCredentials.accountCode\" : \"" +  user + "\", " + 
+            //                       "\"loginCredentials.accountPassword\" : \"" + pwd + "\"" + 
+            //                        "}";
+            json document = json::object();
+            document = {
+                {"loginCredentials.accountCode", user},
+                {"loginCredentials.accountPassword", pwd}
+            };
             //std::string projection("{\"accountCode\" : true, \"_id\" : false}");
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_document(collectionName, document, projection);
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+
+            std::string record = dbInst.get_document(collectionName, document.dump(), projection.dump());
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l User details:%s\n"), record.c_str()));
 
             if(!record.length()) {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Credentials\", \"errorCode\" : 404}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Credentials\", \"errorCode\" : 404}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Credentials"},
+                    {"error", 404}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             } else {
                 return(build_responseOK(record));
             }
@@ -3255,28 +3503,54 @@ std::string WebServiceEntry::handle_account_GET(std::string& in, MongodbClient& 
             auto accCode = http.get_element("accountCode");
             
             /* do an authentication with DB now */
-            std::string document = "{\"loginCredentials.accountCode\" : \"" +  accCode + "\" " + 
-                                    "}";
+            //std::string document = "{\"loginCredentials.accountCode\" : \"" +  accCode + "\" " + 
+            //                        "}";
+            json document = json::object();
+            document = {
+                {"loginCredentials.accountCode", accCode}
+            };
             //std::string projection("{\"accountCode\" : true, \"_id\" : false}");
-            std::string projection("{\"_id\" : false}");
-            std::string record = dbInst.get_document(collectionName, document, projection);
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+
+            std::string record = dbInst.get_document(collectionName, document.dump(), projection.dump());
             if(record.length()) {
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Customer Account Info %s\n"), record.c_str()));
                 return(build_responseOK(record));
             } else {
                 std::string err("400 Bad Request");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Account Code\", \"errorCode\" : 400}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid Account Code\", \"errorCode\" : 400}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Account Code"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
         } else {
             // for account list 
-            std::string projection("{\"_id\" : false}");
+            //std::string projection("{\"_id\" : false}");
+            json projection = json::object();
+            projection = {
+                {"_id", false}
+            };
+
             std::string record = dbInst.get_documents(collectionName, projection);
             if(!record.length()) {
                 /* No Customer Account is found */
                 std::string err("404 Not Found");
-                std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"There\'s no customer record\", \"error\" : 404}");
-                return(build_responseERROR(err_message, err));
+                //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"There\'s no customer record\", \"error\" : 404}");
+                json err_message = json::object();
+                err_message = {
+                    {"status", "failure"},
+                    {"cause", "Invalid Account Code"},
+                    {"error", 400}
+                };
+                return(build_responseERROR(err_message.dump(), err));
             }
 
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l account_list:%s\n"), record.c_str()));
@@ -3296,22 +3570,38 @@ std::string WebServiceEntry::handle_inventory_GET(std::string& in, MongodbClient
 
     if(!uri.compare("/api/v1/inventory")) {
       /* GET for inventory - could be all or based on sku */
-        std::string document("");
+        //std::string document("");
+        json document = json::object();
         auto sku = http.get_element("sku");
         auto accCode = http.get_element("accountCode");
 
         if(accCode.length() > 0 && sku.length() > 0) {
-            document = "{\"accountCode\": \"" + accCode + "\", \"sku\" : \""  + sku + "\"}"; 
+            //document = "{\"accountCode\": \"" + accCode + "\", \"sku\" : \""  + sku + "\"}"; 
+            document = {
+                {"accountCode", accCode},
+                {"sku", sku}
+            };
 
         } else if (accCode.length() > 0) {
-            document = "{\"accountCode\" : \""  + accCode + "\"}"; 
+            //document = "{\"accountCode\" : \""  + accCode + "\"}"; 
+            document = {
+                {"accountCode", accCode}
+            };
         } else {
-            document = "{\"sku\" : \""  + sku + "\"}"; 
+            //document = "{\"sku\" : \""  + sku + "\"}";
+            document = {
+                {"sku", sku}
+            };
         }
 
         std::string collectionName("inventory");
-        std::string projection("{\"_id\" : false}");
-        std::string record = dbInst.get_documents(collectionName, document, projection);
+        //std::string projection("{\"_id\" : false}");
+        json projection = json::object();
+        projection = {
+            {"_id", false}
+        };
+
+        std::string record = dbInst.get_documents(collectionName, document.dump(), projection.dump());
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Inventory Querying\n")));
 
         if(record.length()) {
@@ -3320,9 +3610,15 @@ std::string WebServiceEntry::handle_inventory_GET(std::string& in, MongodbClient
         } else {
             /* No Customer Account is found */
             std::string err("404 Not Found");
-            std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"There\'s no Inventory Record\", \"error\" : 404}");
+            //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"There\'s no Inventory Record\", \"error\" : 404}");
+            json err_message = json::object();
+            err_message = {
+                {"status", "failure"},
+                {"cause", "There\'s no Inventory Record"},
+                {"error", 400}
+            };
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l No Record is found \n")));
-            return(build_responseERROR(err_message, err));
+            return(build_responseERROR(err_message.dump(), err));
         }
     }
     return(std::string());
@@ -3343,28 +3639,45 @@ std::string WebServiceEntry::handle_document_GET(std::string& in, MongodbClient&
 
     if(!uri.compare("/api/v1/document")) {
         //Getting the contents of attachment
-        std::stringstream criteria("");
+        //std::stringstream criteria("");
+        json query = json::object();
+
         std::string collection = http.get_element("corporate");
         std::string userId = http.get_element("userId");
         auto fileName = http.get_element("file");
 
         if(userId.length() > 0) {
-            criteria << "{\"corporate\": \"" 
-                     << collection 
-                     << "\", \"userId\": \"" 
-                     << userId 
-                     << "\", \"file\":\"" 
-                     << fileName 
-                     << "\"}"; 
+            //criteria << "{\"corporate\": \"" 
+            //         << collection 
+            //         << "\", \"userId\": \"" 
+            //         << userId 
+            //         << "\", \"file\":\"" 
+            //         << fileName 
+            //         << "\"}";
+
+            query = {
+                {"corporate", collection},
+                {"userId", userId},
+                {"file", fileName}
+            };
+
         } else {
-            criteria << "{\"corporate\" : \""  
-                     << collection
-                     << "\"}"; 
+            //criteria << "{\"corporate\" : \""  
+            //         << collection
+            //         << "\"}";
+            query = {
+                {"corporate", collection}
+            };
         }
 
-        std::string projection("{\"_id\" : false}");
-        std::string record = dbInst.get_documents(collection, criteria.str(), projection);
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l attachment Querying for criteria %s\n"), criteria.str().c_str()));
+        //std::string projection("{\"_id\" : false}");
+        json projection = json::object();
+        projection = {
+            {"_id", false}
+        };
+
+        std::string record = dbInst.get_documents(collection, query.dump(), projection.dump());
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l attachment Querying for criteria %s\n"), query.dump().c_str()));
 
     }
     return(std::string());
@@ -3401,8 +3714,14 @@ std::string WebServiceEntry::handle_PUT(std::string& in, MongodbClient& dbInst)
 
     } else {
         std::string err("400 Bad Request");
-        std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
-        return(build_responseERROR(err_message, err));
+        //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
+        json err_message = json::object();
+        err_message = {
+            {"status", "failure"},
+            {"cuase", "URI is not supported"},
+            {"error", 400}
+        };
+        return(build_responseERROR(err_message.dump(), err));
     }
 }
 
@@ -3423,29 +3742,56 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string& in, MongodbClient&
         std::string isSingleShipment = http.get_element("isSingleShipment");
 
         if(isSingleShipment.length() > 0) {
-            std::string query("");
+            //std::string query("");
+            json query = json::object();
             if(awbNo.length() && accCode.length()) {
-                query = "{\"shipment.awbno\" : \"" +
-                                    awbNo + "\"," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}" +
-                                    ",\"accountCode\": \"" + accCode + "\"}"; 
+                //query = "{\"shipment.awbno\" : \"" +
+                //                    awbNo + "\"," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}" +
+                //                    ",\"accountCode\": \"" + accCode + "\"}"; 
+                query = {
+                            {"shipment.awbno", awbNo}, 
+                            {"shipment.shipmentInformation.activity.event", {
+                                    {"$ne", "Proof of Delivery"}
+                                }
+                            },
+                            {"accountCode", accCode}
+                        };
         
             } else if(awbNo.length()) {
-                query = "{\"shipment.awbno\" :\"" +
-                             awbNo + "\"," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}"+ "}";
+                //query = "{\"shipment.awbno\" :\"" +
+                //             awbNo + "\"," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}"+ "}";
+                query = {
+                            {"shipment.awbno", awbNo}, 
+                            {"shipment.shipmentInformation.activity.event", {
+                                    {"$ne", "Proof of Delivery"}
+                                }
+                            }
+                        };
             }
             
-            std::string document = "{\"$set\": " + content + "}";
+            //std::string document = "{\"$set\": " + content + "}";
+            json document = json::object();
+            document = {{"$set", content}};
 
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.c_str(), query.c_str()));
-            bool rsp = dbInst.update_collection(coll, query, document);
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
+            bool rsp = dbInst.update_collection(coll, query.dump(), document.dump());
             if(rsp) {
-                std::string r("");
-                r = "{\"status\": \"success\"}";
-                return(build_responseOK(r));
+                //std::string r("");
+                json r = json::object();
+                //r = "{\"status\": \"success\"}";
+                r = {{"status", "success"}};
+                return(build_responseOK(r.dump()));
             }
+
             std::string err("400 Bad Request");
-            std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
-            return(build_responseERROR(err_message, err));
+            //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
+            json err_message = json::object();
+            err_message = {
+                {"status", "failure"},
+                {"cause", "Shipment Update Failed"},
+                {"error", 400}
+            };
+            return(build_responseERROR(err_message.dump(), err));
 
         } else {
 
@@ -3464,30 +3810,65 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string& in, MongodbClient&
             lst += "\"" + awbNo.substr(start) + "\"";
             lst += "]";
 
-            std::string query("");
+            //std::string query("");
+            json query = json::object();
             if(awbNo.length() && accCode.length()) {
-                query = "{\"shipment.awbno\" : {\"$in\" :" +
-                                        lst + "}," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}" +
-                                        ",\"accountCode\": \"" + accCode + "\"}"; 
+                //query = "{\"shipment.awbno\" : {\"$in\" :" +
+                //                        lst + "}," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}" +
+                //                        ",\"accountCode\": \"" + accCode + "\"}"; 
+                query = {
+                    {"shipment.awbno", {
+                        {"$in", lst}
+                    }},
+                    {"shipment.shipmentInformation.activity.event", {
+                        {"$ne", "Proof of Delivery"}
+                    }},
+                    {"accountCode", accCode}
+                };
         
             } else if(awbNo.length()) {
-                query = "{\"shipment.awbno\" : {\"$in\" :" +
-                             lst + "}," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}"+ "}";
+                //query = "{\"shipment.awbno\" : {\"$in\" :" +
+                //             lst + "}," + "\"shipment.shipmentInformation.activity.event\" :" + "{\"$ne\" : \"Proof of Delivery\"}"+ "}";
+                query = {
+                    {"shipment.awbno", {
+                        {"$in", lst}
+                    }},
+                    {"shipment.shipmentInformation.activity.event", {
+                        {"$ne", "Proof of Delivery"}
+                    }}
+                };
             }
 
-            std::string document = "{\"$push\": {\"shipment.shipmentInformation.activity\" : " + content + "}}";
+            //std::string document = "{\"$push\": {\"shipment.shipmentInformation.activity\" : " + content + "}}";
+            json document = json::object();
+            document = {
+                {"$push", {
+                        {"shipment.shipmentInformation.activity", content}
+                    }
+                }
+            };
 
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.c_str(), query.c_str()));
-            bool rsp = dbInst.update_collection(coll, query, document);
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
+            bool rsp = dbInst.update_collection(coll, query.dump(), document.dump());
         
             if(rsp) {
-                std::string r("");
-                r = "{\"status\": \"success\"}";
-                return(build_responseOK(r));
+                //std::string r("");
+                json r = json::object();
+                //r = "{\"status\": \"success\"}";
+                r = {
+                    {"status", "success"}
+                };
+                return(build_responseOK(r.dump()));
             }
             std::string err("400 Bad Request");
-            std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
-            return(build_responseERROR(err_message, err));
+            //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
+            json err_message = json::object();
+            err_message = {
+                {"status", "failure"},
+                {"cause", "Shipment Update Failed"},
+                {"error", 400}
+            };
+            return(build_responseERROR(err_message.dump(), err));
         }
     }
 
@@ -3511,35 +3892,51 @@ std::string WebServiceEntry::handle_inventory_PUT(std::string& in, MongodbClient
         std::string qty = http.get_element("qty");
         std::string acc = http.get_element("accountCode");
         std::string isUpdate = http.get_element("isUpdate");
-        std::string query;
-
+        //std::string query;
+        json query = json::object();
         if(sku.length() && qty.length() & acc.length()) {
-          query = "{\"sku\" : \"" + sku +"\"," + "\"accountCode\" :" + "\"" + acc + "\"}";
+          //query = "{\"sku\" : \"" + sku +"\"," + "\"accountCode\" :" + "\"" + acc + "\"}";
+          query["sku"] = sku;
+          query["accountCode"] = acc;
 
         } else if(sku.length()) {
-          query = "{\"sku\" : \"" + sku + "\"}";
+          //query = "{\"sku\" : \"" + sku + "\"}";
+          query["sku"] = sku;
 
         }
 
-        std::string document("");
+        //std::string document("");
+        json document = json::object();
         if(isUpdate.length()) {
-            document = "{\"$inc\": {\"qty\": " + qty + "}}";
+            //document = "{\"$inc\": {\"qty\": " + qty + "}}";
+            json subdoc = json::object();
+            subdoc["qty"] = std::stoi(qty);
+            document["$inc"] = subdoc;
         } else {
-            document = "{\"$inc\": {\"qty\" : -" + qty + "}}";
+            //document = "{\"$inc\": {\"qty\" : -" + qty + "}}";
+            json subdoc = json::object();
+            subdoc["qty"] = -std::stoi(qty);
+            document["$inc"] = subdoc;
         }
 
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.c_str(), query.c_str()));
-        bool rsp = dbInst.update_collection(coll, query, document);
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
+        bool rsp = dbInst.update_collection(coll, query.dump(), document.dump());
 
         if(rsp) {
-            std::string r("");
-            r = "{\"status\": \"success\"}";
+            //std::string r("");
+            //r = "{\"status\": \"success\"}";
+            json r = json::object();
+            r["status"] = "success";
             return(build_responseOK(r));
         }
 
         std::string err("400 Bad Request");
-        std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
-        return(build_responseERROR(err_message, err));
+        //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
+        json err_message = json::object();
+        err_message["status"] = "failure";
+        err_message["cause"] = "Inventory Update Failed";
+        err_message["error"] = 400;
+        return(build_responseERROR(err_message.dump(), err));
     }
 
     return(std::string());
@@ -3559,26 +3956,35 @@ std::string WebServiceEntry::handle_account_PUT(std::string& in, MongodbClient& 
         std::string content = http.body();
         std::string accCode = http.get_element("userId");
       
-        std::string query;
+        json query = json::object();
 
         if(accCode.length()) {
-          query = "{\"loginCredentials.accountCode\" : \"" + accCode + "\"}";
+          //query = "{\"loginCredentials.accountCode\" : \"" + accCode + "\"}";
+          query["loginCredentials.accountCode"] = accCode;
         }
 
-        std::string document;
-        document = "{\"$update\":" + content + "}";
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.c_str(), query.c_str()));
-        bool rsp = dbInst.update_collection(coll, query, document);
+        json document = json::object();
+        //document = "{\"$update\":" + content + "}";
+        document["$update"] = content;
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
+        bool rsp = dbInst.update_collection(coll, query.dump(), document.dump());
 
         if(rsp) {
-            std::string r("");
-            r = "{\"status\": \"success\"}";
-            return(build_responseOK(r));
+            //std::string r("");
+            json r = json::object();
+            r["status"] = "success";
+            //r = "{\"status\": \"success\"}";
+            return(build_responseOK(r.dump()));
         }
 
         std::string err("400 Bad Request");
-        std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
-        return(build_responseERROR(err_message, err));
+        //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
+        json err_message = json::object();
+        err_message["status"] = "failure";
+        err_message["cause"] = "Account Update Failed";
+        err_message["error"] = 400;
+
+        return(build_responseERROR(err_message.dump(), err));
     }
 
     return(std::string());
@@ -3595,7 +4001,7 @@ std::string WebServiceEntry::handle_OPTIONS(std::string& in)
     http_header += "Access-Control-Allow-Origin: *\r\n";
     http_header += "Content-Type: text/plain; charset=utf-8\r\n";
     http_header += "Content-Length: 0\r\n";
-    http_header += "\r\n\r\n";
+    http_header += "\r\n";
    // ACE_Message_Block* rsp = nullptr;
 
     //ACE_NEW_RETURN(rsp, ACE_Message_Block(512), nullptr);
@@ -3669,6 +4075,7 @@ std::string WebServiceEntry::build_responseERROR(std::string httpBody, std::stri
         http_header += "Content-Length: " + std::to_string(httpBody.length()) + "\r\n";
         http_header += "Content-Type: " + contentType + "\r\n";
         http_header += "\r\n";
+        http_header += httpBody;
 
     } else {
         http_header += "Content-Length: 0\r\n";
