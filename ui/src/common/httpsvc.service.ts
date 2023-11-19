@@ -123,7 +123,7 @@ export class HttpsvcService {
    * @param accountCode 
    * @returns 
    */
-  getShipmentsList(fromDate:Date, toDate:Date, accountCode?: string): Observable<Shipment[]> {
+  getShipmentsList(fromDate:string, toDate:string, accountCode?: string): Observable<Shipment[]> {
     let param = `fromDate=${fromDate}&toDate=${toDate}`;
 
     if(accountCode != undefined) {

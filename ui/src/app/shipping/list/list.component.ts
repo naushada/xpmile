@@ -1,8 +1,8 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, Pipe, PipeTransform, LOCALE_ID } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { Account, Shipment } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
-import {formatDate} from '@angular/common';
+import {formatDate, DatePipe} from '@angular/common';
 import { SubSink } from 'subsink';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
 import { catchError } from 'rxjs/operators';
@@ -29,8 +29,8 @@ export class ListComponent implements OnInit, OnDestroy {
 
   constructor(private fb: FormBuilder, private http: HttpsvcService, private subject: PubsubsvcService) {
     this.shipmentListForm = this.fb.group({
-      startDate: [formatDate(new Date(Date.now()), 'dd/MM/yyyy', 'en-GB')],
-      endDate: [formatDate(new Date(Date.now()), 'dd/MM/yyyy', 'en-GB')],
+      startDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
+      endDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
     });
    }
 
@@ -214,7 +214,7 @@ export class ListComponent implements OnInit, OnDestroy {
   }
 
   onCreateA2Label() {
-    this.rowsSelected?.forEach(elm => {alert(JSON.stringify(elm))});
+    //this.rowsSelected?.forEach(elm => {alert(JSON.stringify(elm))});
   }
 
   onCreateA4Label() {

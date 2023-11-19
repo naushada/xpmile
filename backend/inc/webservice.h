@@ -215,7 +215,6 @@ class WebServer : public ACE_Event_Handler {
         }
 
     private:
-        ACE_Message_Block m_mb;
         ACE_SOCK_Stream m_stream;
         ACE_INET_Addr m_listen;
         ACE_SOCK_Acceptor m_server;

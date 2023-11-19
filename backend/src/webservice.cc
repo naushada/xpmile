@@ -2935,20 +2935,23 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
 
         if(awbNo.length() && accountCode.length()) {
 
-            std::string lst("[");
+            //std::string lst("[");
+            json lst =  json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = awbNo.find(delim);
 
             while(end != std::string::npos)
             {
-                lst += "\"" + awbNo.substr(start, end - start) + "\"" + delim;
+                //lst += "\"" + awbNo.substr(start, end - start) + "\"" + delim;
+                lst.push_back(awbNo.substr(start, end - start));
                 start = end + delim.length();
                 end = awbNo.find(delim, start);
             }
 
-            lst += "\"" + awbNo.substr(start) + "\"";
-            lst += "]";
+            lst.push_back(awbNo.substr(start, end - start));
+            //lst += "\"" + awbNo.substr(start) + "\"";
+            //lst += "]";
         
             /* do an authentication with DB now */
             /*
@@ -2967,20 +2970,23 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
 
         } else if(awbNo.length()) {
 
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = awbNo.find(delim);
 
             while(end != std::string::npos)
             {
-                lst += "\"" + awbNo.substr(start, end - start) + "\"" + delim;
+                //lst += "\"" + awbNo.substr(start, end - start) + "\"" + delim;
+                lst.push_back(awbNo.substr(start, end - start));
                 start = end + delim.length();
                 end = awbNo.find(delim, start);
             }
 
-            lst += "\"" + awbNo.substr(start) + "\"";
-            lst += "]";
+            //lst += "\"" + awbNo.substr(start) + "\"";
+            lst.push_back(awbNo.substr(start, end - start));
+            //lst += "]";
         
             //std::stringstream document("");
             json document = json::object();
@@ -2991,7 +2997,7 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
                     }
                 }
             };
-
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l document:%s\n"), document.dump().c_str()));
             /*
             auto document = "{\"shipmentNo\" : {\"$in\" :" +
                                lst + "}}";*/
@@ -3022,20 +3028,22 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             auto altRefNo = http.get_element("altRefNo");
             auto accCode = http.get_element("accountCode");
             
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = altRefNo.find(delim);
 
             while(end != std::string::npos)
             {
-                lst += "\"" + altRefNo.substr(start, end - start) + "\"" + delim;
+                lst.push_back(altRefNo.substr(start, end - start));
+                //lst += "\"" + altRefNo.substr(start, end - start) + "\"" + delim;
                 start = end + delim.length();
                 end = altRefNo.find(delim, start);
             }
-
-            lst += "\"" + altRefNo.substr(start) + "\"";
-            lst += "]";
+            lst.push_back(altRefNo.substr(start, end - start));
+            //lst += "\"" + altRefNo.substr(start) + "\"";
+            //lst += "]";
         
             
             //auto document = "{\"altRefNo\" : {\"$in\" :" +
@@ -3074,20 +3082,23 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             
         } else if(http.get_element("altRefNo").length()) {
             auto altRefNo = http.get_element("altRefNo");
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = altRefNo.find(delim);
 
             while(end != std::string::npos)
             {
-                lst += "\"" + altRefNo.substr(start, end - start) + "\"" + delim;
+                //lst += "\"" + altRefNo.substr(start, end - start) + "\"" + delim;
+                lst.push_back(altRefNo.substr(start, end - start));
                 start = end + delim.length();
                 end = altRefNo.find(delim, start);
             }
 
-            lst += "\"" + altRefNo.substr(start) + "\"";
-            lst += "]";
+            //lst += "\"" + altRefNo.substr(start) + "\"";
+            //lst += "]";
+            lst.push_back(altRefNo.substr(start, end - start));
         
             //auto document = "{\"altRefNo\" : {\"$in\" :" +
             //                   lst + "}" +
@@ -3127,20 +3138,23 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             auto senderRefNo = http.get_element("senderRefNo");
             auto accCode = http.get_element("accountCode");
             
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = senderRefNo.find(delim);
 
             while(end != std::string::npos)
             {
-                lst += "\"" + senderRefNo.substr(start, end - start) + "\"" + delim;
+                //lst += "\"" + senderRefNo.substr(start, end - start) + "\"" + delim;
+                lst.push_back(senderRefNo.substr(start, end - start));
                 start = end + delim.length();
                 end = senderRefNo.find(delim, start);
             }
 
-            lst += "\"" + senderRefNo.substr(start) + "\"";
-            lst += "]";
+            //lst += "\"" + senderRefNo.substr(start) + "\"";
+            //lst += "]";
+            senderRefNo.substr(start, end - start);
         
             //auto document = "{\"senderRefNo\" : {\"$in\" :" +
             //                   lst + "}, \"accountCode\": \"" +
@@ -3182,20 +3196,23 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
         } else if(http.get_element("senderRefNo").length()) {
 
             auto senderRefNo = http.get_element("senderRefNo");
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = senderRefNo.find(delim);
 
             while(end != std::string::npos)
             {
-                lst += "\"" + senderRefNo.substr(start, end - start) + "\"" + delim;
+                //lst += "\"" + senderRefNo.substr(start, end - start) + "\"" + delim;
+                lst.push_back(senderRefNo.substr(start, end - start));
                 start = end + delim.length();
                 end = senderRefNo.find(delim, start);
             }
 
-            lst += "\"" + senderRefNo.substr(start) + "\"";
-            lst += "]";
+            lst.push_back(senderRefNo.substr(start, end - start));
+            //lst += "\"" + senderRefNo.substr(start) + "\"";
+            //lst += "]";
         
             //auto document = "{\"senderRefNo\" : {\"$in\" :" +
             //                   lst + "}" +
@@ -3241,18 +3258,21 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             //std::string document("");
             json document = json::object();
 
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = accCode.find(delim);
             while (end != std::string::npos)
             {
-                lst += accCode.substr(start, end - start)  + delim;
+                //lst += accCode.substr(start, end - start)  + delim;
+                lst.push_back(accCode.substr(start, end - start));
                 start = end + delim.length();
                 end = accCode.find(delim, start);
             }
-            lst +=  accCode.substr(start);
-            lst += "]";
+            //lst +=  accCode.substr(start);
+            //lst += "]";
+            lst.push_back(accCode.substr(start, end - start));
 
             //document = "{\"shipment.senderInformation.accountNo\" : {\"$in\" : " +
             //            lst + 
@@ -3307,18 +3327,21 @@ std::string WebServiceEntry::handle_shipment_GET(std::string& in, MongodbClient&
             //std::string document("");
             json document = json::object();
 
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = accCode.find(delim);
             while (end != std::string::npos)
             {
-                lst += accCode.substr(start, end - start)  + delim;
+                //lst += accCode.substr(start, end - start)  + delim;
+                lst.push_back(accCode.substr(start, end - start));
                 start = end + delim.length();
                 end = accCode.find(delim, start);
             }
-            lst +=  accCode.substr(start);
-            lst += "]";
+            //lst +=  accCode.substr(start);
+            //lst += "]";
+            lst.push_back(accCode.substr(start, end - start));
 
             //document = "{\"shipment.senderInformation.accountNo\" : {\"$in\" : " +
             //            lst + 
