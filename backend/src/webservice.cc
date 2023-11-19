@@ -1747,7 +1747,7 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle)
     int ret_status = 0;
     ACE_SOCK_Stream peerStream;
     ACE_INET_Addr peerAddr;
-    WebConnection* connEnt = nullptr;
+    //WebConnection* connEnt = nullptr;
 
     ret_status = m_server.accept(peerStream, &peerAddr);
 
@@ -1824,7 +1824,8 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t* s, ucontext_t* ctx)
     }
 
 
-    ACE_Reactor::instance()->remove_handler(m_server.get_handle(), ACE_Event_Handler::ACCEPT_MASK | 
+    ACE_Reactor::instance()->remove_handler(m_server.get_handle(), 
+                                                         ACE_Event_Handler::ACCEPT_MASK | 
                                                          ACE_Event_Handler::TIMER_MASK | 
                                                          ACE_Event_Handler::SIGNAL_MASK);
 
@@ -1916,6 +1917,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort, ACE_UINT32 worker
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l Starting of WebServer failed - opening of port %d hostname %s\n"), 
                 m_listen.get_port_number(), m_listen.get_host_name()));
     }
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webserver handle:%d \n"), m_server.get_handle()));
 }
 
 WebServer::~WebServer()
