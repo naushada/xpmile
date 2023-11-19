@@ -3482,6 +3482,8 @@ std::string WebServiceEntry::handle_account_GET(std::string& in, MongodbClient& 
                 {"_id", false}
             };
 
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l document:%s projectionn:%s\n"), document.dump().c_str(),  projection.dump().c_str()));
+
             std::string record = dbInst.get_document(collectionName, document.dump(), projection.dump());
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l User details:%s\n"), record.c_str()));
 
@@ -3539,7 +3541,7 @@ std::string WebServiceEntry::handle_account_GET(std::string& in, MongodbClient& 
                 {"_id", false}
             };
 
-            std::string record = dbInst.get_documents(collectionName, projection);
+            std::string record = dbInst.get_documents(collectionName, projection.dump());
             if(!record.length()) {
                 /* No Customer Account is found */
                 std::string err("404 Not Found");
