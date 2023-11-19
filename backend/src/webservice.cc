@@ -1732,7 +1732,7 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value& tv, const void* act)
         //delete connEnt;
         m_connectionPool.erase(conIt);
         //close(_handle);
-        //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle: %d for webconnection is closed successfully\n"), _handle));
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l active connection:%d \n"), m_connectionPool.size()));
 
     } else {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timedout no connEnt found for handle %d\n"), _handle));
@@ -2213,7 +2213,7 @@ std::string WebServiceEntry::handle_DELETE(std::string& in, MongodbClient& dbIns
 
         if(rsp) {
             //std::string r("");
-            json r ; json::object();
+            json r = json::object();
             //r = "{\"status\": \"success\"}";
             r = {
                 {"status", "success"}
