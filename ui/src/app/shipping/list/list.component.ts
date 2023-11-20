@@ -44,9 +44,12 @@ export class ListComponent implements OnInit, OnDestroy {
   }
 
   retrieveShipmentList() {
+
+    let start:string = formatDate(this.shipmentListForm.get('startDate')?.value, 'dd/MM/yyyy', 'en-GB');
+    let end:string = formatDate(this.shipmentListForm.get('endDate')?.value, 'dd/MM/yyyy', 'en-GB');
+
     if('Customer' == this.loggedInUser?.personalInfo.role) {
-      this.http.getShipmentsList(this.shipmentListForm.get('startDate')?.value, 
-                                 this.shipmentListForm.get('endDate')?.value,
+      this.http.getShipmentsList(start, end,
                                  this.loggedInUser.loginCredentials.accountCode).subscribe((rsp: Shipment[]) => {
                                     rsp.forEach(elm => {this.shipments.push(elm);})
                                  },
@@ -54,8 +57,7 @@ export class ListComponent implements OnInit, OnDestroy {
                                  () => {});
       
     } else {
-      this.http.getShipmentsList(this.shipmentListForm.get('startDate')?.value, 
-                                 this.shipmentListForm.get('endDate')?.value).subscribe((rsp: Shipment[]) => {
+      this.http.getShipmentsList(start, end).subscribe((rsp: Shipment[]) => {
                                      rsp.forEach(elm => {
                                          this.shipments.push(elm);
                                       });
