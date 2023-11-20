@@ -3798,7 +3798,7 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string& in, MongodbClient&
             
             //std::string document = "{\"$set\": " + content + "}";
             json document = json::object();
-            document = {{"$set", content}};
+            document = {{"$set", json::parse(content)}};
 
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
             bool rsp = dbInst.update_collection(coll, query.dump(), document.dump());
@@ -3822,20 +3822,23 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string& in, MongodbClient&
 
         } else {
 
-            std::string lst("[");
+            //std::string lst("[");
+            json lst = json::array();
             std::string delim = ",";
             auto start = 0U;
             auto end = awbNo.find(delim);
 
             while (end != std::string::npos)
             {
-                lst += "\"" + awbNo.substr(start, end - start) + "\"" + delim;
+                lst.push_back(awbNo.substr(start, end - start));
+                //lst += "\"" + awbNo.substr(start, end - start) + "\"" + delim;
                 start = end + delim.length();
                 end = awbNo.find(delim, start);
             }
 
-            lst += "\"" + awbNo.substr(start) + "\"";
-            lst += "]";
+            lst.push_back(awbNo.substr(start, end - start));
+            //lst += "\"" + awbNo.substr(start) + "\"";
+            //lst += "]";
 
             //std::string query("");
             json query = json::object();
@@ -3870,7 +3873,7 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string& in, MongodbClient&
             json document = json::object();
             document = {
                 {"$push", {
-                        {"shipment.shipmentInformation.activity", content}
+                        {"shipment.shipmentInformation.activity", json::parse(content)}
                     }
                 }
             };
@@ -3942,8 +3945,14 @@ std::string WebServiceEntry::handle_inventory_PUT(std::string& in, MongodbClient
         } else {
             //document = "{\"$inc\": {\"qty\" : -" + qty + "}}";
             json subdoc = json::object();
-            subdoc["qty"] = -std::stoi(qty);
-            document["$inc"] = subdoc;
+            //subdoc["qty"] = -std::stoi(qty);
+            //document["$inc"] = subdoc;
+            document = {
+                {"$inc", {
+                        {"qty", -std::stoi(qty)}
+                    }
+                }
+            };
         }
 
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
@@ -3987,12 +3996,18 @@ std::string WebServiceEntry::handle_account_PUT(std::string& in, MongodbClient& 
 
         if(accCode.length()) {
           //query = "{\"loginCredentials.accountCode\" : \"" + accCode + "\"}";
-          query["loginCredentials.accountCode"] = accCode;
-        }
+          //query["loginCredentials.accountCode"] = accCode;
+          query = {
+            {"loginCredentials.accountCode", accCode}
+          };
+        };
 
         json document = json::object();
         //document = "{\"$update\":" + content + "}";
-        document["$update"] = content;
+        //document["$update"] = content;
+        document = {
+            {"$update", json::parse(content)}
+        };
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
         bool rsp = dbInst.update_collection(coll, query.dump(), document.dump());
 
