@@ -31,7 +31,7 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
       currentDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
       currentTime: [new Date().getHours() + ':' + new Date().getMinutes()],
       notes:'',
-      eventLocation:'',
+      eventLocation: this.defValue?.CountryName?.at(0),
       manualEventLocation:'',
       driverName:'',
       updatedBy:this.loggedInUser?.personalInfo.name

@@ -10,8 +10,8 @@
             <clr-select-container>
                 <label>Event</label>
                 <select clrSelect name="events" formControlName="events">
-                    <option *ngFor="let svc of this.defValue?.ServiceType" value="svc">
-                        {{svc}}
+                    <option *ngFor="let evt of this.defValue?.Events" value="evt">
+                        {{evt}}
                       </option>
                 </select>
               </clr-select-container>
