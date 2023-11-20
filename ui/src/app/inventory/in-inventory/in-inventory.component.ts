@@ -29,7 +29,7 @@ export class InInventoryComponent implements OnInit,OnDestroy {
       sku: '',
       productDescription:'',
       qty:0,
-      currentDate: [formatDate(new Date(Date.now()), 'dd/MM/yyyy', 'en-GB')],
+      currentDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
       currentTime: [new Date().getHours() + ':' + new Date().getMinutes()],
       shelf:'',
       rowNumber:'',

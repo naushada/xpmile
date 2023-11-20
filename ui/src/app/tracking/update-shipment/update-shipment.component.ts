@@ -28,7 +28,7 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
     this.updateShipmentStatus = this.fb.group({
       shipmentNo: '',
       events: '',
-      currentDate: [formatDate(new Date(Date.now()), 'dd/MM/yyyy', 'en-GB')],
+      currentDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
       currentTime: [new Date().getHours() + ':' + new Date().getMinutes()],
       notes:'',
       eventLocation:'',
@@ -50,8 +50,8 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
 
     let awbNo: string = this.updateShipmentStatus.get('shipmentNo')?.value;
     let status: activityOnShipment = {...this.updateShipmentStatus.value};
-
-    (status as activityOnShipment).date = this.updateShipmentStatus.get('currentDate')?.value;
+    let cDate:any = formatDate(this.updateShipmentStatus.get('currentDate')?.value, 'dd/MM/yyyy', 'en-GB');
+    (status as activityOnShipment).date = cDate;
     (status as activityOnShipment).event = this.updateShipmentStatus.get('events')?.value;
     (status as activityOnShipment).time = this.updateShipmentStatus.get('currentTime')?.value;
     (status as activityOnShipment).notes = this.updateShipmentStatus.get('notes')?.value;
