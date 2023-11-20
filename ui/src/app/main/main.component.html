@@ -40,7 +40,43 @@
       </div>
     </clr-header>
     
+    <div class="subnav">
+      <nav class="subnav">
+        <ul class="nav">
+          <li class="nav-item">
+            <span class="badge badge-purple">
+              Delivered 2
+              <!--<span class="clr-sr-only">items in an info badge</span>-->
+            </span>
+            <!--<a class="nav-link active" href="#" aria-current="page">Dashboard</a>-->.
+          </li>
+          <li class="nav-item">
+            <span class="badge badge-blue">
+              In  Sccan 3
+              <!--<span class="clr-sr-only">items in a sucess badge</span>-->
+            </span>
+            <!--<a class="nav-link" href="#">Management</a>-->
+          </li>
+          <li class="nav-item">
 
+            <span class="badge badge-orange">
+              Out For  Deelivery 12
+              <!--<span class="clr-sr-only">items in a warning badge</span>-->
+            </span>
+
+            <!--<a class="nav-link" href="#">Cloud</a>-->
+          </li>
+          <li class="nav-item">
+            <span class="badge badge-light-blue">
+              Returned 15
+              <!--<span class="clr-sr-only">items in a danger badge</span>-->
+            </span>
+            <!--<a class="nav-link" href="#">Tenants</a>-->
+          </li>
+        </ul>
+      </nav>
+
+    </div>
     <div class="content-container">
       <ng-container *ngIf="selectedMenuItem === 'dashboard'">
         <app-dashboard></app-dashboard>

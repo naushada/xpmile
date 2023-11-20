@@ -24,10 +24,16 @@
             </clr-radio-container>
         </div>
         <div class="clr-col-lg-auto">
+            <cds-file status="success">
+                <label>Choose bulk upload excel file</label>
+                <input type="file" name="excelFileName" formControlName="excelFileName" (change)="onFileSelect($event)" accept=".xls,.excel,.xlsx" />
+            </cds-file>
+            <!--
             <clr-input-container>
                 <label>Choose bulk upload excel file</label>
                 <input clrInput name="name" type="file"/>
-              </clr-input-container>
+            </clr-input-container>
+            -->
         </div>
         <div class="clr-col-lg-auto">
             <clr-input-container>

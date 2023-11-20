@@ -12,4 +12,7 @@ export class ThirdPartyComponent implements OnInit {
   ngOnInit(): void {
   }
 
+  onFileSelect(event: any) {
+    
+  }
 }
