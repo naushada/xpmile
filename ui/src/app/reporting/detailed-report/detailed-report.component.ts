@@ -24,8 +24,8 @@ export class DetailedReportComponent implements OnInit {
 
     this.defValue = {...AppGlobalsDefault};
     this.detailedReportForm = this.fb.group({
-      startDate: [formatDate(new Date(Date.now()), 'dd-MM-yyyy', 'en-GB')],
-      endDate: [formatDate(new Date(Date.now()), 'dd-MM-yyyy', 'en-GB')],
+      startDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
+      endDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
       receiverCountry: '',
       accountCode:''
     });
@@ -36,8 +36,9 @@ export class DetailedReportComponent implements OnInit {
 
   onSubmit() {
     this.shipments = [];
-    let sDate:Date = this.detailedReportForm.get('startDate')?.value;
-    let eDate:Date = this.detailedReportForm.get('endDate')?.value;
+    
+    let sDate:any = formatDate(this.detailedReportForm.get('startDate')?.value, 'dd/MM/yyyy', 'en-GB');
+    let eDate:any = formatDate(this.detailedReportForm.get('endDate')?.value, 'dd/MM/yyy', 'en-GB');
     let acc:string = this.detailedReportForm.get('accountCode')?.value;
     let receiverCountry:string = this.detailedReportForm.get('receiverCountry')?.value
 
