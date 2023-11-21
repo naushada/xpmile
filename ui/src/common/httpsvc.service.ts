@@ -365,6 +365,22 @@ export class HttpsvcService {
     return(this.http.put<any>(this.getUri("from_web_shipment"), JSON.stringify(data), options));
   }
 
+  /**
+   * @brief This method sends multiple request
+   * @param { "awbno": [], "altrefno": []} JSON object
+   * @param json data 
+   * @returns Observable <any>
+   */
+  updateBulkAltRefForShipments(data: any) : Observable<any> {
+    
+    const options = {
+                       headers: new HttpHeaders({
+                                'Content-Type': 'application/json'
+                        })
+                    };
+    return(this.http.put<any>(this.getUri("from_web_bulk_altrefshipment"), JSON.stringify(data), options));
+  }
+
   /** CREATE Section */
   /**
    * 

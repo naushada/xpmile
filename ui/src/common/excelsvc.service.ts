@@ -76,10 +76,35 @@ export class ExcelsvcService {
         let sheet = workbook.getWorksheet(sheetName);
         for(var i = 1; i <= sheet.actualRowCount; i++) {
           rows.push(JSON.stringify(sheet.getRow(i)));
-          console.log(rows.at(i));
+          //console.log(rows.at(i));
         }
       });
     });
     return(rows);
+  }
+
+  createAndSaveAltRefUpdateTemplate(sheetName: string) {
+    const workbook = new Excel.Workbook();
+    const worksheet = workbook.addWorksheet(sheetName);
+
+    worksheet.properties.defaultRowHeight = 20;
+    worksheet.properties.defaultColWidth = 20;
+    worksheet.pageSetup.paperSize = 9;
+    worksheet.pageSetup.orientation = 'landscape';
+
+    worksheet.columns = [
+      {header: "awbno", key: "awbno", width: 20},
+      {header: "altRefNo",  key: "altRefNo",  width: 20}
+    ];
+    
+    worksheet.views = [
+      {state: 'frozen', xSplit: 0, ySplit: 1}
+    ];
+
+    workbook.xlsx.writeBuffer().then((data) => {
+      let blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      fs.saveAs(blob, 'UpdateAltRefTemplate.xlsx');
+    });
+
   }
 }

@@ -24,7 +24,7 @@ export class BulkComponent implements OnInit, OnDestroy {
   public bulkShipmentForm: FormGroup;
   
   public accountInfoList: Map<string, Account > = new Map<string, Account>();
-  public shipmentExcelRows?: Array<ShipmentExcelRow> = new Array<ShipmentExcelRow>(); 
+  public shipmentExcelRows?: Array<ShipmentExcelRow> = new Array<ShipmentExcelRow>();
 
 
   constructor(private http: HttpsvcService, private fb: FormBuilder, private xls: ExcelsvcService, private subject: PubsubsvcService) {
@@ -75,7 +75,7 @@ export class BulkComponent implements OnInit, OnDestroy {
           }),
 
           shipmentInformation : this.fb.group({
-            activity: this.fb.array([{date: formatDate(new Date(), 'dd/MM/yyyy', 'en'), event: "Document Created", 
+            activity: this.fb.array([{date: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'), event: "Document Created", 
                                   time:new Date().getHours() + ':' + new Date().getMinutes(), notes:'Document Created', driver:'', 
                                   updatedBy: this.loggedInUser?.personalInfo.name, eventLocation:'Riyadh'}]),
             skuNo:'',
@@ -133,6 +133,8 @@ export class BulkComponent implements OnInit, OnDestroy {
   }
 
   public processShipmentExcelFile(evt: any, accountType: string) {
+    if(evt.target.files[0] == undefined) return;
+    
     let rows: any[] = [];
     let accList: Array<string> = new Array<string>;
     

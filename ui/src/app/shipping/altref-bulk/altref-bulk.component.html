@@ -1,1 +1,32 @@
-<p>altref-bulk works!</p>
+<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="bulkAltRefUpdateForm">
+
+    <div class="clr-row">
+        <div class="clr-col-lg-auto">
+            <cds-file status="success">
+                <label>Upload bulk ALT REF excel file</label>
+                <input type="file" name="excelFileName" formControlName="excelFileName" (change)="onFileSelect($event)" accept=".xls,.excel,.xlsx" />
+            </cds-file>
+        <!--
+            <clr-input-container>
+                <label>Choose bulk upload excel file</label>
+                <input type="file" clrInput name="excelFileName" formControlName="excelFileName" (change)="onFileSelect($event)" accept=".xls,.excel,.xlsx" >
+            </clr-input-container>
+        -->
+        </div>
+        
+        <div class="clr-col-lg-auto">
+            <clr-input-container>
+                <label>Bulk Update ALT REF Template</label>
+            </clr-input-container>
+            <button class="btn btn-sm" (click)="onDownloadTemplate()">Download</button>
+        </div>
+
+    </div>
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="onUpdateBulkShipment()">Update Bulk ALT REF</button>
+        </div>
+    </div>
+
+</form>
+

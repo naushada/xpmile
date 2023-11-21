@@ -334,10 +334,20 @@ export interface Email {
     subject: string;
 };
 
+export class UpdateAltRefForShipment {
+    awbno: string;
+    altRefNo: string;
+    constructor(ent: UpdateAltRefForShipment) {
+        this.awbno = ent.awbno;
+        this.altRefNo = ent.altRefNo;
+    }
+};
+
 export let UriMap = new Map<string, string>([
     ["from_web_shipment",         "/api/v1/shipment/shipping"],
     ["from_web_single_shipment",  "/api/v1/shipment/single/shipping"],
     ["from_web_bulk_shipment",    "/api/v1/shipment/bulk/shipping"],
+    ["from_web_bulk_altrefshipment",    "/api/v1/shipment/bulk/altref"],
     ["from_web_config",           "/api/v1/config"],
     ["from_web_account",          "/api/v1/account/account"],
     ["from_web_manifest",         "/api/v1/inventory/manifest"],
