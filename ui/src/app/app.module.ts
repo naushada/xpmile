@@ -42,6 +42,8 @@ import { EmailComponent } from './tracking/email/email.component';
 import { SingleShipmentDiaglogComponent } from './tracking/single-shipment-diaglog/single-shipment-diaglog.component';
 import { CreateDRSComponent } from './shipping/create-drs/create-drs.component';
 import { PasswordResetComponent } from './login/password-reset/password-reset.component';
+import { AltrefBulkComponent } from './shipping/altref-bulk/altref-bulk.component';
+import { CollectShipmentComponent } from './shipping/collect-shipment/collect-shipment.component';
 
 
 @NgModule({
@@ -79,6 +81,8 @@ import { PasswordResetComponent } from './login/password-reset/password-reset.co
     SingleShipmentDiaglogComponent,
     CreateDRSComponent,
     PasswordResetComponent,
+    AltrefBulkComponent,
+    CollectShipmentComponent,
     
   ],
   imports: [

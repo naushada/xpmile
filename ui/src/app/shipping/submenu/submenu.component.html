@@ -16,12 +16,14 @@
     </li>
   </ul>
 -->
-<clr-vertical-nav style="height:100%; width:100%; cursor: pointer;">
+<clr-vertical-nav style="height:100%; width:auto; cursor: pointer;">
   <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'singleShipment'" (click)="onItemSelect('singleShipment')" ><clr-icon shape="new" class="is-solid" clrVerticalNavIcon></clr-icon><b>Create Single Shipment</b></a>
   <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'bulkShipment'" (click)="onItemSelect('bulkShipment')"><clr-icon shape="attachment" clrVerticalNavIcon></clr-icon><b>Create Bulk Shipment</b></a>
+  <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'altrefBulk'" (click)="onItemSelect('altrefBulk')"><clr-icon shape="tasks" clrVerticalNavIcon></clr-icon><b>Update Bulk ALT. REF. Number</b></a>
   <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'thirdPartyShipment'" (click)="onItemSelect('thirdPartyShipment')"><clr-icon shape="new" class="is-solid" clrVerticalNavIcon></clr-icon><b>Create Third Party Shipment</b></a>
   <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'updateShipment'" (click)="onItemSelect('updateShipment')"><clr-icon shape="highlighter" clrVerticalNavIcon></clr-icon><b>Update Shipment</b></a>
   <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'listShipment'" (click)="onItemSelect('listShipment')"><clr-icon shape="view-list" clrVerticalNavIcon></clr-icon><b>Shipment List</b></a>
+  <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'collectShipment'" (click)="onItemSelect('collectShipment')"><clr-icon shape="layers" clrVerticalNavIcon></clr-icon><b>Collect Shipment</b></a>
   <a class = "nav-link nav-text" [class.active] = "navItemSelected === 'createDRS'" (click)="onItemSelect('createDRS')"><clr-icon shape="new" class="is-solid" clrVerticalNavIcon></clr-icon><b>Create DRS</b></a>
 
   <div class="nav-divider"></div>

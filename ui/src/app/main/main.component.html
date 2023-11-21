@@ -94,9 +94,11 @@
         <div class="content-area">
           <app-single *ngIf="selectedNavItem === 'singleShipment'"></app-single>
           <app-bulk *ngIf="selectedNavItem === 'bulkShipment'"></app-bulk>
+          <app-altref-bulk *ngIf="selectedNavItem === 'altrefBulk'"></app-altref-bulk>
           <app-third-party *ngIf="selectedNavItem === 'thirdPartyShipment'"></app-third-party>
           <app-modify *ngIf="selectedNavItem === 'updateShipment'"></app-modify>
           <app-list *ngIf="selectedNavItem === 'listShipment'"></app-list>
+          <app-collect-shipment *ngIf="selectedNavItem === 'collectShipment'"></app-collect-shipment>
           <app-create-drs *ngIf="selectedNavItem === 'createDRS'"></app-create-drs>
           <app-api-integration *ngIf="selectedNavItem === 'apiIntegration'"></app-api-integration>
         </div>
