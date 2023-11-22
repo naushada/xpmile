@@ -254,6 +254,7 @@ class WebServiceEntry {
         std::string handle_shipment_PUT(std::string& in, MongodbClient& dbInst);
         std::string handle_inventory_PUT(std::string& in, MongodbClient& dbInst);
         std::string handle_account_PUT(std::string& in, MongodbClient& dbInst);
+        std::string handle_altref_update_shipment_PUT(std::string& in, MongodbClient& dbInst);
 
         std::string handle_DELETE(std::string& in, MongodbClient& dbInst);
         std::string build_responseOK(std::string http_body, std::string content_type="application/json");

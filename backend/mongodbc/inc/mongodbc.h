@@ -66,6 +66,7 @@ class MongodbClient {
         
         std::string get_documentListEx(std::string collectionName, std::string query, std::string fieldProjection);
         std::int32_t create_bulk_documentEx(std::string coll, std::string doc);
+        std::int32_t update_bulk_document(std::string collectionName, std::vector<std::string> filter, std::vector<std::string> value);
         /**
          * @brief For vendor specific API 
          * 

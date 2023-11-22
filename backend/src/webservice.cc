@@ -3730,7 +3730,10 @@ std::string WebServiceEntry::handle_PUT(std::string& in, MongodbClient& dbInst)
     /* Action based on uri in get request */
     std::string uri(http.uri());
 
-    if(!uri.compare(0, 16, "/api/v1/shipment")) {
+    if(!uri.compare(0, 28, "/api/v1/shipment/bulk/altref")) {
+        return(handle_altref_update_shipment_PUT(in, dbInst));
+
+    } else if(!uri.compare(0, 16, "/api/v1/shipment")) {
         return(handle_shipment_PUT(in, dbInst));
 
     } else if(!uri.compare(0, 17, "/api/v1/inventory")) {
@@ -3750,6 +3753,52 @@ std::string WebServiceEntry::handle_PUT(std::string& in, MongodbClient& dbInst)
         };
         return(build_responseERROR(err_message.dump(), err));
     }
+}
+
+std::string WebServiceEntry::handle_altref_update_shipment_PUT(std::string& in, MongodbClient& dbInst)
+{
+    Http http(in);
+    auto body = http.body();
+
+    if(body.length()) {
+        json content = json::parse(body);
+        auto awbno  = content["awbno"];
+        auto altrefno = content["altrefno"];
+        //json filter = json::array();
+        //json value = json::array();
+        std::vector<std::string> filter;
+        std::vector<std::string> value;
+
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l awbno:%s altref:%s\n"), awbno.dump().c_str(), altrefno.dump().c_str()));
+
+        for(auto it = awbno.begin(); it != awbno.end(); ++it) {
+            json elm = json::object();
+            elm = {
+                    {"shipment.awbno", *it}
+            };
+            filter.push_back(elm.dump());
+        }
+
+        for(auto it = altrefno.begin(); it != altrefno.end(); ++it) {
+            json elm = json::object();
+            elm = {
+                    {"$set", {
+                        {"shipment.altRefNo", *it}
+                    }
+                }
+            };
+            value.push_back(elm.dump());
+        }
+
+        auto collection = "shipment";
+        //std::vector<std::string> filter_doc(filter.begin(), filter.end());
+        //std::vector<std::string> value_doc(value.begin(), value.end());
+
+        //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l filter:%s value:%s\n"), filter.dump().c_str(), value.dump().c_str()));
+        auto record = dbInst.update_bulk_document(collection, filter, value);
+
+    }
+    return(std::string());
 }
 
 std::string WebServiceEntry::handle_shipment_PUT(std::string& in, MongodbClient& dbInst)

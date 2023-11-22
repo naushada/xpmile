@@ -441,6 +441,62 @@ std::int32_t MongodbClient::create_bulk_document(std::string dbName, std::string
     return(cnt);
 }
 
+/**
+ * @brief This member function update the multiple documents in a collection for a given criteria.
+ * 
+ * @param collectionName 
+ * @param doc 
+ * @return std::int32_t 
+ */
+std::int32_t MongodbClient::update_bulk_document(std::string collectionName, std::vector<std::string> filter, std::vector<std::string> value)
+{
+    std::int32_t cnt = 0;
+    mongocxx::options::bulk_write bulk_opt;
+    mongocxx::write_concern wc;
+    bulk_opt.ordered(false);
+
+    wc.acknowledge_level(mongocxx::write_concern::level::k_default);
+    bulk_opt.write_concern(wc);
+
+    auto conn = mMongoConnPool->acquire();
+    if(!conn) {
+        ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed for collection:%s\n"), collectionName.c_str()));
+        return(cnt);
+    }
+
+    mongocxx::database dbInst = conn->database(get_database().c_str());
+    if(!dbInst) {
+        ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed for database:%s\n"), get_database().c_str()));
+        return(cnt);
+    }
+
+    auto collection = dbInst.collection(collectionName.c_str());
+
+    auto bulk = collection.create_bulk_write(bulk_opt);
+
+    
+    auto idx = 0;
+    for(auto iter = filter.begin(); iter != filter.end(); ++iter, ++idx) {
+        bsoncxx::document::value filter_document = bsoncxx::from_json(iter->c_str());
+        bsoncxx::document::value value_document = bsoncxx::from_json(value[idx].c_str());
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l filter:%s value:%s\n"), iter->c_str(), value.at(idx).c_str()));
+
+        bsoncxx::document::view filter_view = filter_document.view();
+        bsoncxx::document::view value_view = value_document.view();
+        mongocxx::model::update_one update_one_op(filter_view, value_view);
+        bulk.append(update_one_op);
+    }
+
+    auto result = bulk.execute();
+
+    if(result) {
+        cnt = result->inserted_count();
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l bulk document created cnt:%d\n"), cnt));
+    }
+
+    return(cnt);
+}
+
 /** 
  * 
 */
