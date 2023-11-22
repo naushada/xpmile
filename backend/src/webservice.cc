@@ -3790,12 +3790,31 @@ std::string WebServiceEntry::handle_altref_update_shipment_PUT(std::string& in, 
             value.push_back(elm.dump());
         }
 
-        auto collection = "shipment";
+        auto collection = "shipping";
         //std::vector<std::string> filter_doc(filter.begin(), filter.end());
         //std::vector<std::string> value_doc(value.begin(), value.end());
 
         //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l filter:%s value:%s\n"), filter.dump().c_str(), value.dump().c_str()));
         auto record = dbInst.update_bulk_document(collection, filter, value);
+        if(record) {
+            //std::string rec = "{\"createdShipments\": " + std::to_string(cnt) + "}";
+            json rec = json::object();
+            rec = {
+                {"status", "success"},
+                {"updatedShipments", std::to_string(record)}
+            };
+            return(build_responseOK(rec.dump()));
+        } else {
+            std::string err("400 Bad Request");
+            //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Bulk Shipment Creation is failed\", \"errorCode\" : 400}");
+            json err_message = json::object();
+            err_message = {
+                {"status", "failure"},
+                {"cause", "Bulk ALT REF Update Failed"},
+                {"error", 400}
+            };
+            return(build_responseERROR(err_message.dump(), err));
+        }
 
     }
     return(std::string());

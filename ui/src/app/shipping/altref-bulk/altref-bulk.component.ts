@@ -48,8 +48,8 @@ export class AltrefBulkComponent implements OnInit {
     let altrefno: Array<string> = [];
 
     this.altRefUpdateExcelRows?.forEach((ent: UpdateAltRefForShipment) => {
-      awbno.push(ent.awbno);
-      altrefno.push(ent.altRefNo);
+      awbno.push(ent.awbno.toString());
+      altrefno.push(ent.altRefNo.toString());
     });
   
     let jObject:any = {
@@ -61,9 +61,10 @@ export class AltrefBulkComponent implements OnInit {
     this.http.updateBulkAltRefForShipments(jObject).subscribe((rsp: any) =>{
       let record: any; 
       let jObj = JSON.stringify(rsp);
-      record = JSON.parse(jObj); alert("Alt Ref for Shipments Updated are: " + record.updatedShipments);
+      record = JSON.parse(jObj); 
+      alert("Alt Ref for Shipments Updated are: " + record["updatedShipments"]);
     },
-    error => {},
+    error => {alert("ALT REF Update Failed");},
     () => {});
   }
 
@@ -85,8 +86,7 @@ export class AltrefBulkComponent implements OnInit {
         let data = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
         rows = <any[]>data;
         for(let idx:number = 0; idx < rows.length; ++idx) {
-          console.log(rows.at(idx));
-          console.log(rows.at(idx));
+          
           this.altRefUpdateExcelRows?.push(rows.at(idx));
         }
       });

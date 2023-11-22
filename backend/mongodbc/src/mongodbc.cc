@@ -490,8 +490,8 @@ std::int32_t MongodbClient::update_bulk_document(std::string collectionName, std
     auto result = bulk.execute();
 
     if(result) {
-        cnt = result->inserted_count();
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l bulk document created cnt:%d\n"), cnt));
+        cnt = result->modified_count();
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l bulk document updated cnt:%d\n"), cnt));
     }
 
     return(cnt);
