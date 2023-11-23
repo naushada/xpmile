@@ -56,7 +56,7 @@ export class AltrefBulkComponent implements OnInit {
       "awbno": awbno,
       "altrefno": altrefno
     };
-    //console.log(jObject);
+    
 
     this.http.updateBulkAltRefForShipments(jObject).subscribe((rsp: any) =>{
       let record: any; 
@@ -72,7 +72,7 @@ export class AltrefBulkComponent implements OnInit {
     if(evt.target.files[0] == undefined) return;
 
     let rows: any[] = [];
-    ///this.alttRefUpdateExcelRows?. = 0;
+    
     const fileReader = new FileReader();
     fileReader.readAsBinaryString(evt.target.files[0]);
 

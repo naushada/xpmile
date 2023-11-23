@@ -3,7 +3,7 @@
         <div class="clr-col-lg-auto">
             <clr-checkbox-wrapper>
                 <input type="checkbox" formControlName="isAutoGenerate" clrCheckbox name="isAutoGenerate" value="" [checked]="isAutoGenerateState"/>
-                <label for="">Autogenerate AWB Number</label>
+                <label for="isAutoGenerate">Autogenerate AWB Number</label>
             </clr-checkbox-wrapper>
         </div>
     </div>
@@ -18,7 +18,7 @@
         <div class="clr-col-lg-auto">
             <clr-input-container >
                 <label>Alternate Reference No.</label>
-                <input clrInput name="altRefNo" formControlName="altRefNo">
+                <input clrInput name="altRefNo" formControlName="altRefNo" />
             </clr-input-container>
                     
         </div>
@@ -183,7 +183,7 @@
             <clr-select-container>
                 <label>Service</label>
                 <select clrSelect name="service" formControlName="service">
-                    <option *ngFor="let svc of this.defValue?.ServiceType" value="svc">
+                    <option *ngFor="let svc of this.defValue?.ServiceType" [value]="svc">
                         {{svc}}
                       </option>
                 </select>
