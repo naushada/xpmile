@@ -64,7 +64,7 @@ export class AltrefBulkComponent implements OnInit {
       record = JSON.parse(jObj); 
       alert("Alt Ref for Shipments Updated are: " + record["updatedShipments"]);
     },
-    error => {alert("ALT REF Update Failed");},
+    error => {},
     () => {});
   }
 
