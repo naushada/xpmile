@@ -16,7 +16,7 @@
     <!-- A 12 column row -->
     <div class="clr-row" formGroupName="from">
         <div class="clr-col">
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
                 <clr-select-container *ngIf="'Customer' != this.loggedInUser?.personalInfo?.role">
                     <label>Account No.</label>
                     <select clrSelect name="accountNo" formControlName="accountNo">
@@ -27,14 +27,14 @@
                 </clr-select-container>
             </div>
 
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
                 <clr-date-container>
                     <label>Pickup Date</label>
                     <input type="date" clrDate name="when" formControlName="when">
                 </clr-date-container>
             </div>
 
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
                 <clr-select-container >
                     <label>Country</label>
                     <select clrSelect name="country" formControlName="country" >
@@ -45,7 +45,7 @@
                 </clr-select-container>
             </div>
 
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
                 <clr-input-container >
                     <label>State</label>
                     <input clrInput name="state" formControlName="state" />
@@ -53,7 +53,7 @@
                 
             </div>
 
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
                 <clr-input-container >
                     <label>City</label>
                     <input clrInput name="city" formControlName="city" />
@@ -61,7 +61,7 @@
                 
             </div>
 
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
                 <clr-input-container >
                     <label>Postal Code</label>
                     <input clrInput name="postalCode" formControlName="postalCode" />
@@ -69,7 +69,7 @@
                 
             </div>
 
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
         
                 <clr-input-container >
                     <label>Phone  Number</label>
@@ -78,7 +78,81 @@
                 
             </div>
 
-            <div class="clr-col-lg-auto">
+            <div class="clr-col-md">
+                <clr-textarea-container>
+                    <label>Address</label>
+                    <textarea clrTextarea name="address" ormControlName="address" ></textarea>
+                    <!--<clr-control-helper>You can't modify this </clr-control-helper>-->
+                </clr-textarea-container>
+            </div>
+    
+        </div>
+
+        <!-- To Be Removed -->
+        <div class="clr-col">
+            <div class="clr-col-mddd">
+                <clr-select-container *ngIf="'Customer' != this.loggedInUser?.personalInfo?.role">
+                    <label>Account No.</label>
+                    <select clrSelect name="accountNo" formControlName="accountNo">
+                        <option *ngFor="let act of this.accountInfoList" [value]="act.loginCredentials.accountCode">
+                            {{act.loginCredentials.accountCode}}
+                          </option>
+                    </select>
+                </clr-select-container>
+            </div>
+
+            <div class="clr-col-md">
+                <clr-date-container>
+                    <label>Pickup Date</label>
+                    <input type="date" clrDate name="when" formControlName="when">
+                </clr-date-container>
+            </div>
+
+            <div class="clr-col-md">
+                <clr-select-container >
+                    <label>Country</label>
+                    <select clrSelect name="country" formControlName="country" >
+                        <option *ngFor="let cuntry of this.defValue?.CountryName" value="cuntry">
+                            {{cuntry}}
+                        </option>
+                    </select>
+                </clr-select-container>
+            </div>
+
+            <div class="clr-col-md">
+                <clr-input-container >
+                    <label>State</label>
+                    <input clrInput name="state" formControlName="state" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-md">
+                <clr-input-container >
+                    <label>City</label>
+                    <input clrInput name="city" formControlName="city" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-md">
+                <clr-input-container >
+                    <label>Postal Code</label>
+                    <input clrInput name="postalCode" formControlName="postalCode" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-md">
+        
+                <clr-input-container >
+                    <label>Phone  Number</label>
+                    <input clrInput name="phoneNumber" formControlName="phoneNumber" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-md">
                 <clr-textarea-container>
                     <label>Address</label>
                     <textarea clrTextarea name="address" ormControlName="address" ></textarea>

@@ -17,7 +17,7 @@ export class SingleComponent implements OnInit, OnDestroy {
   singleShipmentForm: FormGroup;
   
   defValue?: AppGlobals;
-  isAutoGenerateState: boolean = true;
+  isAutoGenerateState: boolean = false;
   isAwbNoDisabled: boolean = true;
 
   accountInfoList: Account[] = [];
@@ -39,7 +39,7 @@ export class SingleComponent implements OnInit, OnDestroy {
       () => {});
 
     this.singleShipmentForm = this.fb.group({
-      isAutoGenerate: this.isAutoGenerateState,
+      isAutoGenerate: true,
       awbno: '',
       altRefNo: '',
 
@@ -94,6 +94,17 @@ export class SingleComponent implements OnInit, OnDestroy {
     });
 
 
+
+  }
+  onAutoGenerate(event:any) {
+    if(event.target.checked){
+      // do something here
+      this.isAutoGenerateState = true;
+      this.isAwbNoDisabled = true;
+    } else {
+      this.isAutoGenerateState = false;
+      this.isAwbNoDisabled = false;
+    }
 
   }
 
