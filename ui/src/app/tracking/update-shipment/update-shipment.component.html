@@ -1,73 +1,84 @@
-<form action="" clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="updateShipmentStatus">
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="updateShipmentStatus">
     <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-textarea-container>
-                <label for="shipmentNo">Connote</label>
-                <textarea clrTextarea name="shipmentNo" placeholder="One or More AWB Number" formControlName="shipmentNo"></textarea>
-            </clr-textarea-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label>Event</label>
-                <select clrSelect name="events" formControlName="events">
-                    <option *ngFor="let evt of this.defValue?.Events" value="evt">
-                        {{evt}}
-                      </option>
-                </select>
-              </clr-select-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-date-container>
-                <label>Current Date</label>
-                <input type="date" clrDate name="currentDate" formControlName="currentDate"/>
-            </clr-date-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label>Current Time</label>
-                <input type="time" clrInput name="currentTime" formControlName="currentTime"/>
-            </clr-input-container>
+        <div class="clr-col">
+            <div class="clr-col-lg-auto">
+                <clr-textarea-container>
+                    <label for="shipmentNo">Connote</label>
+                    <textarea clrTextarea name="shipmentNo" placeholder="One or More AWB Number" formControlName="shipmentNo"></textarea>
+                </clr-textarea-container>
+            </div>
 
+            <div class="clr-col-lg-auto">
+                <clr-select-container>
+                    <label>Event</label>
+                    <select clrSelect name="events" formControlName="events">
+                        <option *ngFor="let evt of this.defValue?.Events" value="evt">
+                            {{evt}}
+                        </option>
+                    </select>
+                </clr-select-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-date-container>
+                    <label>Current Date</label>
+                    <input type="date" clrDate name="currentDate" formControlName="currentDate"/>
+                </clr-date-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label>Current Time</label>
+                    <input type="time" clrInput name="currentTime" formControlName="currentTime"/>
+                </clr-input-container>
+            </div>
         </div>
-        <div class="clr-col-lg-auto">
-            <clr-textarea-container>
-                <label for="notes">Notes</label>
-                <textarea clrTextarea name="notes" placeholder="Notes" formControlName="notes"></textarea>
-            </clr-textarea-container>
+
+        <!-- Second Column -->
+        <div class="clr-col">
+            <div class="clr-col-lg-auto">
+                <clr-textarea-container>
+                    <label for="notes">Notes</label>
+                    <textarea clrTextarea name="notes" placeholder="Notes" formControlName="notes"></textarea>
+                </clr-textarea-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-select-container>
+                    <label>Event Location</label>
+                    <select clrSelect name="eventLocation" formControlName="eventLocation">
+                        <option *ngFor="let cuntry of this.defValue?.CountryName" [value]="cuntry">
+                            {{cuntry}}
+                        </option>
+                    </select>
+                </clr-select-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label>Manual Event Location</label>
+                    <input type="text" clrInput name="manualEventLocation" formControlName="manualEventLocation">
+                </clr-input-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label>Driver Name</label>
+                    <input type="text" clrInput name="driverName"  formControlName="driverName">
+                </clr-input-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label>Updated By</label>
+                    <input type="text" clrInput name="updatedBy" formControlName="updatedBy">
+                </clr-input-container>
+            </div>
         </div>
-        
+        <div class="clr-col"></div>
+
+        <div class="clr-col"></div>
     </div>
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label>Event Location</label>
-                <select clrSelect name="eventLocation" formControlName="eventLocation">
-                    <option *ngFor="let cuntry of this.defValue?.CountryName" [value]="cuntry">
-                        {{cuntry}}
-                    </option>
-                </select>
-              </clr-select-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label>Manual Event Location</label>
-                <input type="text" clrInput name="manualEventLocation" formControlName="manualEventLocation">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label>Driver Name</label>
-                <input type="text" clrInput name="driverName"  formControlName="driverName">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label>Updated By</label>
-                <input type="text" clrInput name="updatedBy" formControlName="updatedBy">
-            </clr-input-container>
-        </div>
-    </div>
-    
     <div class="clr-row">
         <div class="clr-col">
             <button class="btn btn-primary" (click)="onSubmit()">Submit</button>
