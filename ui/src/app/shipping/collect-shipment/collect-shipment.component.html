@@ -1,1 +1,98 @@
-<p>collect-shipment works!</p>
+<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="collectShipmentForm">
+    <!--
+    <div class="clr-row" >
+        <div class="clr-col-lg-auto">
+            <clr-select-container *ngIf="'Customer' != this.loggedInUser?.personalInfo?.role">
+                <label>Account No.</label>
+                <select clrSelect name="accountNo" formControlName="accountNo">
+                    <option *ngFor="let act of this.accountInfoList" [value]="act.loginCredentials.accountCode">
+                        {{act.loginCredentials.accountCode}}
+                      </option>
+                </select>
+            </clr-select-container>
+        </div>
+    </div>
+    -->
+    <!-- A 12 column row -->
+    <div class="clr-row" formGroupName="from">
+        <div class="clr-col">
+            <div class="clr-col-lg-auto">
+                <clr-select-container *ngIf="'Customer' != this.loggedInUser?.personalInfo?.role">
+                    <label>Account No.</label>
+                    <select clrSelect name="accountNo" formControlName="accountNo">
+                        <option *ngFor="let act of this.accountInfoList" [value]="act.loginCredentials.accountCode">
+                            {{act.loginCredentials.accountCode}}
+                          </option>
+                    </select>
+                </clr-select-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-date-container>
+                    <label>Pickup Date</label>
+                    <input type="date" clrDate name="when" formControlName="when">
+                </clr-date-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-select-container >
+                    <label>Country</label>
+                    <select clrSelect name="country" formControlName="country" >
+                        <option *ngFor="let cuntry of this.defValue?.CountryName" value="cuntry">
+                            {{cuntry}}
+                        </option>
+                    </select>
+                </clr-select-container>
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-input-container >
+                    <label>State</label>
+                    <input clrInput name="state" formControlName="state" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-input-container >
+                    <label>City</label>
+                    <input clrInput name="city" formControlName="city" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-input-container >
+                    <label>Postal Code</label>
+                    <input clrInput name="postalCode" formControlName="postalCode" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-lg-auto">
+        
+                <clr-input-container >
+                    <label>Phone  Number</label>
+                    <input clrInput name="phoneNumber" formControlName="phoneNumber" />
+                </clr-input-container>
+                
+            </div>
+
+            <div class="clr-col-lg-auto">
+                <clr-textarea-container>
+                    <label>Address</label>
+                    <textarea clrTextarea name="address" ormControlName="address" ></textarea>
+                    <!--<clr-control-helper>You can't modify this </clr-control-helper>-->
+                </clr-textarea-container>
+            </div>
+    
+        </div>
+    </div>
+
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="onSchedulePickup()">Schedule Pickup</button>
+        </div>
+    </div>
+    
+</form>
