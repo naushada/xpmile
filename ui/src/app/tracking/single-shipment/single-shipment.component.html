@@ -91,30 +91,41 @@
             </div>
         </div>
         <!--Timeline -->
-        <div class="clr-col-lg-auto">
-            <ul class="clr-timeline">
-                <li class="clr-timeline-step" *ngFor="let act of shipment?.shipment?.shipmentInformation?.activity; let idx = index; last as isLast">
-                    <ng-container *ngIf="(idx + 1) == len">
-                        <div class="clr-timeline-step-header">{{act.time}}</div>
-                        <cds-icon role="img" shape="dot-circle" aria-label="Completed" *ngIf="act.event === 'Delivered'"></cds-icon>
-                        <cds-icon role="img" shape="dot-circle" aria-label="Current" *ngIf="act.event != 'Delivered'"></cds-icon>
-                        <div class="clr-timeline-step-body">
-                            <span class="clr-timeline-step-title">{{act.event}}</span>
-                            <span class="clr-timeline-step-description">{{act.notes}}</span>
-                        </div>
-                    </ng-container>
-                    <ng-container *ngIf="len != (idx + 1)">
-                        <div class="clr-timeline-step-header">{{act.time}}</div>
-                        <cds-icon role="img" shape="success-standard" aria-label="Completed"></cds-icon>
-                        <div class="clr-timeline-step-body">
-                            <span class="clr-timeline-step-title">{{act.event}}</span>
-                            <span class="clr-timeline-step-description">{{act.notes}}</span>
-                        </div>
-                    </ng-container>
-                </li>
-            </ul>      
+        <div class="clr-col">
+            <div class="clr-col-lg-auto">
+                <ul class="clr-timeline">
+                    <li class="clr-timeline-step" *ngFor="let act of shipment?.shipment?.shipmentInformation?.activity; let idx = index; last as isLast">
+                        
+                        <ng-container *ngIf="(idx + 1) == len">
+                            <div class="clr-timeline-step-header">{{act.time}}</div>
+                            
+                            <ng-container *ngIf="act.event != 'Proof of Delivery'">
+                                <cds-icon role="img" shape="dot-circle" aria-label="Current" ></cds-icon>
+                            </ng-container>
+
+                            <ng-container *ngIf="act.event === 'Proof of Delivery'">
+                                <cds-icon role="img" shape="dot-circle" aria-label="Completed" ></cds-icon>
+                            </ng-container>
+                            
+                            <div class="clr-timeline-step-body">
+                                <span class="clr-timeline-step-title">{{act.event}}</span>
+                                <span class="clr-timeline-step-description">{{act.notes}}</span>
+                            </div>
+                        </ng-container>
+                        <ng-container *ngIf="len != (idx + 1)">
+                            <div class="clr-timeline-step-header">{{act.time}}</div>
+                            <cds-icon role="img" shape="success-standard" aria-label="Completed"></cds-icon>
+                            <div class="clr-timeline-step-body">
+                                <span class="clr-timeline-step-title">{{act.event}}</span>
+                                <span class="clr-timeline-step-description">{{act.notes}}</span>
+                            </div>
+                        </ng-container>
+                    </li>
+                </ul>      
+            </div>
         </div>
-    
+        <div class="clr-col"></div>
+    </div>
 </div>
 
 
