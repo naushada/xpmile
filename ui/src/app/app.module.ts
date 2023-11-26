@@ -44,6 +44,7 @@ import { CreateDRSComponent } from './shipping/create-drs/create-drs.component';
 import { PasswordResetComponent } from './login/password-reset/password-reset.component';
 import { AltrefBulkComponent } from './shipping/altref-bulk/altref-bulk.component';
 import { CollectShipmentComponent } from './shipping/collect-shipment/collect-shipment.component';
+import { DatePipe } from '@angular/common';
 
 
 @NgModule({
@@ -94,8 +95,9 @@ import { CollectShipmentComponent } from './shipping/collect-shipment/collect-sh
     ReactiveFormsModule,
     CdsModule,
     HttpClientModule
+    
   ],
-  providers: [ { provide: LOCALE_ID, useValue: 'en-GB' }],
+  providers: [ { provide: LOCALE_ID, useValue: 'en-US'}, {provide: DatePipe}],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

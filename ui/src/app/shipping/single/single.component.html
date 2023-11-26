@@ -229,7 +229,7 @@
                     <clr-select-container>
                         <label>Currency</label>
                         <select clrSelect name="currency" formControlName="currency" >
-                            <option *ngFor="let currency of this.defValue?.Currency" value="currency">
+                            <option *ngFor="let currency of this.defValue?.Currency" [value]="currency">
                                 {{currency}}
                             </option>
                         </select>
@@ -286,7 +286,7 @@
                     <clr-select-container >
                         <label>Country</label>
                         <select clrSelect name="country" formControlName="country" >
-                            <option *ngFor="let cuntry of this.defValue?.CountryName" value="cuntry">
+                            <option *ngFor="let cuntry of this.defValue?.CountryName" [value]="cuntry">
                                 {{cuntry}}
                             </option>
                         </select>

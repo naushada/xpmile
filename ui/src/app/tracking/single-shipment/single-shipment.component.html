@@ -53,90 +53,41 @@
 
 <div clrLayout="horizontal" clrLabelSize="4" *ngIf="shipment?.shipment?.shipmentInformation?.activity?.length">
     <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <div class="clr-row">
-                <div class="clr-col-lg-auto">
-                    <clr-input-container>
-                        <label for="awbNo"><b>Connote#:</b></label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col">
-                    <clr-input-container>
-                        <label for="">{{shipment?.shipment?.awbno}}</label>
-                    </clr-input-container>
-                </div>
+        <div class="clr-col">
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label for="awbNo"><b>Connote#:</b> {{shipment?.shipment?.awbno}}</label>
+                </clr-input-container>
             </div>
-            <div class="clr-row">
-                <div class="clr-col-lg-auto">
-                    <clr-input-container>
-                        <label for="altRefNo"><b>Alternate Reference No:</b></label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col">
-                    <clr-input-container>
-                        <label for="">{{shipment?.shipment?.altRefNo}}</label>
-                    </clr-input-container>
-                </div>
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label for="altRefNo"><b>Alternate Reference No:</b> {{shipment?.shipment?.altRefNo}}</label>
+                </clr-input-container>
             </div>
-            <div class="clr-row">
-                <div class="clr-col-lg-auto">
-                    <clr-input-container>
-                        <label for=""><b>Service Type:</b></label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col">
-                    <clr-input-container>
-                        <label for="">{{shipment?.shipment?.shipmentInformation?.service}}</label>
-                    </clr-input-container>
-                </div>
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label for=""><b>Service Type:</b> {{shipment?.shipment?.shipmentInformation?.service}}</label>
+                </clr-input-container>
             </div>
-            <div class="clr-row">
-                <div class="clr-col-lg-auto">
-                    <clr-input-container>
-                        <label for=""><b>Shipped On:</b></label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col">
-                    <clr-input-container>
-                        <label for="">{{shipment?.shipment?.shipmentInformation?.createdOn}}</label>
-                    </clr-input-container>
-                </div>
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label for=""><b>Shipped On:</b> {{shipment?.shipment?.shipmentInformation?.createdOn}}</label>
+                </clr-input-container>
             </div>
-            <div class="clr-row">
-                <div class="clr-col-lg-auto">
-                    <clr-input-container>
-                        <label for=""><b>Destination:</b></label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col">
-                    <clr-input-container>
-                        <label for="">{{shipment?.shipment?.receiverInformation?.country}}</label>
-                    </clr-input-container>
-                </div>
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label for=""><b>Destination:</b> {{shipment?.shipment?.receiverInformation?.country}}</label>
+                </clr-input-container>
             </div>
-            <div class="clr-row">
-                <div class="clr-col-lg-auto">
-                    <clr-input-container>
-                        <label for=""><b>Status:</b></label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col">
-                    <clr-input-container>
-                        <label for="">{{status}}</label>
-                    </clr-input-container>
-                </div>
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label for=""><b>Status:</b> {{status}}</label>
+                </clr-input-container>
             </div>
-            <div class="clr-row">
-                <div class="clr-col-lg-auto">
-                    <clr-input-container>
-                        <label for=""><b>Job #:</b></label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col">
-                    <clr-input-container>
-                        <label for="">Value is my actual value</label>
-                    </clr-input-container>
-                </div>
+            <div class="clr-col-lg-auto">
+                <clr-input-container>
+                    <label for=""><b>Job #:</b> Value is my actual value</label>
+                </clr-input-container>
             </div>
         </div>
         <!--Timeline -->
