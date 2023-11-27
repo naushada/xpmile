@@ -151,156 +151,155 @@
     </clr-dg-row>
 </clr-datagrid>
 
-<div class="clr-row">
-    <div class="clr-col">
-        <div class="clr-col-md">
-            <h3>Sender Information</h3>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Name : {{shipment?.shipment?.senderInformation?.name}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Company Name : {{shipment?.shipment?.senderInformation?.companyName}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Address : {{shipment?.shipment?.senderInformation?.address}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">City : {{shipment?.shipment?.senderInformation?.city}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Country : {{shipment?.shipment?.senderInformation?.country}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Contact : {{shipment?.shipment?.senderInformation?.contact}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Sender Reference Number : {{shipment?.shipment?.senderInformation?.referenceNo}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Account Code : {{shipment?.shipment?.senderInformation?.accountNo}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Phone : {{shipment?.shipment?.senderInformation?.phoneNumber}}</label>
-            </clr-input-container>
+<div class="clr-row" >
+    <div class="clr-col-8">
+        <div class="clr-row">
+            <!-- Column Ist -->
+            <div class="clr-col">
+                <div class="clr-col-md">
+                    <h3>Sender Information</h3>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Name : {{shipment?.shipment?.senderInformation?.name}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Company Name : {{shipment?.shipment?.senderInformation?.companyName}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Address : {{shipment?.shipment?.senderInformation?.address}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">City : {{shipment?.shipment?.senderInformation?.city}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Country : {{shipment?.shipment?.senderInformation?.country}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Contact : {{shipment?.shipment?.senderInformation?.contact}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Sender Reference Number : {{shipment?.shipment?.senderInformation?.referenceNo}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Account Code : {{shipment?.shipment?.senderInformation?.accountNo}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Phone : {{shipment?.shipment?.senderInformation?.phoneNumber}}</label>
+                    </clr-input-container>
+                </div>
+            </div>
+            <div class="clr-col">
+                <div class="clr-col-md">
+                    <h3>Receiver Information</h3>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Name : {{shipment?.shipment?.receiverInformation?.name}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Address : {{shipment?.shipment?.receiverInformation?.address}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Contact No : {{shipment?.shipment?.receiverInformation?.contact}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Phone No : {{shipment?.shipment?.receiverInformation?.phone}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">City : {{shipment?.shipment?.receiverInformation?.city}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">State : {{shipment?.shipment?.receiverInformation?.state}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Country : {{shipment?.shipment?.receiverInformation?.country}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Email : {{shipment?.shipment?.receiverInformation?.email}}</label>
+                    </clr-input-container>
+                </div>  
+            </div>
         </div>
     </div>
-    <div class="clr-col">
-        <div class="clr-col-md">
-            <h3>Receiver Information</h3>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Name : {{shipment?.shipment?.receiverInformation?.name}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Address : {{shipment?.shipment?.receiverInformation?.address}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Contact No : {{shipment?.shipment?.receiverInformation?.contact}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Phone No : {{shipment?.shipment?.receiverInformation?.phone}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">City : {{shipment?.shipment?.receiverInformation?.city}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">State : {{shipment?.shipment?.receiverInformation?.state}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Country : {{shipment?.shipment?.receiverInformation?.country}}</label>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-md">
-            <clr-input-container>
-                <label for="">Email : {{shipment?.shipment?.receiverInformation?.email}}</label>
-            </clr-input-container>
-        </div>  
-    </div>
-
-    <div class="clr-col"></div>
-    <div class="clr-col"></div><div class="clr-col"></div>
 </div>
-    <div class="clr-row">
+<div class="clr-row">
+    <div class="clr-col-9">
+        <h3>Shipment Information</h3>
+        <div class="clr-row">
+            <div class="clr-col">
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">SKU Number : {{shipment?.shipment?.shipmentInformation?.skuNo}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Service Type : {{shipment?.shipment?.shipmentInformation?.service}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Number Of Items : {{shipment?.shipment?.shipmentInformation?.numberOfItems}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                            <label for="">Goods Description : {{shipment?.shipment?.shipmentInformation?.goodsDescription}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Goods Value : {{shipment?.shipment?.shipmentInformation?.goodsValue}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Customs Value : {{shipment?.shipment?.shipmentInformation?.customsValue}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                        <label for="">Weight : {{shipment?.shipment?.shipmentInformation?.weight}}</label>
+                    </clr-input-container>
+                </div>
+                <div class="clr-col-md">
+                    <clr-input-container>
+                            <label for="">Weight Unit : {{shipment?.shipment?.shipmentInformation?.weightUnits}}</label>
+                    </clr-input-container>
+                </div>
+            </div>
         <div class="clr-col">
-            <div class="clr-col-md">
-                <h3>Shipment Information</h3>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                <label for="">SKU : {{shipment?.shipment?.shipmentInformation?.skuNo}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Service Type : {{shipment?.shipment?.shipmentInformation?.service}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Number Of Items : {{shipment?.shipment?.shipmentInformation?.numberOfItems}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Goods Description : {{shipment?.shipment?.shipmentInformation?.goodsDescription}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Goods Value : </label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">{{shipment?.shipment?.shipmentInformation?.goodsValue}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Customs Value : {{shipment?.shipment?.shipmentInformation?.customsValue}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Weight : {{shipment?.shipment?.shipmentInformation?.weight}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Weight Unit : {{shipment?.shipment?.shipmentInformation?.weightUnits}}</label>
-                </clr-input-container>
-            </div>
             <div class="clr-col-md">
                 <clr-input-container>
                     <label for="">Cubic Weight : {{shipment?.shipment?.shipmentInformation?.cubicWeight}}</label>
@@ -316,5 +315,8 @@
                     <label for="">Currency : {{shipment?.shipment?.shipmentInformation?.currency}}</label>
                 </clr-input-container>
             </div>
-        </div>      
+        </div>
+        <div class="clr-col"></div>
     </div>
+</div>       
+
