@@ -45,6 +45,7 @@ export class ListComponent implements OnInit, OnDestroy {
 
   retrieveShipmentList() {
 
+    this.shipments.length = 0;
     let start:string = formatDate(this.shipmentListForm.get('startDate')?.value, 'dd/MM/yyyy', 'en-GB');
     let end:string = formatDate(this.shipmentListForm.get('endDate')?.value, 'dd/MM/yyyy', 'en-GB');
 
@@ -93,7 +94,8 @@ export class ListComponent implements OnInit, OnDestroy {
   buildA6ContentsBody() {
     this.A6LabelContentsBody.length = 0;
     this.rowsSelected?.forEach((elm:Shipment) => {
-      console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
+      //console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
+      let altRefNo:string = elm.shipment.altRefNo.toString();
       let ent = [
         {
           table: {
@@ -105,7 +107,7 @@ export class ListComponent implements OnInit, OnDestroy {
               [ {text: 'Account Number: '+ elm.shipment.senderInformation.accountNo, fontSize:10}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:2, width: 170}],
               [ { text: 'No. of Items: ' + elm.shipment.shipmentInformation.numberOfItems + '\n' + 'Weight: '+ elm.shipment.shipmentInformation.weight + elm.shipment.shipmentInformation.weightUnits + '\n' + 'Goods Value: '+ elm.shipment.shipmentInformation.customsValue, bold: false, fontSize: 10 }, ''],
               [ { text: 'From:\n' + elm.shipment.senderInformation.name +'\n'+ 'Mobile: '+ elm.shipment.senderInformation.contact + '\n' + 'Altername Mobile: '+ elm.shipment.senderInformation.phoneNumber + '\n' + 'Country: '+ elm.shipment.senderInformation.country, bold: false, fontSize:10 }, {text: 'To:\n'+ elm.shipment.receiverInformation.name + '\n'+ 'Address: '+elm.shipment.receiverInformation.address +'\n'+'City: '+ elm.shipment.receiverInformation.city+ '\n'+'Mobile: '+elm.shipment.receiverInformation.phone +'\n' + 'Alternate Mobile: '+elm.shipment.receiverInformation.contact +'\n'+'Country:'+elm.shipment.receiverInformation.country, fontSize: 10}],
-              [ {text: 'Description: ' + elm.shipment.shipmentInformation.goodsDescription, fontSize:10}, {image: this.textToBase64Barcode(elm.shipment.altRefNo, 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
+              [ {text: 'Description: ' + elm.shipment.shipmentInformation.goodsDescription, fontSize:10}, {image: this.textToBase64Barcode(altRefNo, 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
               [ {text: 'COD: '+ elm.shipment.shipmentInformation.currency + ' ' + elm.shipment.shipmentInformation.codAmount, bold: true}, ''],
             ]
           },
