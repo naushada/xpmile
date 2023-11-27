@@ -53,41 +53,45 @@
 
 <div clrLayout="horizontal" clrLabelSize="4" *ngIf="shipment?.shipment?.shipmentInformation?.activity?.length">
     <div class="clr-row">
-        <div class="clr-col">
-            <div class="clr-col-lg">
-                <clr-input-container>
-                    <label for="awbNo"><b>Connote#:</b> {{shipment?.shipment?.awbno}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-lg">
-                <clr-input-container>
-                    <label for="altRefNo"><b>Alternate Reference No:</b> {{shipment?.shipment?.altRefNo}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-lg">
-                <clr-input-container>
-                    <label for=""><b>Service Type:</b> {{shipment?.shipment?.shipmentInformation?.service}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-lg">
-                <clr-input-container>
-                    <label for=""><b>Shipped On:</b> {{shipment?.shipment?.shipmentInformation?.createdOn}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-lg">
-                <clr-input-container>
-                    <label for=""><b>Destination:</b> {{shipment?.shipment?.receiverInformation?.country}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-lg">
-                <clr-input-container>
-                    <label for=""><b>Status:</b> {{status}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-lg">
-                <clr-input-container>
-                    <label for=""><b>Job #:</b> Value is my actual value</label>
-                </clr-input-container>
+        <div class="clr-col-4">
+            <div class="clr-row">
+                <div class="clr-col">
+                    <div class="clr-col-md">
+                        <clr-input-container>
+                            <label for="awbNo">Connote#: {{shipment?.shipment?.awbno}}</label>
+                        </clr-input-container>
+                    </div>
+                    <div class="clr-col-md">
+                        <clr-input-container>
+                            <label for="altRefNo">Alternate Reference No: {{shipment?.shipment?.altRefNo}}</label>
+                        </clr-input-container>
+                    </div>
+                    <div class="clr-col-md">
+                        <clr-input-container>
+                            <label for="">Service Type: {{shipment?.shipment?.shipmentInformation?.service}}</label>
+                        </clr-input-container>
+                    </div>
+                    <div class="clr-col-md">
+                        <clr-input-container>
+                            <label for="">Shipped On: {{shipment?.shipment?.shipmentInformation?.createdOn}}</label>
+                        </clr-input-container>
+                    </div>
+                    <div class="clr-col-md">
+                        <clr-input-container>
+                            <label for="">Destination: {{shipment?.shipment?.receiverInformation?.country}}</label>
+                        </clr-input-container>
+                    </div>
+                    <div class="clr-col-md">
+                        <clr-input-container>
+                            <label for="">Status: {{status}}</label>
+                        </clr-input-container>
+                    </div>
+                    <div class="clr-col-md">
+                        <clr-input-container>
+                            <label for="">Job #: Value is my actual value</label>
+                        </clr-input-container>
+                    </div>
+                </div>
             </div>
         </div>
         <!--Timeline -->
