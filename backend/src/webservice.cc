@@ -3525,16 +3525,14 @@ std::string WebServiceEntry::handle_account_GET(std::string& in, MongodbClient& 
             } else {
                 return(build_responseOK(record));
             }
-        } else if(http.get_element("accountCode").length()) {
-
-            auto accCode = http.get_element("accountCode");
+        } else if(user.length()) {
             
             /* do an authentication with DB now */
             //std::string document = "{\"loginCredentials.accountCode\" : \"" +  accCode + "\" " + 
             //                        "}";
             json document = json::object();
             document = {
-                {"loginCredentials.accountCode", accCode}
+                {"loginCredentials.accountCode", user}
             };
             //std::string projection("{\"accountCode\" : true, \"_id\" : false}");
             //std::string projection("{\"_id\" : false}");
