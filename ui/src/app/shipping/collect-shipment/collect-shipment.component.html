@@ -19,7 +19,7 @@
             <div class="clr-col-md">
                 <clr-input-container >
                     <label>Account Code</label>
-                    <input clrInput name="accCode" formControlName="accCode" />
+                    <input clrInput name="accCode" formControlName="accCode" (keydown.Enter)="onEnter($event)"/>
                 </clr-input-container>
             </div>
 
@@ -51,6 +51,13 @@
                 </clr-input-container>
             </div>
                 
+            <div class="clr-col-md">
+                <clr-input-container >
+                    <label>Country</label>
+                    <input clrInput name="country" formControlName="country" />
+                </clr-input-container>
+            </div>
+
             <div class="clr-col-md">
                 <clr-input-container >
                     <label>Postcode</label>
