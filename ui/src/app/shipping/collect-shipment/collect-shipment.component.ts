@@ -39,14 +39,33 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
       
       this.collectShipmentForm = this.fb.group({
        from: this.fb.group({
-          accountNo:'',
-          when: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'),
-          country:this.defValue.CountryName?.at(1),
-          state:'',
+          station:'',
+          customer:'',
+          accCode:'',
+          company:'',
+          collectionAddress:'',
           city:'',
-          postalCode:'',
-          phoneNumber:'',
-          addreess: ''
+          state:'',
+          postcode:'',
+          service:'',
+          weight:'',
+          noOfShipments:'',
+          noOfItems:'',
+          dest:'',
+          area:'',
+          type:'',
+          when:'',
+          readyTime:'',
+          contact:'',
+          telephone:'',
+          email:'',
+          close:'',
+          cash:'',
+          order:'',
+          pickupLocation:'',
+          transport:'',
+          additionalInfo:'',
+          specialInstructions:''
         })
       })
   }
