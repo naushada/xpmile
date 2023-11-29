@@ -124,6 +124,7 @@ export class ListComponent implements OnInit, OnDestroy {
     this.A4LabelContentsBody.length = 0;
     this.rowsSelected?.forEach((elm: Shipment) => {
       console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
+      let altRefNo:string = elm.shipment.altRefNo.toString();
       let ent = [
         {
           table: {
@@ -135,7 +136,7 @@ export class ListComponent implements OnInit, OnDestroy {
               [ {text: 'Account Number:'+ elm.shipment.senderInformation.accountNo}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:2, width: 170}],
               [ { text: 'No. of Items: ' + elm.shipment.shipmentInformation.numberOfItems + '\n' + 'Weight: '+ elm.shipment.shipmentInformation.weight + elm.shipment.shipmentInformation.weightUnits + '\n' + 'Goods Value: '+ elm.shipment.shipmentInformation.customsValue, bold: false }, ''],
               [ { text: 'From:\n' + elm.shipment.receiverInformation.name +'\n'+ 'Mobile: '+ elm.shipment.senderInformation.contact + '\n' + 'Alternate Mobile: '+ elm.shipment.senderInformation.phoneNumber + '\n' + 'Country: '+ elm.shipment.senderInformation.country, bold: false }, {text: 'To:\n'+ elm.shipment.receiverInformation.name + '\n'+ 'Address: '+elm.shipment.receiverInformation.address+'\n'+'City: '+ elm.shipment.receiverInformation.city+ '\n'+'Mobile: '+elm.shipment.receiverInformation.phone +'\n' + 'Altername Mobile: '+elm.shipment.receiverInformation.contact+'\n'+'Country: '+elm.shipment.receiverInformation.country}],
-              [ {text: 'Description:' + elm.shipment.shipmentInformation.goodsDescription}, {image: this.textToBase64Barcode(elm.shipment.altRefNo , 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
+              [ {text: 'Description:' + elm.shipment.shipmentInformation.goodsDescription}, {image: this.textToBase64Barcode(altRefNo , 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
               [ {text: 'COD: '+ elm.shipment.shipmentInformation.currency +' '+elm.shipment.shipmentInformation.codAmount, bold: true}, ''],
             ]
           },
@@ -207,6 +208,65 @@ export class ListComponent implements OnInit, OnDestroy {
     }
   };
 
+  A2LabelContentsBody:Array<object> = new Array<object>();
+
+  docDefinitionA2 = {
+    info: this.Info,
+    pageMargins: 10,
+    content: this.A2LabelContentsBody,
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10]
+      },
+      subheader: {
+        fontSize: 16,
+        bold: true,
+        margin: [0, 10, 0, 5]
+      },
+      tableExample: {
+        margin: [0, 5, 0, 15]
+      },
+      tableHeader: {
+        bold: true,
+        fontSize: 13,
+        color: 'black'
+      },
+      rH: {
+        height: 100,
+        fontSize: 10
+      }
+    }
+  };
+
+  buildA2ContentsBody() {
+    this.A2LabelContentsBody.length = 0;
+    this.rowsSelected?.forEach((elm: Shipment) => {
+      let altRefNo:string = elm.shipment.altRefNo.toString();
+      let ent = [
+        {
+          table: {
+            headerRows: 0,
+            widths: [ 200, '*'],
+            body: [
+              
+              [ {text: 'Date:' + elm.shipment.shipmentInformation.activity[0].date + ' '+ elm.shipment.shipmentInformation.activity[0].time}, {text: 'Destination:' + elm.shipment.receiverInformation.city +'\n' + 'Product Type:' + elm.shipment.shipmentInformation.service, bold: true}],
+              [ {text: 'Account Number:'+ elm.shipment.senderInformation.accountNo}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:2, width: 170}],
+              [ { text: 'No. of Items: ' + elm.shipment.shipmentInformation.numberOfItems + '\n' + 'Weight: '+ elm.shipment.shipmentInformation.weight + elm.shipment.shipmentInformation.weightUnits + '\n' + 'Goods Value: '+ elm.shipment.shipmentInformation.customsValue, bold: false }, ''],
+              [ { text: 'From:\n' + elm.shipment.receiverInformation.name +'\n'+ 'Mobile: '+ elm.shipment.senderInformation.contact + '\n' + 'Alternate Mobile: '+ elm.shipment.senderInformation.phoneNumber + '\n' + 'Country: '+ elm.shipment.senderInformation.country, bold: false }, {text: 'To:\n'+ elm.shipment.receiverInformation.name + '\n'+ 'Address: '+elm.shipment.receiverInformation.address+'\n'+'City: '+ elm.shipment.receiverInformation.city+ '\n'+'Mobile: '+elm.shipment.receiverInformation.phone +'\n' + 'Altername Mobile: '+elm.shipment.receiverInformation.contact+'\n'+'Country: '+elm.shipment.receiverInformation.country}],
+              [ {text: 'Description:' + elm.shipment.shipmentInformation.goodsDescription}, {image: this.textToBase64Barcode(altRefNo , 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
+              [ {text: 'COD: '+ elm.shipment.shipmentInformation.currency +' '+elm.shipment.shipmentInformation.codAmount, bold: true}, ''],
+            ]
+          },
+          pageBreak: 'after'
+        }
+      ];
+
+      this.A4LabelContentsBody.push(ent);
+    });
+  }
+
   textToBase64Barcode(text: string, ht:number, fSize: number = 15) {
     if(!text.length) {
       text = "default";
@@ -219,6 +279,7 @@ export class ListComponent implements OnInit, OnDestroy {
 
   onCreateA2Label() {
     //this.rowsSelected?.forEach(elm => {alert(JSON.stringify(elm))});
+    pdfMake.createPdf(this.docDefinitionA2).download( "A2" + "-label");
   }
 
   onCreateA4Label() {

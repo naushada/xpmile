@@ -26,6 +26,7 @@ export class BulkComponent implements OnInit, OnDestroy {
   public accountInfoList: Map<string, Account > = new Map<string, Account>();
   public shipmentExcelRows?: Array<ShipmentExcelRow> = new Array<ShipmentExcelRow>();
 
+  public isButtonEnabled:boolean = true;
 
   constructor(private http: HttpsvcService, private fb: FormBuilder, private xls: ExcelsvcService, private subject: PubsubsvcService) {
     this.subsink.sink = this.subject.onAccount.subscribe(rsp => {this.loggedInUser = rsp;},
@@ -60,7 +61,7 @@ export class BulkComponent implements OnInit, OnDestroy {
 
           senderInformation : this.fb.group({
             accountNo: ent.AccountCode,
-            referenceNo: ent.ReferenceNo,
+            referenceNo: ent.ReferenceNo as string,
             name: ent.SenderName && ent.SenderName || senderInfo.personalInfo.name,
             companyName:senderInfo.customerInfo.companyName,
             country: senderInfo.personalInfo.city,
@@ -114,7 +115,7 @@ export class BulkComponent implements OnInit, OnDestroy {
   });
 
   if(this.accountInfoList.size) {
-    bulkShipment.forEach(elm => {console.log("elm: " + JSON.stringify(elm));});
+    //bulkShipment.forEach(elm => {console.log("elm: " + JSON.stringify(elm));});
     this.http.createBulkShipment(JSON.stringify(bulkShipment)).subscribe(rsp => {
       let record: any; 
       let jObj = JSON.stringify(rsp);
@@ -133,7 +134,10 @@ export class BulkComponent implements OnInit, OnDestroy {
   }
 
   public processShipmentExcelFile(evt: any, accountType: string) {
-    if(evt.target.files[0] == undefined) return;
+    if(evt.target.files[0] == undefined) {
+      this.isButtonEnabled = true;
+      return;
+    }
     
     let rows: any[] = [];
     let accList: Array<string> = new Array<string>;
@@ -160,6 +164,7 @@ export class BulkComponent implements OnInit, OnDestroy {
 
     /** This lamda Fn is invoked once excel file is loaded */
     fileReader.onloadend = (event) => {
+      this.isButtonEnabled = false;
       if(accountType == "Employee") {
         let uniq: Array<string> = this.getridofDupElement(accList);
 
@@ -183,7 +188,7 @@ export class BulkComponent implements OnInit, OnDestroy {
   }
 
   onFileSelect(event: any) {
-    
+    this.isButtonEnabled = true;
     let accType:string = this.loggedInUser?.personalInfo.role as string;
     this.processShipmentExcelFile(event, accType);
   }

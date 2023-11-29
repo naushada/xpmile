@@ -17,6 +17,7 @@ export class AltrefBulkComponent implements OnInit {
   public loggedInUser?: Account;
   public subsink: SubSink = new SubSink();
   public bulkAltRefUpdateForm: FormGroup;
+  public isButtonEnabled:boolean = true;
   
   public accountInfoList: Map<string, Account > = new Map<string, Account>();
   public altRefUpdateExcelRows?: Array<UpdateAltRefForShipment> = new Array<UpdateAltRefForShipment>();
@@ -44,8 +45,8 @@ export class AltrefBulkComponent implements OnInit {
 
   /////
   onUpdateBulkShipment() {
-    let awbno: Array<string> = [];
-    let altrefno: Array<string> = [];
+    let awbno: Array<string> = Array<string>();
+    let altrefno: Array<string> = Array<string>();
 
     this.altRefUpdateExcelRows?.forEach((ent: UpdateAltRefForShipment) => {
       awbno.push(ent.awbno.toString());
@@ -69,7 +70,10 @@ export class AltrefBulkComponent implements OnInit {
   }
 
   public processAltRefUpdateShipmentExcelFile(evt: any) {
-    if(evt.target.files[0] == undefined) return;
+    if(evt.target.files[0] == undefined) {
+      this.isButtonEnabled = true;
+      return;
+    }
 
     let rows: any[] = [];
     
@@ -94,7 +98,7 @@ export class AltrefBulkComponent implements OnInit {
 
     /** This lamda Fn is invoked once excel file is loaded */
     fileReader.onloadend = (event) => {
-      console.log(this.altRefUpdateExcelRows);
+      this.isButtonEnabled = false
     }
 
     fileReader.onerror = (event) => {
@@ -103,7 +107,8 @@ export class AltrefBulkComponent implements OnInit {
   }
 
   onFileSelect(event: any) {
-    console.log(event.target.files[0]);
+    this.isButtonEnabled = true;
+    //console.log(event.target.files[0]);
     this.processAltRefUpdateShipmentExcelFile(event);
   }
   

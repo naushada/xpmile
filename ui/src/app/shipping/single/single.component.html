@@ -3,7 +3,7 @@
         <div class="clr-col-lg-auto">
             <clr-checkbox-container>
                 <clr-checkbox-wrapper>
-                    <input type="checkbox" formControlName="isAutoGenerate" clrCheckbox (change)="onAutoGenerate($event)"/>
+                    <input type="checkbox" formControlName="isAutoGenerate" clrToggle (change)="onAutoGenerate($event)"/>
                     <label for="isAutoGenerate">Autogenerate AWB Number</label>
                 </clr-checkbox-wrapper>
             </clr-checkbox-container>
