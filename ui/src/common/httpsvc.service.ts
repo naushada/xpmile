@@ -450,4 +450,10 @@ export class HttpsvcService {
     return this.http.post<Email>(this.getUri("from_web_email"), JSON.stringify(email), this.httpOptions);
   }
 
+  createJob(job:any) : Observable<any> {
+    return this.http.post<any>(this.getUri("from_web_job"), 
+                                    job, 
+                                    this.httpOptions);
+  }
+
 }

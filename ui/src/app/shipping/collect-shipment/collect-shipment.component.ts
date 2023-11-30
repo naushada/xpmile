@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import {formatDate} from '@angular/common';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Account, AppGlobals, AppGlobalsDefault } from 'src/common/app-globals';
+import { Account, AppGlobals, AppGlobalsDefault, JobDetails } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
 import { SubSink } from 'subsink';
@@ -25,6 +25,10 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
   subsink = new SubSink();
   accInfo?:Account;
 
+  jobDetail?: JobDetails;
+  jobDetails:any[] = [] ;
+  selected:any;
+
   constructor(private fb: FormBuilder, private rt: Router, private http: HttpsvcService, private subject: PubsubsvcService) { 
     this.defValue = {...AppGlobalsDefault};
 
@@ -40,6 +44,7 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
       
       this.collectShipmentForm = this.fb.group({
        from: this.fb.group({
+          jobId:'',
           station:'',
           customer:'',
           accCode:'',
@@ -56,12 +61,12 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
           dest:'',
           area:'',
           type:'',
-          when:'',
-          readyTime:'',
+          when:formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'),
+          readyTime: [new Date().getHours() + ':' + new Date().getMinutes()],
           contact:'',
           telephone:'',
           email:'',
-          close:'',
+          close:[new Date().getHours() + ':' + new Date().getMinutes()],
           cash:'',
           order:'',
           pickupLocation:'',
@@ -102,6 +107,18 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
         () => {});
     }
     //alert(this.collectShipmentForm.get('from.accCode')?.value);
+  }
+
+  onJobCreate() {
+    //Get the Open Job Count
+    this.http.createJob(JSON.stringify(this.collectShipmentForm.value)).subscribe((rsp:any) => {
+      let result = JSON.parse(JSON.stringify(rsp));
+      this.collectShipmentForm.get('from.jobId')?.setValue(result["jobId"]);
+      this.jobDetail = {...this.collectShipmentForm.value};
+    },
+    (error) => {},
+    () => {} 
+    );
   }
 
   ngOnDestroy(): void {

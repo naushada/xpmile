@@ -126,7 +126,7 @@
             <div class="clr-col-md">
                 <clr-input-container>
                     <label>Ready Time</label>
-                    <input name="readyTime" clrInput name="readyTime" formControlName="readyTime">
+                    <input type="time" name="readyTime" clrInput name="readyTime" formControlName="readyTime">
                 </clr-input-container>
             </div>
 
@@ -154,7 +154,7 @@
             <div class="clr-col-md">
                 <clr-input-container>
                     <label>Close</label>
-                    <input name="close" clrInput name="close" formControlName="close">
+                    <input type="time" name="close" clrInput name="close" formControlName="close">
                 </clr-input-container>
             </div>
             <div class="clr-col-md">
@@ -202,4 +202,36 @@
             
         </div>
     </div>
+
+    <div class="clr-row">
+        <div class="clr-col">
+            <button class="btn btn-primary" (click)="onJobCreate()">Create Job</button>
+        </div>
+    </div>
 </form>
+
+<!-- Data Grid -->
+<clr-datagrid [(clrDgSelected)]="selected">
+    <clr-dg-column>Job #</clr-dg-column>
+    <clr-dg-column>Req Date</clr-dg-column>
+    <clr-dg-column>Code</clr-dg-column>
+    <clr-dg-column>Company Details</clr-dg-column>
+    <clr-dg-column>Contact</clr-dg-column>
+    <clr-dg-column>Ready/Close</clr-dg-column>
+    <clr-dg-column>Desp.</clr-dg-column>
+    <clr-dg-column>By</clr-dg-column>
+    <clr-dg-column>Detail(s)</clr-dg-column>
+    <clr-dg-column>Type</clr-dg-column>
+    <clr-dg-column>Status</clr-dg-column>
+    <clr-dg-column></clr-dg-column>
+    <clr-dg-column></clr-dg-column>
+    <clr-dg-column></clr-dg-column>
+    <clr-dg-column></clr-dg-column>
+    <!-- ... -->
+    <clr-dg-placeholder>We couldn't find any Jobs!</clr-dg-placeholder>
+  
+    <clr-dg-row *clrDgItems="let job of jobDetails" [clrDgItem]="job">
+      <!-- ... -->
+    </clr-dg-row>
+    <!-- ... -->
+</clr-datagrid>
