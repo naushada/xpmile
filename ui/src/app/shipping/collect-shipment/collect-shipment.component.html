@@ -211,7 +211,7 @@
 </form>
 
 <!-- Data Grid -->
-<clr-datagrid [(clrDgSelected)]="selected">
+<clr-datagrid [(clrDgSelected)]="selected" (clrDgSelectedChange)="onSelectionChanged($event)">
     <clr-dg-column>Job #</clr-dg-column>
     <clr-dg-column>Request Date</clr-dg-column>
     <clr-dg-column>Code</clr-dg-column>

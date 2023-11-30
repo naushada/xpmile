@@ -27,7 +27,7 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
 
   jobDetail?: JobDetails;
   jobDetails:any[] = [] ;
-  selected:any;
+  selected:Array<JobDetails> = Array<JobDetails>();
 
   constructor(private fb: FormBuilder, private rt: Router, private http: HttpsvcService, private subject: PubsubsvcService) { 
     this.defValue = {...AppGlobalsDefault};
@@ -165,6 +165,10 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
 
   }
 
+  onSelectionChanged(event:any) {
+
+  }
+  
   ngOnDestroy(): void {
     this.subsink.unsubscribe();
   }
