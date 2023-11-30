@@ -213,7 +213,7 @@
 <!-- Data Grid -->
 <clr-datagrid [(clrDgSelected)]="selected">
     <clr-dg-column>Job #</clr-dg-column>
-    <clr-dg-column>Req Date</clr-dg-column>
+    <clr-dg-column>Request Date</clr-dg-column>
     <clr-dg-column>Code</clr-dg-column>
     <clr-dg-column>Company Details</clr-dg-column>
     <clr-dg-column>Contact</clr-dg-column>
@@ -228,10 +228,42 @@
     <clr-dg-column></clr-dg-column>
     <clr-dg-column></clr-dg-column>
     <!-- ... -->
-    <clr-dg-placeholder>We couldn't find any Jobs!</clr-dg-placeholder>
+    <!---<clr-dg-placeholder>We couldn't find any Jobs!</clr-dg-placeholder>-->
   
     <clr-dg-row *clrDgItems="let job of jobDetails" [clrDgItem]="job">
       <!-- ... -->
+      <clr-dg-cell>{{job.jobId}}</clr-dg-cell>
+      <clr-dg-cell>{{job.when}}</clr-dg-cell>
+      <clr-dg-cell>{{job.accCode}}</clr-dg-cell>
+      <clr-dg-cell>{{job.company}}</clr-dg-cell>
+      <clr-dg-cell>{{job.contact}}</clr-dg-cell>
+      <clr-dg-cell>Ready/Close</clr-dg-cell>
+      <clr-dg-cell>Desp.</clr-dg-cell>
+      <clr-dg-cell>By</clr-dg-cell>
+      <clr-dg-cell>Details</clr-dg-cell>
+      <!-- Status -->
+      <clr-dg-cell>Status</clr-dg-cell>
+
+      <clr-dg-cell>
+        
+            <select >
+                <option >
+                   Test1 
+                </option>
+                <option >
+                    Test2
+                 </option>
+            </select>
+        
+        <button class="btn btn-primary" (click)="onAssign()">Assign</button>
+      </clr-dg-cell>
+      <clr-dg-cell></clr-dg-cell>
+      <clr-dg-cell>
+        <button class="btn btn-primary" (click)="onFinalise()">Finalise</button>
+      </clr-dg-cell>
+      <clr-dg-cell>
+        <button class="btn btn-primary" (click)="onCancel()">Cancel</button>
+      </clr-dg-cell>
     </clr-dg-row>
     <clr-dg-footer>
 		<clr-dg-pagination #pagination [clrDgPageSize]="10" [clrDgTotalItems] = "jobDetails.length">

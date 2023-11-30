@@ -74,10 +74,42 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
           additionalInfo:'',
           specialInstructions:''
         })
-      })
+      });
   }
 
   ngOnInit(): void {
+    this.jobDetail = {
+          jobId: "12",
+          station:'Test',
+          customer:'ABC',
+          accCode:'Test',
+          company:'AABC Coo.',
+          collectionAddress:' From Delhi',
+          city:'New Delhi',
+          state:'New Delhii',
+          country:'India',
+          postcode:411048,
+          service:'Test 1',
+          weight:'1.3',
+          noOfShipments:2,
+          noOfItems:3,
+          dest:'Pune',
+          area:'Pune India, Maharastra',
+          type:'Test',
+          when:new Date(Date.now()),
+          readyTime: {hours:1,minutes:20},
+          contact:'Contact 1',
+          telephone:'997013613611',
+          email:"abc@example.com",
+          close: {hours:2, minutes:2},
+          cash:'12USD',
+          order:'1Pack',
+          pickupLocation:'NA',
+          transport:'NA',
+          additionalInfo:'NA',
+          specialInstructions:'NA'
+    };
+    this.jobDetails[0]=this.jobDetail;
   }
 
   onSchedulePickup() {
@@ -119,6 +151,18 @@ export class CollectShipmentComponent implements OnInit, OnDestroy {
     (error) => {},
     () => {} 
     );
+  }
+
+  onAssign() {
+
+  }
+
+  onFinalise() {
+
+  }
+
+  onCancel() {
+
   }
 
   ngOnDestroy(): void {

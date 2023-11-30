@@ -355,7 +355,7 @@ export interface JobDetails {
     country: string;
     postcode: number;
     service: string;
-    weight: number;
+    weight: string;
     noOfShipments: number;
     noOfItems: number;
     dest: string;
@@ -365,7 +365,7 @@ export interface JobDetails {
     readyTime: Time;
     contact: string;
     telephone: string;
-    email: Email;
+    email: string;
     close: Time;
     cash: string;
     order: string;
