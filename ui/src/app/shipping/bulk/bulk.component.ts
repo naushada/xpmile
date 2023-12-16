@@ -173,7 +173,7 @@ export class BulkComponent implements OnInit, OnDestroy {
             (data: Account) => {
               this.accountInfoList.set(data.loginCredentials.accountCode, data);
             },
-            (error: any) => {alert("Invalid AccountCode "); },
+            (error: any) => {alert("Invalid AccountCode "); this.isButtonEnabled = true;},
             () => {}
           );
         }

@@ -3489,6 +3489,7 @@ std::string WebServiceEntry::handle_account_GET(std::string& in, MongodbClient& 
         /* user is trying to log in - authenticate now */
         auto user = http.get_element("userId");
 	    auto pwd = http.get_element("password");
+        auto accCode = http.get_element("accountCode");
 
         if(user.length() && pwd.length()) {
             /* do an authentication with DB now */
@@ -3525,14 +3526,14 @@ std::string WebServiceEntry::handle_account_GET(std::string& in, MongodbClient& 
             } else {
                 return(build_responseOK(record));
             }
-        } else if(user.length()) {
+        } else if(accCode.length()) {
             
             /* do an authentication with DB now */
             //std::string document = "{\"loginCredentials.accountCode\" : \"" +  accCode + "\" " + 
             //                        "}";
             json document = json::object();
             document = {
-                {"loginCredentials.accountCode", user}
+                {"loginCredentials.accountCode", accCode}
             };
             //std::string projection("{\"accountCode\" : true, \"_id\" : false}");
             //std::string projection("{\"_id\" : false}");
