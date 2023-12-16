@@ -118,6 +118,7 @@ export const AppGlobalsDefault: AppGlobals = {
     ExcelHeading: ["AccountCode",
     "ReferenceNo",
     "Weight",
+    "ReceiverCountry",
     "ReceiverCity",
     "ReceiverName",
     "ReceiverAddress",
@@ -227,6 +228,7 @@ export class ShipmentExcelRow {
     ReferenceNo : string
     Weight: string
     ReceiverCity: string;
+    ReceiverCountry: string;
     ReceiverName: string;
     ReceiverAddress: string;
     ReceiverPhoneNo: string;
@@ -243,6 +245,7 @@ export class ShipmentExcelRow {
         this.ReferenceNo = ent.ReferenceNo;
         this.Weight = ent.Weight;
         this.ReceiverCity = ent.ReceiverCity;
+        this.ReceiverCountry = ent.ReceiverCountry;
         this.ReceiverName = ent.ReceiverName;
         this.ReceiverAddress = ent.ReceiverAddress;
         this.ReceiverPhoneNo = ent.ReceiverPhoneNo;
