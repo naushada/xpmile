@@ -22,21 +22,26 @@
         
     </div>
 </form>
-
-<div class="btn-group">
-    <button class="btn" (click)="onCreateA2Label()">
-        <clr-icon shape="printer" aria-label="print"></clr-icon>A2
-    </button>
-    <button class="btn" (click)="onCreateA4Label()">
-        <clr-icon shape="printer"></clr-icon>A4
-    </button>
-    <button class="btn" (click)="onCreateA6Label()">
-        <clr-icon shape="printer"></clr-icon>A6
-    </button>
-</div>
+<clr-dg-action-bar>
+    <div class="btn-group">
+        <button class="btn" (click)="onCreateA2Label()">
+            <clr-icon shape="printer" aria-label="print"></clr-icon>A2
+        </button>
+        <button class="btn" (click)="onCreateA4Label()">
+            <clr-icon shape="printer"></clr-icon>A4
+        </button>
+        <button class="btn" (click)="onCreateA6Label()">
+            <clr-icon shape="printer"></clr-icon>A6
+        </button>
+        <button class="btn" (click)="onCreateInvoice()">
+            <clr-icon shape="printer"></clr-icon>Gennerate Invoice
+        </button>
+    </div>
+</clr-dg-action-bar>
 
 <clr-datagrid  (clrDgSelectedChange)="onSelectionChanged($event)" [(clrDgSelected)]="rowsSelected">
     <clr-dg-column >Serial No</clr-dg-column>
+    <!--<clr-dg-column>Invoice</clr-dg-column>--->
     <clr-dg-column >Shipment No</clr-dg-column>
     <clr-dg-column >Alternate ReferenceNo</clr-dg-column>
     <clr-dg-column >Created By</clr-dg-column>
@@ -50,6 +55,7 @@
     <clr-dg-row *clrDgItems="let sh of shipments; let idx = index" [clrDgItem]="sh">
         
         <clr-dg-cell>{{idx + 1}}</clr-dg-cell>
+        <!--<clr-dg-cell><input type="checkbox" clrToggle name="isGenerateeInvoice" value="sh.shipment.awbno" (change)="onInvoiceSelect($event)"></clr-dg-cell>-->
         <clr-dg-cell>{{sh.shipment.awbno}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.shipmentInformation.createdBy}}</clr-dg-cell>

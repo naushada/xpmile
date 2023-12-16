@@ -69,6 +69,84 @@ export class ListComponent implements OnInit, OnDestroy {
     
   }
 
+
+
+  /** Label A6 Generation  */
+  InfoInvoice = {
+    title: 'A4 Invoice',
+    author: 'Mohd Naushad Ahmed',
+    subject: 'A4 Invoice for Shipment',
+    keywords: 'A4 Invoice',
+  };
+  A4InvoiceContentsBody:Array<object> = new Array<object>();
+
+
+  docDefinitionA4Invoice = {
+    info: this.InfoInvoice,
+    pageMargins: 10,
+    content: this.A4InvoiceContentsBody,
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10]
+      },
+      subheader: {
+        fontSize: 16,
+        bold: true,
+        margin: [0, 10, 0, 5]
+      },
+      tableExample: {
+        margin: [0, 5, 0, 15]
+      },
+      tableHeader: {
+        bold: true,
+        fontSize: 13,
+        color: 'black'
+      },
+      rH: {
+        height: 100,
+        fontSize: 10
+      }
+    }
+  };
+
+
+  onGennerateInvoice() {
+    alert("onGenerateInvoice");
+    this.A4InvoiceContentsBody.length = 0;
+    this.rowsSelected?.forEach((elm: Shipment) => {
+      //console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
+      if(elm.shipment.altRefNo != undefined) {
+        let altRefNo:string = elm.shipment.altRefNo.toString();
+      }
+
+      let ent = [
+        {
+          table: {
+            headerRows: [{text: 'Sshipping Document'}],
+            widths: [ 200, '*'],
+            body: [
+
+              [{text: 'From', rowwSpan:3, border:[[false,false,false,true]]}, {text: 'Date'}]
+              
+            ]
+          },
+          pageBreak: 'after'
+        }
+      ];
+
+      this.A4InvoiceContentsBody.push(ent);
+    });
+  
+  }
+
+  onCreateInvoice() {
+    //this.rowsSelected?.forEach(elm => {alert(JSON.stringify(elm))});
+    this.onGennerateInvoice();
+    pdfMake.createPdf(this.docDefinitionA4Invoice).download( "A4" + "-invoice");
+  }
+
   onClear() {
     this.shipmentListForm.reset;
   }
@@ -95,7 +173,11 @@ export class ListComponent implements OnInit, OnDestroy {
     this.A6LabelContentsBody.length = 0;
     this.rowsSelected?.forEach((elm:Shipment) => {
       //console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
-      let altRefNo:string = elm.shipment.altRefNo.toString();
+      let altRefNo:string = "default";
+      if((elm.shipment.altRefNo != undefined))  {
+        altRefNo = elm.shipment.altRefNo.toString();
+      }
+
       let ent = [
         {
           table: {
@@ -123,8 +205,11 @@ export class ListComponent implements OnInit, OnDestroy {
   buildA4ContentsBody() {
     this.A4LabelContentsBody.length = 0;
     this.rowsSelected?.forEach((elm: Shipment) => {
-      console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
-      let altRefNo:string = elm.shipment.altRefNo.toString();
+      //console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
+      let altRefNo:string = "default";
+      if(elm.shipment.altRefNo != undefined) {
+        altRefNo = elm.shipment.altRefNo.toString();
+      }
       let ent = [
         {
           table: {
@@ -208,6 +293,7 @@ export class ListComponent implements OnInit, OnDestroy {
     }
   };
 
+  
   A2LabelContentsBody:Array<object> = new Array<object>();
 
   docDefinitionA2 = {
@@ -290,6 +376,13 @@ export class ListComponent implements OnInit, OnDestroy {
   onCreateA6Label() {
     this.buildA6ContentsBody();
     pdfMake.createPdf(this.docDefinitionA6).download( "A6" + "-label");
+  }
+
+  onInvoiceSelect(e:any) {
+    if(e.target.checked){
+      alert("Checked!!!");
+      // do something here
+    }
   }
 
   ngOnDestroy(): void {

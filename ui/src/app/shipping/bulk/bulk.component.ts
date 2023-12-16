@@ -97,7 +97,7 @@ export class BulkComponent implements OnInit, OnDestroy {
 
           receiverInformation: this.fb.group({
             name: ent.ReceiverName,
-            country: ent.ReceiverCity,
+            country: ent.ReceiverCountry,
             city: ent.ReceiverCity,
             state: ent.ReceiverCity,
             postalCode: '',
