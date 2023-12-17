@@ -47,7 +47,8 @@ export class SingleShipmentComponent implements OnInit, OnDestroy {
     let altRefNo = this.singleShipmentTrackingForm.get('altRefNo')?.value;
     let accCode = this.loggedInUser?.loginCredentials.accountCode;
 
-    if(awbNo != undefined && awbNo.length && this.loggedInUser?.personalInfo.role != "Employee") {
+    if((awbNo != undefined && awbNo.length && this.loggedInUser?.personalInfo.role != "Employee") && 
+       (awbNo != undefined && awbNo.length && this.loggedInUser?.personalInfo.role != "Admin")) {
       this.http.getShipmentByAwbNo(awbNo, accCode).subscribe((rsp: Shipment) => {this.shipment = {...rsp};}, (error) => {}, () => {});
     } else if(awbNo != undefined && awbNo.length) {
 
@@ -59,7 +60,8 @@ export class SingleShipmentComponent implements OnInit, OnDestroy {
       (error) => {}, 
       () => {});
 
-    } else if(altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Employee") {
+    } else if((altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Employee") && 
+              (altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Admin")) {
       this.http.getShipmentByAltRefNo(altRefNo, accCode).subscribe(rsp => {this.shipment = rsp;}, (error) => {}, () => {});
     } else {
       this.http.getShipmentByAltRefNo(altRefNo).subscribe(rsp => {this.shipment = rsp;}, (error) => {}, () => {});

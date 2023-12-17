@@ -131,7 +131,7 @@ export const AppGlobalsDefault: AppGlobals = {
     "CustomsCurrency",
     "SenderName"],
 
-    EventLocation: ["",
+    EventLocation: ["UAE",
     "Riyadh",
     "Dammam",
     "Jeddah",

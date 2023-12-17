@@ -76,7 +76,8 @@
     <clr-dg-column>Receiver Contact</clr-dg-column>
     <clr-dg-column>Receiver Phone</clr-dg-column>
     <clr-dg-column>Receiver Email</clr-dg-column>
-    <clr-dg-row *ngFor="let sh of shipments">
+
+    <clr-dg-row *clrDgItems="let sh of shipments" [clrDgItem]="sh">
         <clr-dg-cell>{{sh.shipment.awbno}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.senderInformation.accountNo}}</clr-dg-cell>

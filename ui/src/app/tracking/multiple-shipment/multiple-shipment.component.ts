@@ -77,7 +77,7 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
       senderRefList = altRefNo.split("\n");
     }
 
-    if(awbNo != undefined && awbNo.length && this.loggedInUser?.personalInfo.role != "Employee") {
+    if((awbNo != undefined && awbNo.length) && ((this.loggedInUser?.personalInfo.role != "Employee") && (this.loggedInUser?.personalInfo.role != "Admin"))) {
       this.http.getShipmentsByAwbNo(awbList, accCode).subscribe(
         (rsp: Shipment[]) => {
           rsp.forEach((elm: Shipment) => {this.shipments.push(elm)});},
@@ -93,7 +93,7 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
       (error) => {}, 
       () => {});
 
-    } else if(altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Employee") {
+    } else if(altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Employee" && this.loggedInUser?.personalInfo.role != "Admin") {
       this.http.getShipmentsByAltRefNo(senderRefList, accCode).subscribe((rsp: Shipment[]) => {
         rsp.forEach((elm: Shipment) => {this.shipments.push(elm)});
       }, 
