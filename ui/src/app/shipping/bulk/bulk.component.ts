@@ -47,6 +47,7 @@ export class BulkComponent implements OnInit, OnDestroy {
 
   onCreateBulkShipment() {
     let bulkShipment: Array<string> = [];
+
     this.shipmentExcelRows?.forEach((ent: ShipmentExcelRow) => {
 
       let accCode:string = ent.AccountCode;
@@ -126,6 +127,7 @@ export class BulkComponent implements OnInit, OnDestroy {
   }
 
   this.accountInfoList.clear();
+  this.shipmentExcelRows = [];
 }
 
 
@@ -142,6 +144,7 @@ export class BulkComponent implements OnInit, OnDestroy {
     let rows: any[] = [];
     let accList: Array<string> = new Array<string>;
     
+    accList.length = 0;
     const fileReader = new FileReader();
     fileReader.readAsBinaryString(evt.target.files[0]);
 
@@ -174,7 +177,7 @@ export class BulkComponent implements OnInit, OnDestroy {
               this.accountInfoList.set(data.loginCredentials.accountCode, data);
             },
             (error: any) => {alert("Invalid AccountCode "); this.isButtonEnabled = true;},
-            () => {}
+            () => {this.isButtonEnabled = false;}
           );
         }
       } else {
@@ -184,6 +187,7 @@ export class BulkComponent implements OnInit, OnDestroy {
 
     fileReader.onerror = (event) => {
       alert("Excel File is invalid: ");
+      this.isButtonEnabled = true;
     }
   }
 
