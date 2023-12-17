@@ -4074,11 +4074,11 @@ std::string WebServiceEntry::handle_account_PUT(std::string& in, MongodbClient& 
         };
 
         json document = json::object();
-        //document = "{\"$update\":" + content + "}";
-        //document["$update"] = content;
+        
         document = {
-            {"$update", json::parse(content)}
+            {"$set", json::parse(content)}
         };
+        
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Updating document:%s\n query:%s\n"), document.dump().c_str(), query.dump().c_str()));
         bool rsp = dbInst.update_collection(coll, query.dump(), document.dump());
 

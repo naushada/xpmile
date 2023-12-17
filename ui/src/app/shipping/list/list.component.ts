@@ -202,25 +202,50 @@ export class ListComponent implements OnInit, OnDestroy {
         altRefNo = elm.shipment.altRefNo.toString();
       }
 
-      let ent = [
-        {
-          table: {
-            headerRows: 0,
-            widths: [ 100, '*'],
-            heights: ['auto', 'auto', 'auto', 20, 'auto'],
-            body: [
-              [ {text: 'Date: ' + elm.shipment.shipmentInformation.activity[0].date + ' '+ elm.shipment.shipmentInformation.activity[0].time, fontSize:10}, {text: 'Destination: ' + elm.shipment.receiverInformation.country +'\n' + 'Product Type: ' + elm.shipment.shipmentInformation.service, bold: true}],
-              [ {text: 'Account Number: '+ elm.shipment.senderInformation.accountNo, fontSize:10}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:2, width: 170}],
-              [ { text: 'No. of Items: ' + elm.shipment.shipmentInformation.numberOfItems + '\n' + 'Weight: '+ elm.shipment.shipmentInformation.weight + elm.shipment.shipmentInformation.weightUnits + '\n' + 'Goods Value: '+ elm.shipment.shipmentInformation.customsValue, bold: false, fontSize: 10 }, ''],
-              [ { text: 'From:\n' + elm.shipment.senderInformation.name +'\n'+ 'Mobile: '+ elm.shipment.senderInformation.phoneNumber + '\n' + 'Altername Mobile: '+ elm.shipment.senderInformation.contact + '\n' + 'Country: '+ elm.shipment.senderInformation.country, bold: false, fontSize:10 }, {text: 'To:\n'+ elm.shipment.receiverInformation.name + '\n'+ 'Address: '+elm.shipment.receiverInformation.address +'\n'+'City: '+ elm.shipment.receiverInformation.city+ '\n'+'Mobile: '+elm.shipment.receiverInformation.contact +'\n' + 'Alternate Mobile: '+elm.shipment.receiverInformation.phone +'\n'+'Country:'+elm.shipment.receiverInformation.country, fontSize: 10}],
-              [ {text: 'Description: ' + elm.shipment.shipmentInformation.goodsDescription, fontSize:10}, {image: this.textToBase64Barcode(altRefNo, 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
-              [ {text: 'COD: '+ elm.shipment.shipmentInformation.currency + ' ' + elm.shipment.shipmentInformation.codAmount, bold: true}, ''],
-            ]
-          },
-          pageBreak: 'after'
-        }
-      ];
-      this.A6LabelContentsBody.push(ent);
+      if(this.loggedInUser?.personalInfo.eventLocation == elm.shipment.receiverInformation.country) {
+        let ent = [
+          {
+            table: {
+              headerRows: 0,
+              widths: [ 100, '*'],
+              heights: ['auto', 'auto', 'auto', 20, 'auto'],
+              body: [
+                [ {text: 'Date: ' + elm.shipment.shipmentInformation.activity[0].date + ' '+ elm.shipment.shipmentInformation.activity[0].time, fontSize:10}, {text: 'Destination: ' + elm.shipment.receiverInformation.country +'\n' + 'Product Type: ' + elm.shipment.shipmentInformation.service, bold: true}],
+                [ {text: 'Account Number: '+ elm.shipment.senderInformation.accountNo, fontSize:10}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:2, width: 170}],
+                [ { text: 'No. of Items: ' + elm.shipment.shipmentInformation.numberOfItems + '\n' + 'Weight: '+ elm.shipment.shipmentInformation.weight + elm.shipment.shipmentInformation.weightUnits + '\n' + 'Goods Value: '+ elm.shipment.shipmentInformation.customsValue, bold: false, fontSize: 10 }, ''],
+                [ { text: 'From:\n' + elm.shipment.senderInformation.name +'\n'+ 'Mobile: '+ elm.shipment.senderInformation.phoneNumber + '\n' + 'Altername Mobile: '+ elm.shipment.senderInformation.contact + '\n' + 'Country: '+ elm.shipment.senderInformation.country, bold: false, fontSize:10 }, {text: 'To:\n'+ elm.shipment.receiverInformation.name + '\n'+ 'Address: '+elm.shipment.receiverInformation.address +'\n'+'City: '+ elm.shipment.receiverInformation.city+ '\n'+'Mobile: '+elm.shipment.receiverInformation.contact +'\n' + 'Alternate Mobile: '+elm.shipment.receiverInformation.phone +'\n'+'Country:'+elm.shipment.receiverInformation.country, fontSize: 10}],
+                [ {text: 'Description: ' + elm.shipment.shipmentInformation.goodsDescription, fontSize:10}, {image: this.textToBase64Barcode(altRefNo, 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
+                [ {text: 'COD: '+ elm.shipment.shipmentInformation.currency + ' ' + elm.shipment.shipmentInformation.codAmount, bold: true}, ''],
+              ]
+            },
+            pageBreak: 'after'
+          }
+        ];
+        this.A6LabelContentsBody.push(ent);
+      } else {
+        let ent = [
+          {
+            table: {
+              headerRows: 0,
+              widths: [ 100, '*'],
+              heights: ['auto', 'auto', 'auto', 20, 'auto'],
+              body: [
+                [ {text: 'Date: ' + elm.shipment.shipmentInformation.activity[0].date + ' '+ elm.shipment.shipmentInformation.activity[0].time, fontSize:10}, 
+                  {text: 'Destination: ' + elm.shipment.receiverInformation.country +'\n' + 'Product Type: ' + elm.shipment.shipmentInformation.service, bold: true}],
+                [ {text: 'Account Number: '+ elm.shipment.senderInformation.accountNo, fontSize:10}, 
+                  {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:2, width: 170}],
+                [ { text: 'No. of Items: ' + elm.shipment.shipmentInformation.numberOfItems + '\n' + 'Weight: '+ elm.shipment.shipmentInformation.weight + elm.shipment.shipmentInformation.weightUnits + '\n' + 'Customs Value: '+elm.shipment.shipmentInformation.currency +' ' + elm.shipment.shipmentInformation.customsValue, bold: false, fontSize: 10 }, ''],
+                [ { text: 'From:\n' + elm.shipment.senderInformation.name +'\n'+ 'Mobile: '+ elm.shipment.senderInformation.phoneNumber + '\n' + 'Altername Mobile: '+ elm.shipment.senderInformation.contact + '\n' + 'Country: '+ elm.shipment.senderInformation.country, bold: false, fontSize:10 }, {text: 'To:\n'+ elm.shipment.receiverInformation.name + '\n'+ 'Address: '+elm.shipment.receiverInformation.address +'\n'+'City: '+ elm.shipment.receiverInformation.city+ '\n'+'Mobile: '+elm.shipment.receiverInformation.contact +'\n' + 'Alternate Mobile: '+elm.shipment.receiverInformation.phone +'\n'+'Country:'+elm.shipment.receiverInformation.country, fontSize: 10}],
+                [ {text: 'Description: ' + elm.shipment.shipmentInformation.goodsDescription, fontSize:10}, {image: this.textToBase64Barcode(altRefNo, 70), bold:false, alignment:'center',rowSpan:2, width:170} ],
+                [ {text: 'COD: '+ elm.shipment.shipmentInformation.currency + ' ' + elm.shipment.shipmentInformation.codAmount, bold: true}, ''],
+              ]
+            },
+            pageBreak: 'after'
+          }
+        ];
+        this.A6LabelContentsBody.push(ent);
+      }
+
     });
   }
 

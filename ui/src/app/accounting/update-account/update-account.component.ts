@@ -60,13 +60,12 @@ export class UpdateAccountComponent implements OnInit, OnDestroy {
   
   retrieveAccountInfo(): void {
     let accCode: string = this.accountForm.get("loginCredentials.accountCode")?.value;
-    this.http.getAccountInfo(accCode).subscribe((rsp: Account) => {this.accountForm.setValue({...rsp});}, error => {}, () => {});
+    this.http.getCustomerInfo(accCode).subscribe((rsp: Account) => {this.accountForm.setValue({...rsp});}, error => {}, () => {});
 
   }
 
   updateAccount(): void {
-    alert("Not implemented yet");
-    return;
+    //alert("Not implemented yet");
     let accCode: string = this.accountForm.get("loginCredentials.accountCode")?.value;
     this.http.updateAccountInfo(accCode, this.accountForm.value).subscribe((rsp: any) => {}, error => {alert("Account is updated failed");}, () => {alert("Account is updated successfully");});
   }

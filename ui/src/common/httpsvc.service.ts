@@ -292,7 +292,7 @@ export class HttpsvcService {
                               'Content-Type': 'application/json'
                       })
                     };
-    return this.http.put<Account>(this.getUri("from_web_inventory"), JSON.stringify(accInfo), options);
+    return this.http.put<Account>(this.getUri("from_web_account"), JSON.stringify(accInfo), options);
   }
 
   /**
