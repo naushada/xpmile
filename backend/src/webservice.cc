@@ -2030,7 +2030,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     std::vector<char> in(2048);
     std::int32_t effectiveLength = 0;
     std::stringstream ss("");
-    auto rc = ::recv(handle, in.data(), in.max_size(), MSG_PEEK);
+    auto rc = ::recv(handle, in.data(), 2048, MSG_PEEK);
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input handle:%d rc:%d\n"), handle, rc));
 
     if(rc <= 0) {
@@ -2056,10 +2056,10 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     }
 
     std::int32_t offset = 0;
-
+    std::vector<char> request(effectiveLength);
+    
     do {
-        in.clear();
-        rc = ::recv(handle, in.data(), in.max_size(), 0);
+        rc = ::recv(handle, request.data() + offset, effectiveLength - offset, 0);
         if(rc <= 0) {
             //Error handling
             if(timerId() > 0) {
@@ -2072,10 +2072,11 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         }
 
         offset += rc;
-        ss << std::string(in.data(), rc);
+        //ss << std::string(in.data(), rc);
 
     } while(offset != effectiveLength);
 
+    #if 0
     /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _________________________
      | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance | 4 bytes payload length |request (payload) |
      |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ _________________________|
@@ -2094,6 +2095,8 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     data.write(reinterpret_cast <const char *>(ss.str().data()),  len);
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
+    #endif
+
 #if 0
     /* Request is buffered now start processing it */
     ACE_Message_Block* req = nullptr;
@@ -2111,7 +2114,8 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 	}
 #endif
     WebServiceEntry wentry;
-    std::string rr(ss.str().c_str(), len);
+    std::string rr(request.begin(), request.end());
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l request:\n%s"), request));
     wentry.process_request(handle, rr, *(parent()->mongodbcInst()));
     return(0);
 }
