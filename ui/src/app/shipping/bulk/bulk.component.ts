@@ -165,7 +165,7 @@ export class BulkComponent implements OnInit, OnDestroy {
     /** This lamda Fn is invoked once excel file is loaded */
     fileReader.onloadend = (event) => {
       this.isButtonEnabled = false;
-      if(accountType == "Employee") {
+      if(accountType == "Employee" || accountType == "Admin") {
         let uniq: Array<string> = this.getridofDupElement(accList);
 
         for(let idx: number = 0; idx < uniq.length; ++idx) {
@@ -178,7 +178,7 @@ export class BulkComponent implements OnInit, OnDestroy {
           );
         }
       } else {
-        //this.isBtnDisabled = false;
+        alert("Bulk Upload is not supported for your Account");
       }
     }
 
