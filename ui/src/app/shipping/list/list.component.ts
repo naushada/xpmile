@@ -113,7 +113,7 @@ export class ListComponent implements OnInit, OnDestroy {
 
 
   onGennerateInvoice() {
-    alert("onGenerateInvoice");
+    //alert("onGenerateInvoice");
     this.A4InvoiceContentsBody.length = 0;
     this.rowsSelected?.forEach((elm: Shipment) => {
       //console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
@@ -124,11 +124,35 @@ export class ListComponent implements OnInit, OnDestroy {
       let ent = [
         {
           table: {
-            headerRows: [{text: 'Sshipping Document'}],
-            widths: [ 200, '*'],
+            headerRows: 0,
+            widths: [ '*', '*'],
             body: [
+              [{text: 'Shipping Document', colSpan:2,  border:[false,false,false,false], alignmennt:'center', bold:true}, ''],
+              [{text: 'From', rowSpan:10,border:[false,false,false,true]}, {text: 'Date', rowSpan:6, border:[false, false, false,true]}],
+              ['', ''],
+              ['', ''],
+              ['', ''],
+              ['', ''],
+              ['', ''],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              
+              [{text: 'SHIP TO', bold: true, border:[false,false,false,true], rowSpan:8}, {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              [{text: 'SHIP TO', bold: true, border:[false,false,false,true], rowSpan:5}, {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}],
+              ['', {text: 'Date'}]
 
-              [{text: 'From', rowwSpan:3, border:[[false,false,false,true]]}, {text: 'Date'}]
               
             ]
           },

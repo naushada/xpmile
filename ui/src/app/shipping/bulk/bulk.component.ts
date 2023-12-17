@@ -78,7 +78,7 @@ export class BulkComponent implements OnInit, OnDestroy {
           shipmentInformation : this.fb.group({
             activity: this.fb.array([{date: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'), event: "Document Created", 
                                   time:new Date().getHours() + ':' + new Date().getMinutes(), notes:'Document Created', driver:'', 
-                                  updatedBy: this.loggedInUser?.personalInfo.name, eventLocation:'Riyadh'}]),
+                                  updatedBy: this.loggedInUser?.personalInfo.name, eventLocation: this.loggedInUser?.personalInfo.eventLocation}]),
             skuNo:'',
             service:'Non Document',
             numberOfItems: 1,
