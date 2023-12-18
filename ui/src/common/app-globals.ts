@@ -8,6 +8,7 @@ export interface AppGlobals {
     Role?: Array<string>;
     ExcelHeading?: Array<string>;
     EventLocation?: Array<string>;
+    ExcelReportHeading?: Array<string>;
 }
 
 export const AppGlobalsDefault: AppGlobals = {
@@ -161,8 +162,45 @@ export const AppGlobalsDefault: AppGlobals = {
     "AlMajmaah",
     "AlQatif",
     "Dhahran",
-    "AlKharj"]
+    "AlKharj"],
 
+    ExcelReportHeading: [
+        "AWB",
+        "Altername Refrenece Number",
+        "Account Code",
+        "Created On",
+        "Status",
+        "Notes",
+        "Updated On",
+        "Created By",
+        "Sender Reference Number",
+        "Sender Name",
+        "Sender Country",
+        "Sender Address",
+        "Sender City",
+        "Sender State",
+        "Sender Postal Code",
+        "Sender Contact",
+        "Sender Phone",
+        "Sender Email",
+        "Service Type",
+        "Number Of Items",
+        "Goods Description",
+        "Goods Value",
+        "Weight",
+        "Weight Unit",
+        "COD Amount",
+        "Currency",
+        "SKU",
+        "Receiver Name",
+        "Receiver Address",
+        "Receiver City",
+        "Receiver State",
+        "Receiver Postal Code",
+        "Receiver Contact",
+        "Receiver Phone",
+        "Receiver Email"
+    ]
 }
 
 export interface SenderInformation {
