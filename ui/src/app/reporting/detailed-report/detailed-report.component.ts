@@ -3,6 +3,7 @@ import { FormBuilder, FormGroup } from '@angular/forms';
 import { Account, AppGlobals, AppGlobalsDefault, Shipment } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import {formatDate} from '@angular/common';
+import { ExcelsvcService } from 'src/common/excelsvc.service';
 
 @Component({
   selector: 'app-detailed-report',
@@ -16,7 +17,7 @@ export class DetailedReportComponent implements OnInit {
   accounts: Account[] = [];
   detailedReportForm: FormGroup;
 
-  constructor(private http:HttpsvcService, private fb: FormBuilder) {
+  constructor(private http:HttpsvcService, private fb: FormBuilder, private excel: ExcelsvcService) {
     this.http.getAccountInfoList().subscribe(
       (rsp:Account[]) => { rsp.forEach(elm => {this.accounts?.push(elm);});}, 
       error => {}, 
@@ -73,6 +74,6 @@ export class DetailedReportComponent implements OnInit {
   }
 
   onExcelExport() {
-
+    this.excel.exportToExcel(this.shipments);
   }
 }

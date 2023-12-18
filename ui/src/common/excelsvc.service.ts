@@ -5,7 +5,7 @@ import * as fs from 'file-saver';
 import * as Excel from 'exceljs';
 import * as XLSX from 'xlsx';
 
-import { Account, AppGlobals, AppGlobalsDefault, SenderInformation, ShipmentExcelRow } from './app-globals';
+import { Account, AppGlobals, AppGlobalsDefault, SenderInformation, Shipment, ShipmentExcelRow } from './app-globals';
 import { HttpsvcService } from './httpsvc.service';
 
 @Injectable({
@@ -58,12 +58,55 @@ export class ExcelsvcService {
 
   }
 
-  exportToExcel() {
+  exportToExcel(shipment: Array<Shipment>) {
     const workbook = new Excel.Workbook();
-    const worksheet = workbook.addWorksheet("data");
+    const worksheet = workbook.addWorksheet("Report");
+    worksheet.properties.defaultRowHeight = 20;
+    worksheet.properties.defaultColWidth = 20;
+    worksheet.pageSetup.paperSize = 9;
+    worksheet.pageSetup.orientation = 'landscape';
+
+    let totalLength = this.defValue?.ExcelReportHeading?.length || 0;
+
+    let cols:any = [];
+    this.defValue?.ExcelReportHeading?.forEach((ent) => {
+      cols.push({header: ent, 
+        key: ent.replace(/\s/g, "").toLowerCase(), 
+        width: 15});
+      
+    });
+    worksheet.columns = cols;
+    
+
+    worksheet.views = [
+      {state: 'frozen', xSplit: 0, ySplit: 1}
+    ];
+
+    shipment.forEach((ent:Shipment) => {
+          worksheet.addRow({awb: ent.shipment.awbno, 
+                                  alternatereferencenumber: ent.shipment.altRefNo, 
+                                  accountcode: ent.shipment.senderInformation.accountNo , createdon: ent.shipment.shipmentInformation.createdOn, createdby: ent.shipment.shipmentInformation.createdBy, 
+                                  senderreferencenumber: ent.shipment.senderInformation.referenceNo, 
+                                  sendername: ent.shipment.senderInformation.name,
+                                  sendercountry: ent.shipment.senderInformation.country, senderaddress: ent.shipment.senderInformation.address, sendercity: ent.shipment.senderInformation.city, 
+                                  senderstate: ent.shipment.senderInformation.state, senderpostalcode: ent.shipment.senderInformation.postalCode,
+                                  sendercontact: ent.shipment.senderInformation.contact, senderphone: ent.shipment.senderInformation.phoneNumber, 
+                                  senderemail:ent.shipment.senderInformation.email, servicetype: ent.shipment.shipmentInformation.service, 
+                                  numberofitems: ent.shipment.shipmentInformation.numberOfItems, goodsdescription: ent.shipment.shipmentInformation.goodsDescription, 
+                                  goodsvalue: ent.shipment.shipmentInformation.goodsValue, weight: ent.shipment.shipmentInformation.weight, 
+                                  weightunit: ent.shipment.shipmentInformation.weightUnits,
+                                  codamount: ent.shipment.shipmentInformation.codAmount, currency: ent.shipment.shipmentInformation.currency, 
+                                  sku: ent.shipment.shipmentInformation.skuNo, 
+                                  receivername: ent.shipment.receiverInformation.name, receiveraddress: ent.shipment.receiverInformation.address, receivercity: ent.shipment.receiverInformation.city, 
+                                  receiverstate: ent.shipment.receiverInformation.state, receiverpostalcode: ent.shipment.receiverInformation.postalCode, receivercontact: ent.shipment.receiverInformation.contact, 
+                                  receiverphone: ent.shipment.receiverInformation.phone, 
+                                  receiveremail: ent.shipment.receiverInformation.email 
+                                },'n');
+    });
+
     workbook.xlsx.writeBuffer().then((data) => {
       let blob = new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      fs.saveAs(blob, 'ExportedData.xlsx');
+      fs.saveAs(blob, 'ShipmentReport.xlsx');
     });
   }
 
