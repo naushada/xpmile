@@ -16,6 +16,7 @@ export class DetailedReportComponent implements OnInit {
   shipments: Shipment[] = [];
   accounts: Account[] = [];
   detailedReportForm: FormGroup;
+  isButtonDisabled:boolean = true;
 
   constructor(private http:HttpsvcService, private fb: FormBuilder, private excel: ExcelsvcService) {
     this.http.getAccountInfoList().subscribe(
@@ -37,6 +38,7 @@ export class DetailedReportComponent implements OnInit {
 
   onSubmit() {
     this.shipments = [];
+    this.isButtonDisabled = true;
     
     let sDate:any = formatDate(this.detailedReportForm.get('startDate')?.value, 'dd/MM/yyyy', 'en-GB');
     let eDate:any = formatDate(this.detailedReportForm.get('endDate')?.value, 'dd/MM/yyy', 'en-GB');
@@ -54,26 +56,27 @@ export class DetailedReportComponent implements OnInit {
                                     rsp.forEach(elm => {this.shipments.push(elm);})
                                  },
                                  error => {this.shipments = [];alert("No Shipments in this Date Range");},
-                                 () => {});
+                                 () => {this.isButtonDisabled = false;});
 
     } else if(receiverCountry.length > 0) {
       this.http.getShipments(sDate, eDate, receiverCountry).subscribe((rsp: Shipment[]) => {
                                   rsp.forEach(elm => {this.shipments.push(elm);})
                                },
                                error => {this.shipments = [];alert("No Shipments in this Date Range");},
-                               () => {});
+                               () => {this.isButtonDisabled = false});
 
     } else {
       this.http.getShipments(sDate, eDate).subscribe((rsp: Shipment[]) => {
                                 rsp.forEach(elm => {this.shipments.push(elm);})
                              },
                              error => {this.shipments = [];alert("No Shipments in this Date Range");},
-                             () => {});
+                             () => {this.isButtonDisabled = false;});
 
     }
   }
 
   onExcelExport() {
     this.excel.exportToExcel(this.shipments);
+    this.isButtonDisabled = true;
   }
 }
