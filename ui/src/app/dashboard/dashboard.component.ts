@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { FormBuilder, FormGroup } from '@angular/forms';
 
 @Component({
   selector: 'app-dashboard',
@@ -7,9 +8,20 @@ import { Component, OnInit } from '@angular/core';
 })
 export class DashboardComponent implements OnInit {
 
-  constructor() { }
+  isRefreshTriggered:boolean = false;
+  dashboardForm: FormGroup;
+  constructor(private fb:FormBuilder) {
+    this.dashboardForm = fb.group({
+      isRefreshTriggered: this.isRefreshTriggered
+    })
+   }
 
   ngOnInit(): void {
   }
 
+  onRefresh(evt:any) {
+    alert(evt.currentTarget.checked);
+
+    console.log(evt.currentTarget.checked);
+  }
 }

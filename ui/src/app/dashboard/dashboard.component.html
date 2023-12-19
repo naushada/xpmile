@@ -1,34 +1,113 @@
-<div class="clr-row">
-    <div class="clr-col">
-        <div class="card">
-            <div class="card-block">
-                <h4 class="card-title">Card title</h4>
-                <p class="card-text">Here is a progress bar at the very top of a card.</p>
-                <div class="progress-block">
-                    <label>Label</label>
-                    <div class="progress-static">
-                        <div class="progress-meter" data-value="..."></div>
-                    </div>
-                </div>
-                <div class="progress-block">
-                    <label>Longer Label</label>
-                    <div class="progress-static">
-                        <div class="progress-meter" data-value="..."></div>
-                    </div>
-                </div>
-                <div class="progress-block">
-                    <label>Really, Really, Really Long Label</label>
-                    <div class="progress success">
-                        <progress value="..." max="100" data-displayval="30%"></progress>
-                    </div>
-                </div>
-            </div>
-            <div class="card-footer">
-                <div class="progress-static top">
-                    <div class="progress-meter" data-value="..."></div>
-                </div>
-                <a href="..." class="card-link">Click</a>
-            </div>
+<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="dashboardForm">
+    <div class="clr-row">
+        <div class="clr-col-lg-4 clr-col-12">
+            <clr-toggle-container>
+                <clr-toggle-wrapper>
+                    <input type="checkbox" required formControlName="isRefreshTriggered" 
+                        value="isRefreshTriggered"
+                        clrToggle 
+                        (change)="onRefresh($event)"/>
+
+                    <label for="isRefreshTriggered">Refresh Dashboard</label>
+                </clr-toggle-wrapper>
+            </clr-toggle-container>
         </div>
     </div>
+</form>
+
+<!-- Showcase Card Row -->
+<div class="clr-row">
+    <div class="clr-col-lg-4 clr-col-12">
+        <!-- Card -->
+        <div class="card clickable" routerLink="/setting">
+            <!-- Card Header-->
+            <div class="card-header">
+                <div class="card-icon card-icon__blue">
+                    <clr-icon shape="dashboard" style="width: 56px; height: 56px;"></clr-icon>
+                </div>
+                <p class="card-header__head">All Result</p>
+                <h3 class="card-header__data">2012469756</h3>
+            </div>
+            <!-- Card Header End-->
+            <!-- Card Footer-->
+            <div class="card-footer">
+                <p class="card-footer__head">
+                    <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
+                </p>
+                <h3 class="card-footer__data">1280</h3>
+            </div>
+            <!-- Card Footer End-->
+        </div>
+        <!-- Card End-->
+    </div>
+    <div class="clr-col-lg-4 clr-col-12">
+        <!-- Card -->
+        <div class="card clickable" routerLink="/setting">
+            <!-- Card Header-->
+            <div class="card-header">
+                <div class="card-icon card-icon__red">
+                    <clr-icon shape="pop-out" style="width: 56px; height: 56px;"></clr-icon>
+                </div>
+                <p class="card-header__head">Abnormal</p>
+                <h3 class="card-header__data">2012469756</h3>
+            </div>
+            <!-- Card Header End-->
+            <!-- Card Footer-->
+            <div class="card-footer">
+                <p class="card-footer__head">
+                    <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
+                </p>
+                <h3 class="card-footer__data">1280</h3>
+            </div>
+            <!-- Card Footer End-->
+        </div>
+        <!-- Card End-->
+    </div>
+    <div class="clr-col-lg-4 clr-col-12">
+        <!-- Card -->
+        <div class="card clickable" routerLink="/setting">
+        <!-- Card Header-->
+            <div class="card-header">
+                <div class="card-icon card-icon__yellow">
+                    <clr-icon shape="exclamation-triangle" style="width: 56px; height: 56px;"></clr-icon>
+                </div>
+                <p class="card-header__head">Urgent</p>
+                <h3 class="card-header__data">2012469756</h3>
+            </div>
+            <!-- Card Header End-->
+            <!-- Card Footer-->
+            <div class="card-footer">
+                <p class="card-footer__head">
+                    <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
+                </p>
+                <h3 class="card-footer__data">1280</h3>
+            </div>
+            <!-- Card Footer End-->
+        </div>
+        <!-- Card End-->
+    </div>
+    <div class="clr-col-lg-4 clr-col-12">
+        <!-- Card -->
+        <div class="card clickable" routerLink="/setting">
+            <!-- Card Header-->
+            <div class="card-header">
+                <div class="card-icon card-icon__green">
+                    <clr-icon shape="eye-hide" style="width: 56px; height: 56px;"></clr-icon>
+                </div>
+                <p class="card-header__head">Unreviewed</p>
+                <h3 class="card-header__data">2012469756</h3>
+            </div>
+            <!-- Card Header End-->
+            <!-- Card Footer-->
+        <div class="card-footer">
+            <p class="card-footer__head">
+                <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
+            </p>
+            <h3 class="card-footer__data">1280</h3>
+        </div>
+        <!-- Card Footer End-->
+    </div>
+    <!-- Card End-->
 </div>
+
+
