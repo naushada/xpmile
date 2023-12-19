@@ -2030,11 +2030,11 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
     std::vector<char> in(2048);
     std::int32_t effectiveLength = 0;
     std::stringstream ss("");
-    auto rc = ::recv(handle, in.data(), 2048, MSG_PEEK);
+    auto rc = ::recv(handle, in.data(), in.size(), MSG_PEEK);
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l handle_input handle:%d rc:%d\n"), handle, rc));
 
     if(rc <= 0) {
-        rc = ::recv(handle, in.data(), in.max_size(), 0);
+        rc = ::recv(handle, in.data(), in.size(), 0);
         if(timerId() > 0) {
             /* start 1/2 second timer i.e. 500 milli second*/
             ACE_Time_Value to(0,1);
@@ -2043,7 +2043,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
         }
         return(-1);
 
-    } else if(rc <= in.max_size()) {
+    } else if(rc <= in.size()) {
         // pre-parsing of Http request.
         Http http(std::string(in.data(), rc));
         effectiveLength = http.header().length();

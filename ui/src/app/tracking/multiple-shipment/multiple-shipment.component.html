@@ -65,6 +65,7 @@
 
 <clr-datagrid (clrDgSelectedChange)="onSelectionChanged($event)" [(clrDgSelected)]="rowsSelected">
     <clr-dg-column>Tracking Number</clr-dg-column>
+    <clr-dg-column>Alternate Reference Number</clr-dg-column>
     <clr-dg-column>Status</clr-dg-column>
     <clr-dg-column>Delivery Information</clr-dg-column>
     <clr-dg-column>Details</clr-dg-column>
@@ -72,7 +73,8 @@
     <clr-dg-row *clrDgItems="let sh of shipments" [clrDgItem]="sh">
         <clr-dg-cell>{{sh.shipment.awbno}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[0].event}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[activityOffset - 1].event}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[activityOffset - 1].event}}</clr-dg-cell>
         <clr-dg-cell><button class="btn" (click)="viewSingleShipment()">View</button></clr-dg-cell>
     
     </clr-dg-row>
