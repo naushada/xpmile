@@ -84,7 +84,7 @@ export class ExcelsvcService {
 
     shipment.forEach((ent:Shipment) => {
           worksheet.addRow({awb: ent.shipment.awbno, 
-                                  alternatereferencenumber: ent.shipment.altRefNo, 
+                                  alternaterefrencenumber: ent.shipment.altRefNo, 
                                   accountcode: ent.shipment.senderInformation.accountNo , createdon: ent.shipment.shipmentInformation.createdOn, createdby: ent.shipment.shipmentInformation.createdBy, 
                                   senderreferencenumber: ent.shipment.senderInformation.referenceNo, 
                                   sendername: ent.shipment.senderInformation.name,

@@ -166,7 +166,7 @@ export const AppGlobalsDefault: AppGlobals = {
 
     ExcelReportHeading: [
         "AWB",
-        "Altername Refrenece Number",
+        "Alternate Refrenece Number",
         "Account Code",
         "Created On",
         "Status",
