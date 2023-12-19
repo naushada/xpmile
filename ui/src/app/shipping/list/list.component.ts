@@ -122,38 +122,59 @@ export class ListComponent implements OnInit, OnDestroy {
       }
 
       let ent = [
-        {
+        { 
           table: {
-            headerRows: 0,
+            headerRows: 1,
             widths: [ '*', '*'],
+            heights:20,
             body: [
-              [{text: 'Shipping Document', colSpan:2,  border:[false,false,false,false], alignmennt:'center', bold:true}, ''],
-              [{text: 'From', rowSpan:10,border:[false,false,false,true]}, {text: 'Date', rowSpan:6, border:[false, false, false,true]}],
-              ['', ''],
-              ['', ''],
-              ['', ''],
-              ['', ''],
-              ['', ''],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              
-              [{text: 'SHIP TO', bold: true, border:[false,false,false,true], rowSpan:8}, {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              [{text: 'SHIP TO', bold: true, border:[false,false,false,true], rowSpan:5}, {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}],
-              ['', {text: 'Date'}]
+              [{text: 'Comercial Invoice', colSpan:2,  border:[false,false,false,true], alignment:'center', bold:true}, ''],
+              [{text: 'International Air Way Bill NO: ' + elm.shipment.awbno, border:[false,true,false,true]}, {text: 'NOTE:', border:[false, false, false,true]}],
+              [{text: 'DATE OF EXPORTATION\n', border:[false, false, true, false]}, {text: 'EXPORT REFERENCE(i.e. Order no,etc)', border:[false, false, false, false]}],
+              [{text: 'SHIPPER/EXPORTER (complete name and address)\n' + 
+                elm.shipment.senderInformation.name +"\n" + elm.shipment.senderInformation.city + "\n" +
+                elm.shipment.senderInformation.country + "\n" +
+                elm.shipment.senderInformation.address +"\n" + elm.shipment.senderInformation.contact + "\n" +
+                elm.shipment.senderInformation.email
+                }, 
+               {text: 'CONSIGNEE (complete name and address)' + "\n" +
+                elm.shipment.receiverInformation.name + "\n" +
+                elm.shipment.receiverInformation.address + "\n" +
+                elm.shipment.receiverInformation.city + "\n" + 
+                elm.shipment.receiverInformation.country + "\n" +
+                elm.shipment.receiverInformation.contact,
+                border: [true,true,true,true]
+               },],
+              [{text: 'COUNTRY OF EXPORT' + "\n" + elm.shipment.senderInformation.country}, {text: 'IMPORTER - IF OTHER THAN CONSIGNEE' + '(Complete name and address )', rowSpan:3}],
+              [{text: 'COUNTRY OF MANUFACTURE'}, ''],
+              [{text: 'COUNTRY OF ULTIMATE DESTINATION' + "\n" + elm.shipment.receiverInformation.country}, ''],
+              [{text: '', colSpan:2, border:[false, false, false, false]}],
+              [
+                { colSpan:2,
+                  headerRows:1,
+                  heights:30,
+                  border: [false, false, false, false],
+                  table: {
+                   body: [
+                        [{text: 'NO. OF PKGS.'}, {text:'TYPE OF PKGS.'}, {text: 'FULL DESCRIPTION'}, {text:'QTY.'}, {text:'UNIT OF MEASURE'}, {text:'WEIGHT'}, {text:'UNIT VALUE'}, {text:'TOTAL VALUE'}],
+                        [{text: elm.shipment.shipmentInformation.numberOfItems, rowSpan:3}, {text: elm.shipment.shipmentInformation.service, rowSpan:3}, {text: elm.shipment.shipmentInformation.goodsDescription, rowSpan:3},
+                         {text: elm.shipment.shipmentInformation.numberOfItems, rowSpan:3}, {text: elm.shipment.shipmentInformation.weightUnits, rowSpan:3} , {text: elm.shipment.shipmentInformation.weight, rowSpan:3},
+                         {text: elm.shipment.shipmentInformation.customsValue, rowSpan:3}, {text:'', rowSpan:3}
+                        ],
+                        [{text:''}, '','','','','','',''],
+                        [{text:''}, '','','','','','',''],
+                        [{text: 'TOTAL PKGS.'}, {text:'',  colSpan:4}, '', '','', {text: 'TOTAL WEIGHT'},'', {text: 'TOTAL INVOICE VALUE'}],
+                        [{text: elm.shipment.shipmentInformation.numberOfItems}, {text:'',  colSpan:4},'', '', '', {text: elm.shipment.shipmentInformation.weight}, '', 
+                         {text: elm.shipment.shipmentInformation.customsValue}]
+                   ]
+                  }
+                }
+              ],
 
-              
+              [{text: '', colSpan:2, border:[false, false, false, false]}],
+
+              [{text: '', colSpan:2, border:[false, false, false, false]}],
+              [{text: 'SIGNATURE OF SHIPPER/EXPORTER', border:[false, true, false, false]}, {text: 'DATE' , border:[false, true, false, false], alignment:'center'}],
             ]
           },
           pageBreak: 'after'
