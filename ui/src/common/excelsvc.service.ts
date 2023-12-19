@@ -83,9 +83,16 @@ export class ExcelsvcService {
     ];
 
     shipment.forEach((ent:Shipment) => {
+      let len:number = ent.shipment.shipmentInformation.activity.length;
+      if(len > 0) {
+        len = len -1;
+      }
           worksheet.addRow({awb: ent.shipment.awbno, 
                                   alternaterefrencenumber: ent.shipment.altRefNo, 
-                                  accountcode: ent.shipment.senderInformation.accountNo , createdon: ent.shipment.shipmentInformation.createdOn, createdby: ent.shipment.shipmentInformation.createdBy, 
+                                  accountcode: ent.shipment.senderInformation.accountNo , createdon: ent.shipment.shipmentInformation.createdOn,
+                                  status: ent.shipment.shipmentInformation.activity.at(len).event, notes: ent.shipment.shipmentInformation.activity.at(len).notes, 
+                                  updatedon: ent.shipment.shipmentInformation.activity.at(len).date + ':' + ent.shipment.shipmentInformation.activity.at(len).time,
+                                  createdby: ent.shipment.shipmentInformation.createdBy, 
                                   senderreferencenumber: ent.shipment.senderInformation.referenceNo, 
                                   sendername: ent.shipment.senderInformation.name,
                                   sendercountry: ent.shipment.senderInformation.country, senderaddress: ent.shipment.senderInformation.address, sendercity: ent.shipment.senderInformation.city, 
