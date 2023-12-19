@@ -8,6 +8,7 @@ import { SubSink } from 'subsink';
 import * as JsBarcode from "jsbarcode";
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
+import { ExcelsvcService } from 'src/common/excelsvc.service';
 
 pdfMake.vfs = pdfFonts.pdfMake.vfs;
 
@@ -26,8 +27,9 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
   rowsSelected?:Array<Shipment> = [];
   isSingleShipmentView: boolean = false;
   activityOffset:number = 0;
+  isButtonDisabled:boolean = true;
 
-  constructor(private http: HttpsvcService, private fb: FormBuilder, private subject: PubsubsvcService) {
+  constructor(private http: HttpsvcService, private fb: FormBuilder, private subject: PubsubsvcService, private excel: ExcelsvcService) {
     this.subsink.add(this.subject.onAccount.subscribe(rsp => { this.loggedInUser = rsp;}, (error) => {}, () => {}));
 
     this.multipleShipmentTrackingForm = this.fb.group({
@@ -83,7 +85,7 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
         (rsp: Shipment[]) => {
           rsp.forEach((elm: Shipment) => {this.shipments.push(elm)});},
         (error) => {}, 
-        () => {this.activityOffset = this.shipments.length;});
+        () => {this.activityOffset = this.shipments.length; this.isButtonDisabled = false;});
 
     } else if(awbNo != undefined && awbNo.length) {
 
@@ -92,21 +94,21 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
       },
 
       (error) => {}, 
-      () => {this.activityOffset = this.shipments.length;});
+      () => {this.activityOffset = this.shipments.length; this.isButtonDisabled = false;});
 
     } else if(altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Employee" && this.loggedInUser?.personalInfo.role != "Admin") {
       this.http.getShipmentsByAltRefNo(senderRefList, accCode).subscribe((rsp: Shipment[]) => {
         rsp.forEach((elm: Shipment) => {this.shipments.push(elm)});
       }, 
       (error) => {}, 
-      () => {this.activityOffset = this.shipments.length;});
+      () => {this.activityOffset = this.shipments.length; this.isButtonDisabled = false;});
 
     } else {
 
       this.http.getShipmentsByAltRefNo(senderRefList).subscribe(
         (rsp: Shipment[]) => {rsp.forEach((elm: Shipment) => {this.shipments.push(elm)});}, 
         (error) => {}, 
-        () => {this.activityOffset = this.shipments.length;});
+        () => {this.activityOffset = this.shipments.length; this.isButtonDisabled = false;});
     }
   }
     
@@ -312,6 +314,11 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
   onCreateA6Label() {
     this.buildA6ContentsBody();
     pdfMake.createPdf(this.docDefinitionA6).download( "A6" + "-label");
+  }
+
+  onExcelExport() {
+    this.excel.exportToExcel(this.shipments);
+    this.isButtonDisabled = true;
   }
 
 }

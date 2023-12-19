@@ -1,4 +1,3 @@
-
 <form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="multipleShipmentTrackingForm">
     <div class="clr-row">
         <div class="clr-col-lg-auto">
@@ -47,6 +46,7 @@
     <div class="clr-row" >
         <div class="clr-col">
             <button class="btn btn-primary" (click)="onSubmit()">Submit</button>
+            <button class="btn btn-primary" (click)="onExcelExport()" [disabled]="isButtonDisabled">Export To Excel</button>
         </div>
     </div>
 </form>
