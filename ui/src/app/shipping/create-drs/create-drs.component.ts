@@ -8,6 +8,7 @@ import * as JsBarcode from "jsbarcode";
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 
+
 pdfMake.vfs = pdfFonts.pdfMake.vfs;
 
 @Component({
@@ -21,6 +22,7 @@ export class CreateDRSComponent implements OnInit {
   shipments: Shipment[] = [];
   whichVendor: string = "";
   loggedInUser?: Account;
+  content:any = [][8];
 
   constructor(private fb: FormBuilder, private http: HttpsvcService, private subject:PubsubsvcService) {
     this.createDRSForm = this.fb.group({
@@ -58,7 +60,7 @@ export class CreateDRSComponent implements OnInit {
       senderRefList = altRefNo.split("\n");
     }
 
-    if(awbNo != undefined && awbNo.length && this.loggedInUser?.personalInfo.role != "Employee") {
+    if(awbNo != undefined && awbNo.length && this.loggedInUser?.personalInfo.role != "Employee" && this.loggedInUser?.personalInfo.role != "Admin") {
       this.http.getShipmentsByAwbNo(awbList, accCode).subscribe(
         (rsp: Shipment[]) => {
           rsp.forEach((elm: Shipment) => {this.shipments.push(elm)});},
@@ -74,7 +76,7 @@ export class CreateDRSComponent implements OnInit {
       (error) => {}, 
       () => {this.buildDRS();});
 
-    } else if(altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Employee") {
+    } else if(altRefNo != undefined && altRefNo.length && this.loggedInUser?.personalInfo.role != "Employee" && this.loggedInUser?.personalInfo.role != "Admin") {
       this.http.getShipmentsByAltRefNo(senderRefList, accCode).subscribe((rsp: Shipment[]) => {
         rsp.forEach((elm: Shipment) => {this.shipments.push(elm)});
       }, 
@@ -106,23 +108,53 @@ export class CreateDRSComponent implements OnInit {
   buildA4ContentsBody() {
     let idx:number = 0;
     this.A4LabelContentsBody.length = 0;
+    
+    /*
+    let dd = ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'];
+    this.content.at(idx).push(dd);
+    idx += 1;
     this.shipments?.forEach((elm: Shipment) => {
+      let data = [{text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, 
+        {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount}, 
+        {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:1, width: 170}, 
+        {} ];
+        this.content.at(idx).push(data);
+      });
+
+      console.log(this.content.at(0));
+      */
       let ent = [
         {
           table: {
             headerRows: 1,
             //widths: [ 200, '*'],
             body: [
-              ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],
-              [{text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:1, width: 170}, {} ]
-            ]
+                ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],
+                [() => {
+                  this.shipments.forEach((elm:Shipment) => {
+                    [ {text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, 
+                      {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount}, 
+                      {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:1, width: 170}, 
+                      {} ] + ","
+                  });
+                }]
+                ]
+            /*[
+              ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],*/
+              /*
+              [{text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, 
+               {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount}, 
+               {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:1, width: 170}, 
+               {} ]*/
+               //this.content
+            //]
           },
           pageBreak: 'after'
         }
       ];
       ++idx;
       this.A4LabelContentsBody.push(ent);
-    });
+    //});
   }
 
   docDefinitionA4 = {

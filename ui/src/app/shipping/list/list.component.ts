@@ -129,8 +129,8 @@ export class ListComponent implements OnInit, OnDestroy {
             heights:20,
             body: [
               [{text: 'Comercial Invoice', colSpan:2,  border:[false,false,false,true], alignment:'center', bold:true}, ''],
-              [{text: 'International Air Way Bill NO: ' + elm.shipment.awbno, border:[false,true,false,true]}, {text: 'NOTE:', border:[false, false, false,true]}],
-              [{text: 'DATE OF EXPORTATION\n', border:[false, false, true, false]}, {text: 'EXPORT REFERENCE(i.e. Order no,etc)', border:[false, false, false, false]}],
+              [{text: 'International Air Way Bill NO: ' + elm.shipment.awbno + "\n" + {image: this.textToBase64Barcode(elm.shipment.awbno, 70)}, border:[false,true,false,true]}, {text: 'NOTE:', border:[false, false, false,true]}],
+              [{text: 'DATE OF EXPORTATION\n' + elm.shipment.shipmentInformation.activity.at(0).date, border:[false, false, true, false]}, {text: 'EXPORT REFERENCE(i.e. Order no,etc)', border:[false, false, false, false]}],
               [{text: 'SHIPPER/EXPORTER (complete name and address)\n' + 
                 elm.shipment.senderInformation.name +"\n" + elm.shipment.senderInformation.city + "\n" +
                 elm.shipment.senderInformation.country + "\n" +
@@ -165,7 +165,7 @@ export class ListComponent implements OnInit, OnDestroy {
                         [{text:''}, '','','','','','',''],
                         [{text: 'TOTAL PKGS.'}, {text:'',  colSpan:4}, '', '','', {text: 'TOTAL WEIGHT'},'', {text: 'TOTAL INVOICE VALUE'}],
                         [{text: elm.shipment.shipmentInformation.numberOfItems}, {text:'',  colSpan:4},'', '', '', {text: elm.shipment.shipmentInformation.weight}, '', 
-                         {text: elm.shipment.shipmentInformation.customsValue}]
+                         {text: elm.shipment.shipmentInformation.currency  + ' ' + elm.shipment.shipmentInformation.customsValue}]
                    ]
                   }
                 }
