@@ -103,6 +103,7 @@ export class CreateDRSComponent implements OnInit {
   };
 
   rows:any = [];
+  cols:any = [];
   
   A4LabelContentsBody:Array<object> = new Array<object>();
 
@@ -124,13 +125,23 @@ export class CreateDRSComponent implements OnInit {
 
       console.log(this.content.at(0));
       */
-      this.rows.push(['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By']);
+      this.cols.push([{text: 'S.No.'}, {text: 'Sender'}, {text: 'Receiver'}, {text: 'Phone No.'}, {text: 'COD'}, {text: 'AWB No.'}, {text: 'Received By'}],);
       
       this.shipments.forEach((elm:Shipment) => {
-        this.rows.push([ {text:  idx }, {text: elm.shipment.senderInformation.name }, {text: elm.shipment.receiverInformation.address },{text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount },{image: this.textToBase64Barcode(elm.shipment.awbno, 70) , bold: false, alignment: 'center',rowSpan:1, width: 170}, '']);
+      
+        this.cols.push([{text:  idx }, {text: elm.shipment.senderInformation.name }, {text: elm.shipment.receiverInformation.address },
+                         {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount },
+                         {image: this.textToBase64Barcode(elm.shipment.awbno, 70) , bold: false, alignment: 'center',rowSpan:1, width: 170}, {}
+                      ],);
+                      /*
+        this.cols.push([idx++, elm.shipment.senderInformation.name, elm.shipment.receiverInformation.address,
+                        elm.shipment.receiverInformation.contact, elm.shipment.shipmentInformation.codAmount,
+                        {image: this.textToBase64Barcode(elm.shipment.awbno, 70) , bold: false, alignment: 'center',rowSpan:1, width: 170}, ''
+                     ]);*/
         });
+        //this.cols.forEach((row:any[]) => {this.rows.push(row)});
         //this.rows = this.rows.replace(/,\s*$/, "");
-        //console.log(this.rows);
+        console.log(this.cols);
         /*[
               ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],*/
               /*
@@ -149,7 +160,8 @@ export class CreateDRSComponent implements OnInit {
     content: {
       table: {
         headerRows: 1,
-        body: [this.rows]
+        //widths: [ '*', '*',  '*',  '*',  '*',  '*',  '*'],
+        body: [this.cols]
       },
       pageBreak: 'after'
     },
@@ -191,7 +203,7 @@ export class CreateDRSComponent implements OnInit {
 
   onCreateDRS() {
     this.buildA4ContentsBody();
-    console.log(this.docDefinitionA4);
+    //console.log(this.docDefinitionA4);
     pdfMake.createPdf(this.docDefinitionA4).download( "A4" + "-DRS");
   }
 
