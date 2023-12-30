@@ -161,7 +161,12 @@ export class CreateDRSComponent implements OnInit {
       table: {
         headerRows: 1,
         //widths: [ '*', '*',  '*',  '*',  '*',  '*',  '*'],
-        body: [this.cols]
+        body: /*[
+          [ 'First', 'Second', 'Third', 'The last one' ],
+          [ 'Value 1', 'Value 2', 'Value 3', 'Value 4' ],
+          [ { text: 'Bold value', bold: true }, 'Val 2', 'Val 3', 'Val 4' ]
+        ]*/
+        [this.cols]
       },
       pageBreak: 'after'
     },
@@ -203,7 +208,7 @@ export class CreateDRSComponent implements OnInit {
 
   onCreateDRS() {
     this.buildA4ContentsBody();
-    //console.log(this.docDefinitionA4);
+    console.log(this.docDefinitionA4);
     pdfMake.createPdf(this.docDefinitionA4).download( "A4" + "-DRS");
   }
 
