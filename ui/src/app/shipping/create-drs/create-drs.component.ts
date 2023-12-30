@@ -103,6 +103,7 @@ export class CreateDRSComponent implements OnInit {
     keywords: 'A4 DRS',
   };
 
+  rows:string = "";
   A4LabelContentsBody:Array<object> = new Array<object>();
 
   buildA4ContentsBody() {
@@ -123,23 +124,13 @@ export class CreateDRSComponent implements OnInit {
 
       console.log(this.content.at(0));
       */
-      let ent = [
-        {
-          table: {
-            headerRows: 1,
-            //widths: [ 200, '*'],
-            body: [
-                ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],
-                [() => {
-                  this.shipments.forEach((elm:Shipment) => {
-                    [ {text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, 
-                      {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount}, 
-                      {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:1, width: 170}, 
-                      {} ] + ","
-                  });
-                }]
-                ]
-            /*[
+      this.rows = "['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],";
+      this.shipments.forEach((elm:Shipment) => {
+        this.rows += "[ {text: " + idx +"}, {text: "+ elm.shipment.senderInformation.name +"}, {text: " + elm.shipment.receiverInformation.address +"},{text: " + elm.shipment.receiverInformation.contact+"}, {text: " + elm.shipment.shipmentInformation.codAmount +"},{image: " + this.textToBase64Barcode(elm.shipment.awbno, 70) +", bold: false, alignment: 'center',rowSpan:1, width: 170}, {text:" + " } ]" + ",";
+        });
+        this.rows = this.rows.replace(/,\s*$/, "");
+        console.log(this.rows);
+        /*[
               ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],*/
               /*
               [{text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, 
@@ -148,19 +139,19 @@ export class CreateDRSComponent implements OnInit {
                {} ]*/
                //this.content
             //]
-          },
-          pageBreak: 'after'
-        }
-      ];
-      ++idx;
-      this.A4LabelContentsBody.push(ent);
-    //});
+      
   }
 
   docDefinitionA4 = {
     info: this.Info,
     pageMargins: 10,
-    content: this.A4LabelContentsBody,
+    content: {
+      table: {
+        headerRows: 1,
+        body: [this.rows]
+      },
+      pageBreak: 'after'
+    },
     styles: {
       header: {
         fontSize: 18,
