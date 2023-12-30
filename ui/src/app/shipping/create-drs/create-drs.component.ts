@@ -22,7 +22,6 @@ export class CreateDRSComponent implements OnInit {
   shipments: Shipment[] = [];
   whichVendor: string = "";
   loggedInUser?: Account;
-  content:any = [][8];
 
   constructor(private fb: FormBuilder, private http: HttpsvcService, private subject:PubsubsvcService) {
     this.createDRSForm = this.fb.group({
@@ -103,7 +102,8 @@ export class CreateDRSComponent implements OnInit {
     keywords: 'A4 DRS',
   };
 
-  rows:string = "";
+  rows:any = [];
+  
   A4LabelContentsBody:Array<object> = new Array<object>();
 
   buildA4ContentsBody() {
@@ -124,12 +124,13 @@ export class CreateDRSComponent implements OnInit {
 
       console.log(this.content.at(0));
       */
-      this.rows = "['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],";
+      this.rows.push(['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By']);
+      
       this.shipments.forEach((elm:Shipment) => {
-        this.rows += "[ {text: " + idx +"}, {text: "+ elm.shipment.senderInformation.name +"}, {text: " + elm.shipment.receiverInformation.address +"},{text: " + elm.shipment.receiverInformation.contact+"}, {text: " + elm.shipment.shipmentInformation.codAmount +"},{image: " + this.textToBase64Barcode(elm.shipment.awbno, 70) +", bold: false, alignment: 'center',rowSpan:1, width: 170}, {text:" + " } ]" + ",";
+        this.rows.push([ {text:  idx }, {text: elm.shipment.senderInformation.name }, {text: elm.shipment.receiverInformation.address },{text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount },{image: this.textToBase64Barcode(elm.shipment.awbno, 70) , bold: false, alignment: 'center',rowSpan:1, width: 170}, '']);
         });
-        this.rows = this.rows.replace(/,\s*$/, "");
-        console.log(this.rows);
+        //this.rows = this.rows.replace(/,\s*$/, "");
+        //console.log(this.rows);
         /*[
               ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],*/
               /*
@@ -190,6 +191,7 @@ export class CreateDRSComponent implements OnInit {
 
   onCreateDRS() {
     this.buildA4ContentsBody();
+    console.log(this.docDefinitionA4);
     pdfMake.createPdf(this.docDefinitionA4).download( "A4" + "-DRS");
   }
 
