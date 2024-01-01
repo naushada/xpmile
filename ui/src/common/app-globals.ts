@@ -116,7 +116,8 @@ export const AppGlobalsDefault: AppGlobals = {
     "Driver",
     "Misc"],
 
-    ExcelHeading: ["AccountCode",
+    ExcelHeading: [
+    "AccountCode",
     "ReferenceNo",
     "Weight",
     "ReceiverCountry",
@@ -130,6 +131,7 @@ export const AppGlobalsDefault: AppGlobals = {
     "AlternateReferenceNo",
     "CustomsValue",
     "CustomsCurrency",
+    "HS Code",
     "SenderName"],
 
     EventLocation: ["UAE",
@@ -277,6 +279,7 @@ export class ShipmentExcelRow {
     CustomsValue: string;
     CustomsCurrency: string;
     SenderName: string;
+    HSCode: string;
 
     constructor(ent: ShipmentExcelRow) {
         this.AccountCode = ent.AccountCode;
@@ -294,6 +297,7 @@ export class ShipmentExcelRow {
         this.CustomsValue = ent.CustomsValue;
         this.CustomsCurrency = ent.CustomsCurrency;
         this.SenderName = ent.SenderName;
+        this.HSCode = ent.HSCode;
     }
 }
 

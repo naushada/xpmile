@@ -44,7 +44,8 @@ export class ExcelsvcService {
       {header: this.defValue?.ExcelHeading?.at(11), key: this.defValue?.ExcelHeading?.at(11), width: 20},
       {header: this.defValue?.ExcelHeading?.at(12), key: this.defValue?.ExcelHeading?.at(12), width: 15},
       {header: this.defValue?.ExcelHeading?.at(13), key: this.defValue?.ExcelHeading?.at(13), width: 25},
-      {header: this.defValue?.ExcelHeading?.at(14), key: this.defValue?.ExcelHeading?.at(14), width: 15},
+      {header: this.defValue?.ExcelHeading?.at(14), key: this.defValue?.ExcelHeading?.at(14), width: 25},
+      {header: this.defValue?.ExcelHeading?.at(15), key: this.defValue?.ExcelHeading?.at(15), width: 15},
     ];
     
     worksheet.views = [

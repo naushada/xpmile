@@ -93,7 +93,8 @@ export class BulkComponent implements OnInit, OnDestroy {
             weightUnits:'KG',
             cubicWeight: '',
             createdOn: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'),
-            createdBy: this.loggedInUser?.personalInfo.name
+            createdBy: this.loggedInUser?.personalInfo.name,
+            HSCode: ent.HSCode
           }),
 
           receiverInformation: this.fb.group({
