@@ -71,7 +71,7 @@ export class ListComponent implements OnInit, OnDestroy {
 
 
 
-  /** Label A6 Generation  */
+  /** A4 Invoice Generation Generation  */
   InfoInvoice = {
     title: 'A4 Invoice',
     author: 'Mohd Naushad Ahmed',
