@@ -194,6 +194,7 @@ export const AppGlobalsDefault: AppGlobals = {
         "COD Amount",
         "Currency",
         "SKU",
+        "HSCode",
         "Receiver Name",
         "Receiver Address",
         "Receiver City",
@@ -238,6 +239,7 @@ interface ShipmentInformation {
     cubicWeight:string;
     createdOn: Date;
     createdBy: string;
+    hsCode: string;
 }
 
 interface ReceiverInformation {
