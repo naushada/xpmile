@@ -98,6 +98,44 @@
         <div class="clr-col">
             <div class="clr-col-lg">
                 <ul class="clr-timeline">
+                    <li class="clr-timeline-step">
+                        <ng-container>
+                            <cds-icon role="img" shape="success-standard" aria-label="Current" ></cds-icon>
+                        </ng-container>
+                        <div class="clr-timeline-step-body">
+                            <span class="clr-timeline-step-title">Document Created</span>
+                        </div>
+                    </li>
+                    <li class="clr-timeline-step">
+
+                        <ng-container>
+                            <cds-icon role="img" [shape]=inTransit() aria-label="Completed" ></cds-icon>
+                        </ng-container>
+
+                        <div class="clr-timeline-step-body">
+                            <span class="clr-timeline-step-title">In Transit</span>
+                        </div>
+                    </li>
+                    <li class="clr-timeline-step">
+
+                        <ng-container>
+                            <cds-icon role="img" [shape]=outForDelivery() aria-label="Completed" ></cds-icon>
+                        </ng-container>
+
+                        <div class="clr-timeline-step-body">
+                            <span class="clr-timeline-step-title">Out For Delivery</span>
+                        </div>
+                    </li>
+                    <li class="clr-timeline-step">
+                        <ng-container>
+                            <cds-icon role="img" [shape]=delivered() aria-label="Completed" ></cds-icon>
+                        </ng-container>
+                        <div class="clr-timeline-step-body">
+                            <span class="clr-timeline-step-title">Delivered</span>
+                        </div>
+
+                    </li>
+                    <!--
                     <li class="clr-timeline-step" *ngFor="let act of shipment?.shipment?.shipmentInformation?.activity; let idx = index; last as isLast">
                         
                         <ng-container *ngIf="(idx + 1) == len">
@@ -125,6 +163,7 @@
                             </div>
                         </ng-container>
                     </li>
+                    -->
                 </ul>      
             </div>
         </div>

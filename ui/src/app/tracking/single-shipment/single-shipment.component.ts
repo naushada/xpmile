@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { Account, Shipment } from 'src/common/app-globals';
+import { Account, Shipment, activityOnShipment } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
 import { SubSink } from 'subsink';
@@ -65,6 +65,35 @@ export class SingleShipmentComponent implements OnInit, OnDestroy {
       this.http.getShipmentByAltRefNo(altRefNo, accCode).subscribe(rsp => {this.shipment = rsp;}, (error) => {}, () => {});
     } else {
       this.http.getShipmentByAltRefNo(altRefNo).subscribe(rsp => {this.shipment = rsp;}, (error) => {}, () => {});
+    }
+  }
+
+  inTransit() {
+    const isFOund = this.shipment?.shipment.shipmentInformation.activity.find((ent: activityOnShipment) => { return(ent.event == 'In Transit to Destination');});
+    if(isFOund) {
+      return ('success-standard');
+    } else {
+      return('dot-circle')
+    }
+
+    
+  }
+
+  outForDelivery() {
+    const isFOund = this.shipment?.shipment.shipmentInformation.activity.find((ent: activityOnShipment) => { return(ent.event == 'Out For Delivery');});
+    if(isFOund) {
+      return ('success-standard');
+    } else {
+      return('dot-circle')
+    }
+  }
+
+  delivered() {
+    const isFOund = this.shipment?.shipment.shipmentInformation.activity.find((ent: activityOnShipment) => { return(ent.event == 'Proof of Delivery');});
+    if(isFOund) {
+      return ('success-standard');
+    } else {
+      return('dot-circle')
     }
   }
 }

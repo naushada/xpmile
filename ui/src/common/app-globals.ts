@@ -51,7 +51,6 @@ export const AppGlobalsDefault: AppGlobals = {
     "Attempted- Mobile Wrong",
     "Attempted - Pickup from Branch",
     "Attempted - Money not ready",
-    "Out for Delivery",
     "Proof of Delivery",
     "Held From Uplift-Pending Customs",
     "Held in Branch- No-Service", 
