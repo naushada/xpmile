@@ -124,7 +124,7 @@ export class ExcelsvcService {
     let workbook = new Excel.Workbook();
 
     workbook.xlsx.readFile(fileName).then((data) => {
-      console.log("data " + data);
+      //console.log("data " + data);
       workbook.eachSheet((sheetName:any, id:any) => {
         let sheet = workbook.getWorksheet(sheetName);
         for(var i = 1; i <= sheet.actualRowCount; i++) {

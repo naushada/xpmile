@@ -131,7 +131,7 @@ export const AppGlobalsDefault: AppGlobals = {
     "AlternateReferenceNo",
     "CustomsValue",
     "CustomsCurrency",
-    "HS Code",
+    "HSCode",
     "SenderName"],
 
     EventLocation: ["UAE",
@@ -280,9 +280,9 @@ export class ShipmentExcelRow {
     AlternateReferenceNo: string;
     CustomsValue: string;
     CustomsCurrency: string;
-    SenderName: string;
     HSCode: string;
-
+    SenderName: string;
+    
     constructor(ent: ShipmentExcelRow) {
         this.AccountCode = ent.AccountCode;
         this.ReferenceNo = ent.ReferenceNo;
@@ -298,8 +298,9 @@ export class ShipmentExcelRow {
         this.AlternateReferenceNo = ent.AlternateReferenceNo;
         this.CustomsValue = ent.CustomsValue;
         this.CustomsCurrency = ent.CustomsCurrency;
-        this.SenderName = ent.SenderName;
         this.HSCode = ent.HSCode;
+        this.SenderName = ent.SenderName;
+        
     }
 }
 
