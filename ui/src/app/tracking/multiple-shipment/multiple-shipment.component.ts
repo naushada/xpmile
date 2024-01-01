@@ -316,6 +316,146 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
     pdfMake.createPdf(this.docDefinitionA6).download( "A6" + "-label");
   }
 
+  /** A4 Invoice Generation Generation  */
+  InfoInvoice = {
+    title: 'A4 Invoice',
+    author: 'Mohd Naushad Ahmed',
+    subject: 'A4 Invoice for Shipment',
+    keywords: 'A4 Invoice',
+  };
+  A4InvoiceContentsBody:Array<object> = new Array<object>();
+
+
+  docDefinitionA4Invoice = {
+    info: this.InfoInvoice,
+    pageMargins: 10,
+    content: this.A4InvoiceContentsBody,
+    styles: {
+      header: {
+        fontSize: 18,
+        bold: true,
+        margin: [0, 0, 0, 10]
+      },
+      subheader: {
+        fontSize: 16,
+        bold: true,
+        margin: [0, 10, 0, 5]
+      },
+      tableExample: {
+        margin: [0, 5, 0, 15]
+      },
+      tableHeader: {
+        bold: true,
+        fontSize: 13,
+        color: 'black'
+      },
+      rH: {
+        height: 100,
+        fontSize: 10
+      }
+    }
+  };
+
+  onGennerateInvoice() {
+  //alert("onGenerateInvoice");
+  this.A4InvoiceContentsBody.length = 0;
+  this.rowsSelected?.forEach((elm: Shipment) => {
+    //console.log("awbNo: " + elm.shipment.awbno + " altRefNo: " + elm.shipment.altRefNo);
+    if(elm.shipment.altRefNo != undefined) {
+      let altRefNo:string = elm.shipment.altRefNo.toString();
+    }
+
+    let ent = [
+      { 
+        table: {
+          headerRows: 1,
+          widths: [ '*', '*'],
+          heights:20,
+          body: [
+            [{text: 'Comercial Invoice', colSpan:2,  border:[false,false,false,true], alignment:'center', bold:true}, ''],
+            [{text: 'International Air Way Bill NO: ' + elm.shipment.awbno , border:[true, false, true,true]}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), fit: [150, 150],  border:[true,false,true,true]}],
+            [{text: 'NOTE:', border:[false, false, false,true], colSpan:2}, '',],
+            [{text: 'DATE OF EXPORTATION: ' + elm.shipment.shipmentInformation.activity.at(0).date, border:[false, false, true, false]}, {text: 'EXPORT REFERENCE(i.e. Order no,etc)', border:[false, false, false, false]}],
+            [{text: 'SHIPPER/EXPORTER (complete name and address)\n' + 
+              elm.shipment.senderInformation.name +"\n" + elm.shipment.senderInformation.city + "\n" +
+              elm.shipment.senderInformation.country + "\n" +
+              elm.shipment.senderInformation.address +"\n" + elm.shipment.senderInformation.contact + "\n" +
+              elm.shipment.senderInformation.email
+              }, 
+             {text: 'CONSIGNEE (complete name and address)' + "\n" +
+              elm.shipment.receiverInformation.name + "\n" +
+              elm.shipment.receiverInformation.address + "\n" +
+              elm.shipment.receiverInformation.city + "\n" + 
+              elm.shipment.receiverInformation.country + "\n" +
+              elm.shipment.receiverInformation.contact,
+              border: [true,true,true,true]
+             },],
+            [{text: 'COUNTRY OF EXPORT:' + "\n" + elm.shipment.senderInformation.country}, {text: 'IMPORTER - IF OTHER THAN CONSIGNEE' + '(Complete name and address )', rowSpan:3}],
+            [{text: 'COUNTRY OF MANUFACTURE:'}, ''],
+            [{text: 'COUNTRY OF ULTIMATE DESTINATION:' + "\n" + elm.shipment.receiverInformation.country}, ''],
+            [{text: '', colSpan:2, border:[false, false, false, false]}],
+            [
+              { colSpan:2,
+                headerRows:1,
+                heights:80,
+
+                border: [false, false, false, false],
+                table: {
+                 body: [
+                      [{text: 'NO. OF PKGS.'}, {text:'TYPE OF PKGS.'}, {text: 'FULL DESCRIPTION'}, {text:'QTY.'}, {text:'UNIT OF MEASURE'}, {text:'WEIGHT'}, {text:'UNIT VALUE'}, {text:'TOTAL VALUE'}],
+                      [{text: elm.shipment.shipmentInformation.numberOfItems, rowSpan:3}, {text: elm.shipment.shipmentInformation.service, rowSpan:3}, {text: elm.shipment.shipmentInformation.goodsDescription, rowSpan:3},
+                       {text: elm.shipment.shipmentInformation.numberOfItems, rowSpan:3}, {text: elm.shipment.shipmentInformation.weightUnits, rowSpan:3} , {text: elm.shipment.shipmentInformation.weight, rowSpan:3},
+                       {text: elm.shipment.shipmentInformation.customsValue, rowSpan:3}, {text: elm.shipment.shipmentInformation.customsValue, rowSpan:3}
+                      ],
+                      [{text:''}, '','','','','','',''],
+                      [{text:''}, '','','','','','',''],
+
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]}, {text:'', border:[true, false, false, false]} ,{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]} ],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                      [{text:'', rowSpan:10, border:[true, false, true, true]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+
+                      [{text: 'TOTAL PKGS.'}, {text:'',  colSpan:4}, '', '','', {text: 'TOTAL WEIGHT'},'', {text: 'TOTAL INVOICE VALUE'}],
+                      
+                      [{text: elm.shipment.shipmentInformation.numberOfItems}, {text:'',  colSpan:4},'', '', '', {text: elm.shipment.shipmentInformation.weight}, '', 
+                       {text: elm.shipment.shipmentInformation.currency  + ' ' + elm.shipment.shipmentInformation.customsValue}],
+                      
+                 ]
+                }
+              }
+            ],
+
+            [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+
+            [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+            [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+            [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+            [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+            [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+            [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+            [{text: 'SIGNATURE OF SHIPPER/EXPORTER', height:200, border:[false, true, false, false]}, {text: 'DATE' , border:[false, true, false, false], alignment:'center'}],
+          ]
+        },
+        pageBreak: 'after'
+      }
+    ];
+
+    this.A4InvoiceContentsBody.push(ent);
+  });
+
+}
+
+  onCreateInvoice() {
+    this.onGennerateInvoice();
+    pdfMake.createPdf(this.docDefinitionA4Invoice).download( "A4" + "-invoice");
+  }
+
   onExcelExport() {
     this.excel.exportToExcel(this.shipments);
     this.isButtonDisabled = true;

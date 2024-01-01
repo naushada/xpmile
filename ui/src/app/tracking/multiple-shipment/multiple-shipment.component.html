@@ -61,6 +61,9 @@
     <button class="btn" (click)="onCreateA6Label()">
         <clr-icon shape="printer"></clr-icon>A6
     </button>
+    <button class="btn" (click)="onCreateInvoice()">
+        <clr-icon shape="printer"></clr-icon>Generate Invoice
+    </button>
 </div>
 
 <clr-datagrid (clrDgSelectedChange)="onSelectionChanged($event)" [(clrDgSelected)]="rowsSelected">
