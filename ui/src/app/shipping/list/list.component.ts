@@ -129,8 +129,9 @@ export class ListComponent implements OnInit, OnDestroy {
             heights:20,
             body: [
               [{text: 'Comercial Invoice', colSpan:2,  border:[false,false,false,true], alignment:'center', bold:true}, ''],
-              [{text: 'International Air Way Bill NO: ' + elm.shipment.awbno + "\n" + {image: this.textToBase64Barcode(elm.shipment.awbno, 70)}, border:[false,true,false,true]}, {text: 'NOTE:', border:[false, false, false,true]}],
-              [{text: 'DATE OF EXPORTATION\n' + elm.shipment.shipmentInformation.activity.at(0).date, border:[false, false, true, false]}, {text: 'EXPORT REFERENCE(i.e. Order no,etc)', border:[false, false, false, false]}],
+              [{text: 'International Air Way Bill NO: ' + elm.shipment.awbno , border:[true, false, true,true]}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), fit: [150, 150],  border:[true,false,true,true]}],
+              [{text: 'NOTE:', border:[false, false, false,true], colSpan:2}, '',],
+              [{text: 'DATE OF EXPORTATION: ' + elm.shipment.shipmentInformation.activity.at(0).date, border:[false, false, true, false]}, {text: 'EXPORT REFERENCE(i.e. Order no,etc)', border:[false, false, false, false]}],
               [{text: 'SHIPPER/EXPORTER (complete name and address)\n' + 
                 elm.shipment.senderInformation.name +"\n" + elm.shipment.senderInformation.city + "\n" +
                 elm.shipment.senderInformation.country + "\n" +
@@ -145,36 +146,56 @@ export class ListComponent implements OnInit, OnDestroy {
                 elm.shipment.receiverInformation.contact,
                 border: [true,true,true,true]
                },],
-              [{text: 'COUNTRY OF EXPORT' + "\n" + elm.shipment.senderInformation.country}, {text: 'IMPORTER - IF OTHER THAN CONSIGNEE' + '(Complete name and address )', rowSpan:3}],
-              [{text: 'COUNTRY OF MANUFACTURE'}, ''],
-              [{text: 'COUNTRY OF ULTIMATE DESTINATION' + "\n" + elm.shipment.receiverInformation.country}, ''],
+              [{text: 'COUNTRY OF EXPORT:' + "\n" + elm.shipment.senderInformation.country}, {text: 'IMPORTER - IF OTHER THAN CONSIGNEE' + '(Complete name and address )', rowSpan:3}],
+              [{text: 'COUNTRY OF MANUFACTURE:'}, ''],
+              [{text: 'COUNTRY OF ULTIMATE DESTINATION:' + "\n" + elm.shipment.receiverInformation.country}, ''],
               [{text: '', colSpan:2, border:[false, false, false, false]}],
               [
                 { colSpan:2,
                   headerRows:1,
-                  heights:30,
+                  heights:80,
+
                   border: [false, false, false, false],
                   table: {
                    body: [
                         [{text: 'NO. OF PKGS.'}, {text:'TYPE OF PKGS.'}, {text: 'FULL DESCRIPTION'}, {text:'QTY.'}, {text:'UNIT OF MEASURE'}, {text:'WEIGHT'}, {text:'UNIT VALUE'}, {text:'TOTAL VALUE'}],
                         [{text: elm.shipment.shipmentInformation.numberOfItems, rowSpan:3}, {text: elm.shipment.shipmentInformation.service, rowSpan:3}, {text: elm.shipment.shipmentInformation.goodsDescription, rowSpan:3},
                          {text: elm.shipment.shipmentInformation.numberOfItems, rowSpan:3}, {text: elm.shipment.shipmentInformation.weightUnits, rowSpan:3} , {text: elm.shipment.shipmentInformation.weight, rowSpan:3},
-                         {text: elm.shipment.shipmentInformation.customsValue, rowSpan:3}, {text:'', rowSpan:3}
+                         {text: elm.shipment.shipmentInformation.customsValue, rowSpan:3}, {text: elm.shipment.shipmentInformation.customsValue, rowSpan:3}
                         ],
                         [{text:''}, '','','','','','',''],
                         [{text:''}, '','','','','','',''],
+
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]}, {text:'', border:[true, false, false, false]} ,{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]} ],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, false, false]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+                        [{text:'', rowSpan:10, border:[true, false, true, true]}, {text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, false, false]},{text:'', border:[true, false, true, false]}],
+
                         [{text: 'TOTAL PKGS.'}, {text:'',  colSpan:4}, '', '','', {text: 'TOTAL WEIGHT'},'', {text: 'TOTAL INVOICE VALUE'}],
+                        
                         [{text: elm.shipment.shipmentInformation.numberOfItems}, {text:'',  colSpan:4},'', '', '', {text: elm.shipment.shipmentInformation.weight}, '', 
-                         {text: elm.shipment.shipmentInformation.currency  + ' ' + elm.shipment.shipmentInformation.customsValue}]
+                         {text: elm.shipment.shipmentInformation.currency  + ' ' + elm.shipment.shipmentInformation.customsValue}],
+                        
                    ]
                   }
                 }
               ],
 
-              [{text: '', colSpan:2, border:[false, false, false, false]}],
+              [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
 
-              [{text: '', colSpan:2, border:[false, false, false, false]}],
-              [{text: 'SIGNATURE OF SHIPPER/EXPORTER', border:[false, true, false, false]}, {text: 'DATE' , border:[false, true, false, false], alignment:'center'}],
+              [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+              [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+              [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+              [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+              [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+              [{text: '', colSpan:2, border:[false, false, false, false]}, {text:''}],
+              [{text: 'SIGNATURE OF SHIPPER/EXPORTER', height:200, border:[false, true, false, false]}, {text: 'DATE' , border:[false, true, false, false], alignment:'center'}],
             ]
           },
           pageBreak: 'after'
