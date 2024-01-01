@@ -57,7 +57,8 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
     this.whichVendor = what;
   }
 
-  viewSingleShipment() {
+  viewSingleShipment(sh: Shipment) {
+    this.subject.emit_shipment(sh);
     this.isSingleShipmentView = true;
   }
 

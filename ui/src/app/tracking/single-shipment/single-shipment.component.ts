@@ -23,6 +23,7 @@ export class SingleShipmentComponent implements OnInit, OnDestroy {
 
   constructor(private fb: FormBuilder, private http: HttpsvcService, private subject: PubsubsvcService) {
     this.subsink.add(this.subject.onAccount.subscribe(rsp => { this.loggedInUser = rsp;}, (error) => {}, () => {}));
+    this.subsink.add(this.subject.onShipment.subscribe(rsp => {this.shipment = rsp;}, (error) => {}, () => {}));
 
     this.singleShipmentTrackingForm = fb.group({
       awbNo: '',
@@ -32,6 +33,7 @@ export class SingleShipmentComponent implements OnInit, OnDestroy {
    }
 
   ngOnInit(): void {
+    
   }
 
   ngOnDestroy(): void {
