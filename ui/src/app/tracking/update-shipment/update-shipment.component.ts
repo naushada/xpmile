@@ -49,18 +49,19 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
   onSubmit() {
 
     let awbNo: string = this.updateShipmentStatus.get('shipmentNo')?.value;
-    let status: activityOnShipment = {...this.updateShipmentStatus.value};
+    let activity: any;
+    
     let cDate:any = formatDate(this.updateShipmentStatus.get('currentDate')?.value, 'dd/MM/yyyy', 'en-GB');
-    (status as activityOnShipment).date = cDate;
-    (status as activityOnShipment).event = this.updateShipmentStatus.get('events')?.value;
-    (status as activityOnShipment).time = this.updateShipmentStatus.get('currentTime')?.value;
-    (status as activityOnShipment).notes = this.updateShipmentStatus.get('notes')?.value;
-    (status as activityOnShipment).driver = this.updateShipmentStatus.get('driverName')?.value;
-    (status as activityOnShipment).updatedBy = this.updateShipmentStatus.get('updatedBy')?.value;
-    (status as activityOnShipment).eventLocation = this.updateShipmentStatus.get('eventLocation')?.value;
+    (activity as activityOnShipment).date = cDate;
+    (activity as activityOnShipment).event = this.updateShipmentStatus.get('events')?.value;
+    (activity as activityOnShipment).time = this.updateShipmentStatus.get('currentTime')?.value;
+    (activity as activityOnShipment).notes = this.updateShipmentStatus.get('notes')?.value;
+    (activity as activityOnShipment).driver = this.updateShipmentStatus.get('driverName')?.value;
+    (activity as activityOnShipment).updatedBy = this.updateShipmentStatus.get('updatedBy')?.value;
+    (activity as activityOnShipment).eventLocation = this.updateShipmentStatus.get('eventLocation')?.value;
 
     if(this.updateShipmentStatus.get('manualEventLocation')?.value.length) {
-      (status as activityOnShipment).eventLocation = this.updateShipmentStatus.get('manualEventLocation')?.value;
+      (activity as activityOnShipment).eventLocation = this.updateShipmentStatus.get('manualEventLocation')?.value;
     }
 
     let awbNoList = new Array<string>();
@@ -68,7 +69,7 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
     awbNoList = awbNo.split("\n");
     
 
-    this.http.updateShipmentParallel(awbNoList, status).subscribe((data) => {
+    this.http.updateShipmentParallel(awbNoList, activity).subscribe((data) => {
                           alert("Sipment Status is Updated Successfully");
                           this.updateShipmentStatus.get('shipmentNo')?.setValue('');
                           this.updateShipmentStatus.get('notes')?.setValue('');
