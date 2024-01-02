@@ -33,7 +33,9 @@ export class SingleShipmentComponent implements OnInit, OnDestroy {
    }
 
   ngOnInit(): void {
-    
+    if(this.shipment != undefined) {
+      this.singleShipmentTrackingForm.patchValue({awbNo: this.shipment.shipment.awbno, altRefNo: this.shipment.shipment.altRefNo});
+    }
   }
 
   ngOnDestroy(): void {
