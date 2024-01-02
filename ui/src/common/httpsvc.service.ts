@@ -319,7 +319,7 @@ export class HttpsvcService {
    * @param data 
    * @returns Observable <any>
    */
-  updateShipmentParallel(awbNo: Array<string>, data: activityOnShipment) : Observable<any> {
+  updateShipmentParallel(awbNo: Array<string>, data: string) : Observable<any> {
     let start = 0;
     let end = awbNo.length;
     let step = 50;
@@ -336,7 +336,7 @@ export class HttpsvcService {
                                 'Content-Type': 'application/json'
                         })
                       };
-      let req = this.http.put<any>(this.getUri("from_web_shipment"), JSON.stringify(data), options);
+      let req = this.http.put<any>(this.getUri("from_web_shipment"), data, options);
       reqArr.push(req);
     }
     

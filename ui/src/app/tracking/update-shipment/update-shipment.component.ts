@@ -49,19 +49,19 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
   onSubmit() {
 
     let awbNo: string = this.updateShipmentStatus.get('shipmentNo')?.value;
-    let activity: any;
+    let activity = {
+      date: formatDate(this.updateShipmentStatus.get('currentDate')?.value, 'dd/MM/yyyy', 'en-GB'),
+      event: this.updateShipmentStatus.get('events')?.value,
+      time: this.updateShipmentStatus.get('currentTime')?.value,
+      notes: this.updateShipmentStatus.get('notes')?.value,
+      driver: this.updateShipmentStatus.get('driverName')?.value,
+      updatedBy: this.updateShipmentStatus.get('updatedBy')?.value,
+      eventLocation: this.updateShipmentStatus.get('eventLocation')?.value
+    };
     
-    let cDate:any = formatDate(this.updateShipmentStatus.get('currentDate')?.value, 'dd/MM/yyyy', 'en-GB');
-    (activity as activityOnShipment).date = cDate;
-    (activity as activityOnShipment).event = this.updateShipmentStatus.get('events')?.value;
-    (activity as activityOnShipment).time = this.updateShipmentStatus.get('currentTime')?.value;
-    (activity as activityOnShipment).notes = this.updateShipmentStatus.get('notes')?.value;
-    (activity as activityOnShipment).driver = this.updateShipmentStatus.get('driverName')?.value;
-    (activity as activityOnShipment).updatedBy = this.updateShipmentStatus.get('updatedBy')?.value;
-    (activity as activityOnShipment).eventLocation = this.updateShipmentStatus.get('eventLocation')?.value;
 
     if(this.updateShipmentStatus.get('manualEventLocation')?.value.length) {
-      (activity as activityOnShipment).eventLocation = this.updateShipmentStatus.get('manualEventLocation')?.value;
+      activity.eventLocation = this.updateShipmentStatus.get('manualEventLocation')?.value;
     }
 
     let awbNoList = new Array<string>();
@@ -69,7 +69,7 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
     awbNoList = awbNo.split("\n");
     
 
-    this.http.updateShipmentParallel(awbNoList, activity).subscribe((data) => {
+    this.http.updateShipmentParallel(awbNoList, JSON.stringify(activity)).subscribe((data) => {
                           alert("Sipment Status is Updated Successfully");
                           this.updateShipmentStatus.get('shipmentNo')?.setValue('');
                           this.updateShipmentStatus.get('notes')?.setValue('');
