@@ -29,8 +29,8 @@ export class ListComponent implements OnInit, OnDestroy {
 
   constructor(private fb: FormBuilder, private http: HttpsvcService, private subject: PubsubsvcService) {
     this.shipmentListForm = this.fb.group({
-      startDate: new Date(),
-      endDate: new Date(),
+      startDate: [formatDate(new Date(), 'MM/dd/yyyy', 'en')],
+      endDate: [formatDate(new Date(), 'MM/dd/yyyy', 'en')],
     });
    }
 
