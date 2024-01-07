@@ -373,7 +373,7 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
           widths: [ '*', '*'],
           heights:20,
           body: [
-            [{text: 'Comercial Invoice', colSpan:2,  border:[false,false,false,true], alignment:'center', bold:true}, ''],
+            [{text: 'Comercial Invoice', colSpan:2,  border:[false,false,false,true], alignment:'center', bold:true,  margin:10}, ''],
             [{text: 'International Air Way Bill NO: ' + elm.shipment.awbno , border:[true, false, true,true]}, {image: this.textToBase64Barcode(elm.shipment.awbno, 70), fit: [150, 150],  border:[true,false,true,true]}],
             [{text: 'DATE OF EXPORTATION: ' + elm.shipment.shipmentInformation.activity.at(0).date, border:[false, false, true, false]}, {text: 'EXPORT REFERENCE(i.e. Order no,etc)', border:[false, false, false, false]}],
             [{text: 'SHIPPER/EXPORTER (complete name and address)\n' + 
