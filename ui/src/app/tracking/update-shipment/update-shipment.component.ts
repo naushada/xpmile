@@ -28,7 +28,7 @@ export class UpdateShipmentComponent implements OnInit, OnDestroy {
     this.updateShipmentStatus = this.fb.group({
       shipmentNo: '',
       events: '',
-      currentDate: [formatDate(new Date(), 'dd/MM/yyyy', 'en-GB')],
+      currentDate: new Date(),
       currentTime: [new Date().getHours() + ':' + new Date().getMinutes()],
       notes:'',
       eventLocation: this.defValue?.CountryName?.at(0),

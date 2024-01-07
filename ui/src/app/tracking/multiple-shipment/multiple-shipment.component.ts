@@ -44,6 +44,8 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
       this.subsink.unsubscribe();
+      let sh:any;
+      this.subject.emit_shipment(sh);
   }
 
   onSelectionChanged(event:Shipment[]) {
