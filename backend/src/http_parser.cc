@@ -1,256 +1,215 @@
-#ifndef __http_parser_cc__
-#define __http_parser_cc__
-
 #include "http_parser.h"
+#include <sstream>
+#include <zlib.h>
 
-Http::Http()
+// Decode percent-encoded (%XX) and plus-encoded (+) characters in a URI component.
+static std::string pct_decode(const std::string& s)
 {
-  m_uriName.clear();
-  m_tokenMap.clear();
+    std::string out;
+    out.reserve(s.size());
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '+') {
+            out.push_back(' ');
+        } else if (s[i] == '%' && i + 2 < s.size()) {
+            char hex[3] = { s[i + 1], s[i + 2], '\0' };
+            out.push_back(static_cast<char>(std::stoi(hex, nullptr, 16)));
+            i += 2;
+        } else {
+            out.push_back(s[i]);
+        }
+    }
+    return out;
+}
+
+// Decode an HTTP/1.1 chunked transfer-encoded body.
+// Format per RFC 7230 §4.1: hex-size[;ext]\r\n data\r\n ... 0\r\n [trailers]\r\n
+static std::string decode_chunked(const std::string& in)
+{
+    std::string out;
+    std::size_t pos = 0;
+
+    while (pos < in.size()) {
+        auto crlf = in.find("\r\n", pos);
+        if (crlf == std::string::npos) break;
+
+        // Strip chunk extensions (e.g. "a; name=value")
+        std::string size_str = in.substr(pos, crlf - pos);
+        auto ext = size_str.find(';');
+        if (ext != std::string::npos)
+            size_str.resize(ext);
+
+        std::size_t chunk_size;
+        try {
+            chunk_size = std::stoul(size_str, nullptr, 16);
+        } catch (...) {
+            break;
+        }
+
+        pos = crlf + 2; // skip size line + \r\n
+        if (chunk_size == 0) break; // terminal chunk
+        if (pos + chunk_size > in.size()) break; // truncated stream
+
+        out.append(in, pos, chunk_size);
+        pos += chunk_size + 2; // skip chunk data + trailing \r\n
+    }
+
+    return out;
+}
+
+// Inflate a gzip or deflate (zlib-wrapped) payload using zlib.
+// Transfer-Encoding is stripped first so this receives the raw compressed bytes.
+static std::string decompress(const std::string& in, const std::string& encoding)
+{
+    // gzip: windowBits = 15+16; deflate: windowBits = 15+32 (auto-detect zlib or gzip wrapper)
+    const int windowBits = (encoding == "gzip") ? (15 + 16) : (15 + 32);
+
+    z_stream zs{};
+    if (inflateInit2(&zs, windowBits) != Z_OK)
+        return {};
+
+    zs.next_in  = reinterpret_cast<Bytef*>(const_cast<char*>(in.data()));
+    zs.avail_in = static_cast<uInt>(in.size());
+
+    std::string out;
+    int ret;
+    do {
+        char buf[32768];
+        zs.next_out  = reinterpret_cast<Bytef*>(buf);
+        zs.avail_out = sizeof(buf);
+        ret = inflate(&zs, Z_NO_FLUSH);
+        if (ret != Z_OK && ret != Z_STREAM_END) {
+            ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [worker:%t] %M %N:%l decompress error: %s\n"),
+                       zs.msg ? zs.msg : "unknown"));
+            inflateEnd(&zs);
+            return {};
+        }
+        out.append(buf, sizeof(buf) - zs.avail_out);
+    } while (ret != Z_STREAM_END);
+
+    inflateEnd(&zs);
+    return out;
 }
 
 Http::Http(const std::string& in)
 {
-  m_uriName.clear();
-  m_tokenMap.clear();
-  m_header.clear();
-  m_body.clear();
-
-  m_header = get_header(in);
-
-  if(m_header.length()) {
-    parse_uri(m_header);
-    parse_mime_header(m_header);
-  }
-
-  m_body = get_body(in);
+    m_header = get_header(in);
+    if (!m_header.empty()) {
+        parse_uri(m_header);
+        parse_mime_header(m_header);
+    }
+    m_body = get_body(in);
 }
 
-Http::~Http()
+void Http::add_element(std::string key, std::string value)
 {
-  m_tokenMap.clear();
+    m_tokenMap.emplace(std::move(key), std::move(value));
+}
+
+std::string Http::get_element(const std::string& key) const
+{
+    auto it = m_tokenMap.find(key);
+    return (it != m_tokenMap.end()) ? it->second : std::string{};
 }
 
 void Http::parse_uri(const std::string& in)
 {
-  std::string delim("\r\n");
-  size_t offset = in.find(delim, 0);
+    auto crlf = in.find("\r\n");
+    const std::string req = (crlf != std::string::npos) ? in.substr(0, crlf) : in;
 
-  if(std::string::npos != offset) {
-    /* Qstring */
-    std::string req = in.substr(0, offset);
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The uri string is %s\n"), req.c_str()));
-    std::stringstream input(req);
-    std::string parsed_string;
-    std::string param;
-    std::string value;
-    bool isQsPresent = false;
 
-    parsed_string.clear();
-    param.clear();
-    value.clear();
+    // Split: METHOD<SP>path[?qs]<SP>HTTP/x.x
+    auto first_sp = req.find(' ');
+    if (first_sp == std::string::npos) return;
 
-    std::int32_t c;
-    while((c = input.get()) != EOF) {
-      switch(c) {
-        case ' ':
-        {
-          std::int8_t endCode[4];
-          endCode[0] = (std::int8_t)input.get();
-          endCode[1] = (std::int8_t)input.get();
-          endCode[2] = (std::int8_t)input.get();
-          endCode[3] = (std::int8_t)input.get();
+    m_method = req.substr(0, first_sp);
 
-          std::string p((const char *)endCode, 4);
+    auto last_sp = req.rfind(' ');
+    std::string uri_part = req.substr(first_sp + 1,
+                                      (last_sp > first_sp) ? last_sp - first_sp - 1
+                                                           : std::string::npos);
 
-          if(!p.compare("HTTP")) {
-
-            if(!isQsPresent) {
-
-              m_uriName = parsed_string;
-              parsed_string.clear();
-
-            } else {
-
-              value = parsed_string;
-              add_element(param, value);
-            }
-          } else {
-            /* make available to stream to be get again*/
-            input.unget();
-            input.unget();
-            input.unget();
-            input.unget();
-          }
-
-          parsed_string.clear();
-          param.clear();
-          value.clear();
-        }
-          break;
-
-        case '+':
-        {
-          parsed_string.push_back(' ');
-        }
-          break;
-
-        case '?':
-        {
-          isQsPresent = true;
-          m_uriName = parsed_string;
-          parsed_string.clear();
-        }
-          break;
-
-        case '&':
-        {
-          value = parsed_string;
-          add_element(param, value);
-          parsed_string.clear();
-          param.clear();
-          value.clear();
-        }
-          break;
-
-        case '=':
-        {
-          param = parsed_string;
-          parsed_string.clear();
-        }
-          break;
-
-        case '%':
-        {
-          std::int8_t octalCode[3];
-          octalCode[0] = (std::int8_t)input.get();
-          octalCode[1] = (std::int8_t)input.get();
-          octalCode[2] = 0;
-          std::string octStr((const char *)octalCode, 3);
-          std::int32_t ch = std::stoi(octStr, nullptr, 16);
-          parsed_string.push_back(ch);
-        }
-          break;
-
-        default:
-        {
-          parsed_string.push_back(c);
-        }
-          break;  
-      }
+    auto q = uri_part.find('?');
+    if (q == std::string::npos) {
+        m_uriName = pct_decode(uri_part);
+        return;
     }
-  }
+
+    m_uriName = pct_decode(uri_part.substr(0, q));
+
+    // Parse key=value pairs from the query string
+    std::istringstream qs(uri_part.substr(q + 1));
+    std::string token;
+    while (std::getline(qs, token, '&')) {
+        auto eq = token.find('=');
+        if (eq == std::string::npos) continue;
+        add_element(pct_decode(token.substr(0, eq)),
+                    pct_decode(token.substr(eq + 1)));
+    }
 }
 
 void Http::parse_mime_header(const std::string& in)
 {
-  std::stringstream input(in);
-  std::string param;
-  std::string value;
-  std::string parsed_string;
-  std::string line_str;
-  line_str.clear();
+    std::istringstream input(in);
+    std::string line;
 
-  /* getridof first request line 
-   * GET/POST/PUT/DELETE <uri>?uriName[&param=value]* HTTP/1.1\r\n
-   */
-  std::getline(input, line_str);
+    // Skip the request line (METHOD URI HTTP/x.x)
+    std::getline(input, line);
 
-  param.clear();
-  value.clear();
-  parsed_string.clear();
+    while (std::getline(input, line)) {
+        // Strip trailing \r left by \r\n line endings
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (line.empty()) break;
 
-  /* iterating through the MIME Header of the form
-   * Param: Value\r\n
-   */
-  while(!input.eof()) {
-    line_str.clear();
-    std::getline(input, line_str);
-    std::stringstream _line(line_str);
+        auto colon = line.find(':');
+        if (colon == std::string::npos) continue;
 
-    std::int32_t c;
-    while((c = _line.get()) != EOF ) {
-      switch(c) {
-        case ':':
-        {
-          param = parsed_string;
-          parsed_string.clear();
-          /* getridof of first white space */
-          c = _line.get();
-          while((c = _line.get()) != EOF) {
-            switch(c) {
-              case '\r':
-              case '\n':
-                /* get rid of \r character */
-                continue;
-
-              default:
-                parsed_string.push_back(c);
-                break;
-            }
-          }
-          /* we hit the end of line */
-          value = parsed_string;
-          add_element(param, value);
-          parsed_string.clear();
-          param.clear();
-          value.clear();
-        }
-          break;
-
-        default:
-          parsed_string.push_back(c);
-          break;
-      }
+        std::string param = line.substr(0, colon);
+        // Skip the ": " separator; guard against malformed lines with no space after colon
+        std::string value = (colon + 2 <= line.size()) ? line.substr(colon + 2) : std::string{};
+        add_element(std::move(param), std::move(value));
     }
-  }
 }
 
-void Http::dump(void) const 
+void Http::dump() const
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The uriName is %s\n"), m_uriName.c_str()));
-    for(auto& in: m_tokenMap) {
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l param %s value %s\n"), in.first.c_str(), in.second.c_str()));
+    for (const auto& kv : m_tokenMap) {
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l param %s value %s\n"),
+                   kv.first.c_str(), kv.second.c_str()));
     }
-
 }
 
 std::string Http::get_header(const std::string& in)
-{ 
-  std::string delimeter("\r\n\r\n");
-
-  //auto offset = 0;
-  std::string::size_type offset = in.rfind(delimeter);
-  //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l offset:%d\n"), offset));
- 
-  if(std::string::npos != offset) {
-    std::string document = in.substr(0, offset + delimeter.length());
-
-    //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The header is \n%s"), document.c_str()));
-    return(document);
-  }
-
-  return(in);
+{
+    const std::string delim("\r\n\r\n");
+    auto offset = in.find(delim);
+    if (offset != std::string::npos)
+        return in.substr(0, offset + delim.size());
+    return in;
 }
 
 std::string Http::get_body(const std::string& in)
 {
-  std::string ct = get_element("Content-Type");
-  std::string contentLen = get_element("Content-Length");
+    const std::string te = get_element("Transfer-Encoding");
+    const std::string ce = get_element("Content-Encoding");
+    const std::string cl = get_element("Content-Length");
 
-  if(ct.length() && !ct.compare("application/json") && contentLen.length()) {
-    //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l The content Type is application/json CL %d hdrlen %d\n"), std::stoi(contentLen), header().length()));
+    std::string raw;
 
-    auto offset = header().length() /* \r\n delimeter's length which seperator between header and body */;
-    if(offset) {
-      std::string document(in.substr(offset, std::stoi(contentLen)));
-      //ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Bodylen is %d The BODY is \n%s"), document.length(), document.c_str()));
-      return(document);
+    // Transfer-Encoding is the outermost layer — decode it first.
+    if (te == "chunked") {
+        raw = decode_chunked(in.substr(m_header.size()));
+    } else if (!cl.empty()) {
+        auto offset = m_header.size();
+        if (offset > 0)
+            raw = in.substr(offset, static_cast<std::size_t>(std::stoi(cl)));
     }
-  }
 
-  //ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [master:%t] %M %N:%l The body empty\n")));
-  return(std::string());
+    // Content-Encoding is the representation layer — decompress what remains.
+    if (!raw.empty() && (ce == "gzip" || ce == "deflate"))
+        raw = decompress(raw, ce);
+
+    return raw;
 }
-
-#endif /* __http_parser_cc__ */
