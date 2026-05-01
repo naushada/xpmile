@@ -280,11 +280,12 @@ std::string MicroService::handle_config_POST(std::string &in,
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
-      std::string ip_address("");
-      auto result =
-          dbInst.from_json_element_to_string(content, "ip_address", ip_address);
-      std::string port("");
-      result = dbInst.from_json_element_to_string(content, "port", port);
+      std::string ip_address;
+      if (auto *s = std::get_if<std::string>(&dbInst.from_json(content, "ip_address")))
+        ip_address = *s;
+      std::string port;
+      if (auto *s = std::get_if<std::string>(&dbInst.from_json(content, "port")))
+        port = *s;
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l dbconfig ip:%s port:%u\n"),
                  ip_address.c_str(), std::stoul(port)));
@@ -644,13 +645,8 @@ std::string MicroService::handle_document_POST(std::string &in,
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
-      std::string value("");
-      auto result =
-          dbInst.from_json_element_to_string(content, "corporate", value);
-
-      if (result) {
-        coll.clear();
-        coll = value + "_attachment";
+      if (auto *s = std::get_if<std::string>(&dbInst.from_json(content, "corporate"))) {
+        coll = *s + "_attachment";
       }
 
       std::string record =
@@ -694,12 +690,18 @@ std::string MicroService::handle_email_POST(std::string &in,
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email request:%s\n"),
                json_body.c_str()));
-    dbInst.from_json_array_to_vector(json_body, "to", out_vec);
-    dbInst.from_json_element_to_string(json_body, "subject", subj);
-    dbInst.from_json_element_to_string(json_body, "emailbody", body);
-    dbInst.from_json_object_to_map(json_body, "files", out_list);
-    dbInst.from_json_element_to_string(json_body, "from", from);
-    dbInst.from_json_element_to_string(json_body, "passwd", passwd);
+    if (auto *v = std::get_if<JsonStrVec>(&dbInst.from_json(json_body, "to")))
+      out_vec = std::move(*v);
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "subject")))
+      subj = *s;
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "emailbody")))
+      body = *s;
+    if (auto *m = std::get_if<JsonDocList>(&dbInst.from_json(json_body, "files")))
+      out_list = std::move(*m);
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "from")))
+      from = *s;
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "passwd")))
+      passwd = *s;
 
     for (const auto &elm : out_vec) {
       ACE_DEBUG((LM_DEBUG,
@@ -1951,11 +1953,12 @@ std::string WebServiceEntry::handle_config_POST(std::string &in,
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
-      std::string ip_address("");
-      auto result =
-          dbInst.from_json_element_to_string(content, "ip_address", ip_address);
-      std::string port("");
-      result = dbInst.from_json_element_to_string(content, "port", port);
+      std::string ip_address;
+      if (auto *s = std::get_if<std::string>(&dbInst.from_json(content, "ip_address")))
+        ip_address = *s;
+      std::string port;
+      if (auto *s = std::get_if<std::string>(&dbInst.from_json(content, "port")))
+        port = *s;
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l dbconfig ip:%s port:%u\n"),
                  ip_address.c_str(), std::stoul(port)));
@@ -2325,13 +2328,8 @@ std::string WebServiceEntry::handle_document_POST(std::string &in,
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
-      std::string value("");
-      auto result =
-          dbInst.from_json_element_to_string(content, "corporate", value);
-
-      if (result) {
-        coll.clear();
-        coll = value + "_attachment";
+      if (auto *s = std::get_if<std::string>(&dbInst.from_json(content, "corporate"))) {
+        coll = *s + "_attachment";
       }
 
       std::string record =
@@ -2380,12 +2378,18 @@ std::string WebServiceEntry::handle_email_POST(std::string &in,
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email request:%s\n"),
                json_body.c_str()));
-    dbInst.from_json_array_to_vector(json_body, "to", out_vec);
-    dbInst.from_json_element_to_string(json_body, "subject", subj);
-    dbInst.from_json_element_to_string(json_body, "emailbody", body);
-    dbInst.from_json_object_to_map(json_body, "files", out_list);
-    dbInst.from_json_element_to_string(json_body, "from", from);
-    dbInst.from_json_element_to_string(json_body, "passwd", passwd);
+    if (auto *v = std::get_if<JsonStrVec>(&dbInst.from_json(json_body, "to")))
+      out_vec = std::move(*v);
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "subject")))
+      subj = *s;
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "emailbody")))
+      body = *s;
+    if (auto *m = std::get_if<JsonDocList>(&dbInst.from_json(json_body, "files")))
+      out_list = std::move(*m);
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "from")))
+      from = *s;
+    if (auto *s = std::get_if<std::string>(&dbInst.from_json(json_body, "passwd")))
+      passwd = *s;
 
     for (const auto &elm : out_vec) {
       ACE_DEBUG((LM_DEBUG,

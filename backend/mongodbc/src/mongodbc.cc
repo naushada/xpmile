@@ -366,85 +366,59 @@ MongodbClient::get_tracking_no_for_ajoul(const std::string &json_obj,
   return {};
 }
 
-bool MongodbClient::from_json_array_to_vector(
-    const std::string &json_obj, const std::string &key,
-    std::vector<std::string> &vec_out) {
+JsonExtract MongodbClient::from_json(const std::string &json_obj,
+                                     const std::string &key) const {
   bsoncxx::document::value doc_val = bsoncxx::from_json(json_obj.c_str());
-  bsoncxx::document::view doc = doc_val.view();
+  bsoncxx::document::view  doc     = doc_val.view();
 
   auto it = doc.find(key);
   if (it == doc.end()) {
     ACE_ERROR((LM_ERROR,
                ACE_TEXT("%D [Worker:%t] %M %N:%l element '%s' not found\n"),
                key.c_str()));
-    return false;
+    return std::monostate{};
   }
 
   bsoncxx::document::element elm = *it;
-  if (elm && elm.type() == bsoncxx::type::k_array) {
-    for (bsoncxx::array::element entry : elm.get_array().value) {
-      if (entry.type() == bsoncxx::type::k_utf8)
-        vec_out.emplace_back(entry.get_utf8().value.data(),
-                             entry.get_utf8().value.length());
-    }
-    return true;
-  }
 
-  vec_out.clear();
-  return false;
-}
+  // UTF-8 scalar → std::string
+  if (elm.type() == bsoncxx::type::k_utf8)
+    return std::string(elm.get_utf8().value.data(),
+                       elm.get_utf8().value.length());
 
-bool MongodbClient::from_json_element_to_string(const std::string &json_obj,
-                                                const std::string &key,
-                                                std::string &str_out) {
-  bsoncxx::document::value doc_val = bsoncxx::from_json(json_obj.c_str());
-  bsoncxx::document::view doc = doc_val.view();
+  if (elm.type() == bsoncxx::type::k_array) {
+    bsoncxx::array::view arr = elm.get_array().value;
+    auto first = arr.begin();
+    if (first == arr.end())
+      return JsonStrVec{};
 
-  auto it = doc.find(key);
-  if (it == doc.end()) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l element '%s' not found\n"),
-               key.c_str()));
-    str_out.clear();
-    return false;
-  }
-
-  bsoncxx::document::element elm = *it;
-  if (elm && elm.type() == bsoncxx::type::k_utf8) {
-    str_out.assign(elm.get_utf8().value.data(), elm.get_utf8().value.length());
-    return true;
-  }
-
-  str_out.clear();
-  return false;
-}
-
-bool MongodbClient::from_json_object_to_map(
-    const std::string &json_obj, const std::string &key,
-    std::vector<std::tuple<std::string, std::string>> &out) {
-  bsoncxx::document::value doc_val = bsoncxx::from_json(json_obj.c_str());
-  bsoncxx::document::view doc = doc_val.view();
-
-  auto it = doc.find(key);
-  if (it == doc.end()) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l element '%s' not found\n"),
-               key.c_str()));
-    return false;
-  }
-
-  bsoncxx::document::element elm = *it;
-  if (elm && elm.type() == bsoncxx::type::k_array) {
-    for (bsoncxx::array::element entry : elm.get_array().value) {
-      if (entry.type() == bsoncxx::type::k_document) {
-        auto subdoc = entry.get_document().value;
-        out.emplace_back(subdoc["file-name"].get_utf8().value.data(),
-                         subdoc["file-content"].get_utf8().value.data());
+    // Array of strings → JsonStrVec
+    if (first->type() == bsoncxx::type::k_utf8) {
+      JsonStrVec vec;
+      for (bsoncxx::array::element entry : arr) {
+        if (entry.type() == bsoncxx::type::k_utf8)
+          vec.emplace_back(entry.get_utf8().value.data(),
+                           entry.get_utf8().value.length());
       }
+      return vec;
     }
-    return true;
+
+    // Array of sub-documents → JsonDocList ({file-name, file-content} pairs)
+    if (first->type() == bsoncxx::type::k_document) {
+      JsonDocList list;
+      for (bsoncxx::array::element entry : arr) {
+        if (entry.type() == bsoncxx::type::k_document) {
+          auto subdoc = entry.get_document().value;
+          list.emplace_back(subdoc["file-name"].get_utf8().value.data(),
+                            subdoc["file-content"].get_utf8().value.data());
+        }
+      }
+      return list;
+    }
   }
 
-  out.clear();
-  return false;
+  ACE_ERROR((LM_ERROR,
+             ACE_TEXT("%D [Worker:%t] %M %N:%l element '%s' has unsupported BSON type\n"),
+             key.c_str()));
+  return std::monostate{};
 }

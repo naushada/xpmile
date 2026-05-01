@@ -6,6 +6,7 @@
 #include <iostream>
 #include <mutex>
 #include <tuple>
+#include <variant>
 #include <vector>
 
 #include <bsoncxx/builder/stream/array.hpp>
@@ -25,6 +26,24 @@
 #include <mongocxx/uri.hpp>
 
 #include "ace/Log_Msg.h"
+
+/// Flat vector of UTF-8 strings extracted from a JSON array element.
+using JsonStrVec = std::vector<std::string>;
+
+/// Vector of (file-name, file-content) pairs extracted from a JSON document array.
+using JsonDocList = std::vector<std::tuple<std::string, std::string>>;
+
+/**
+ * @brief Result type for @c MongodbClient::from_json().
+ *
+ * Alternatives:
+ *  - @c std::monostate — key not found or element type not supported.
+ *  - @c std::string    — the element is a UTF-8 string (@c k_utf8).
+ *  - @c JsonStrVec     — the element is an array of UTF-8 strings.
+ *  - @c JsonDocList    — the element is an array of sub-documents
+ *                        each containing @c file-name and @c file-content fields.
+ */
+using JsonExtract = std::variant<std::monostate, std::string, JsonStrVec, JsonDocList>;
 
 /**
  * @brief MongoDB connection-pool client.
@@ -170,40 +189,26 @@ public:
                                         std::string &reference_no);
   ///@}
 
-  /** @name JSON extraction utilities */
+  /** @name JSON extraction utility */
   ///@{
   /**
-   * @brief Populate a vector with the UTF-8 strings in a JSON array element.
+   * @brief Extract a typed value from a JSON document by key.
+   *
+   * Inspects the BSON type of the element and returns the matching variant
+   * alternative:
+   *  - @c k_utf8 → @c std::string
+   *  - @c k_array of strings → @c JsonStrVec
+   *  - @c k_array of sub-documents (with @c file-name / @c file-content fields)
+   *    → @c JsonDocList
+   *  - key absent or type not matched → @c std::monostate
+   *
    * @param json_obj  JSON document string.
-   * @param key       Key whose value is a JSON array of strings.
-   * @param vec_out   Output vector; cleared and filled on success.
-   * @return @c true on success, @c false if the key is missing or not an array.
+   * @param key       Key to look up.
+   * @return A @c JsonExtract variant holding the extracted value, or
+   *         @c std::monostate on failure.
    */
-  bool from_json_array_to_vector(const std::string &json_obj,
-                                 const std::string &key,
-                                 std::vector<std::string> &vec_out);
-
-  /**
-   * @brief Extract a single UTF-8 string element from a JSON document.
-   * @param json_obj  JSON document string.
-   * @param key       Key whose value is a UTF-8 string.
-   * @param str_out   Output string; cleared on failure.
-   * @return @c true on success, @c false if the key is missing or not a string.
-   */
-  bool from_json_element_to_string(const std::string &json_obj,
-                                   const std::string &key,
-                                   std::string &str_out);
-
-  /**
-   * @brief Extract an array of @c {file-name, file-content} tuples from JSON.
-   * @param json_obj  JSON document string.
-   * @param key       Key whose value is an array of document objects.
-   * @param out       Output vector of @c (file-name, file-content) pairs.
-   * @return @c true on success, @c false if the key is missing or not an array.
-   */
-  bool from_json_object_to_map(
-      const std::string &json_obj, const std::string &key,
-      std::vector<std::tuple<std::string, std::string>> &out);
+  JsonExtract from_json(const std::string &json_obj,
+                        const std::string &key) const;
   ///@}
 
 private:
