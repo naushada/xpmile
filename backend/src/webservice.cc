@@ -1412,18 +1412,15 @@ MicroService::~MicroService() {
 }
 
 /*
- * _                  _   _ _ _    _          _ _ _ _  _ _ _ _ _ _ _ _ _   _ _
- * _ _ _ _ _ _ _ _
- * \\       /\       //  // _ \ \ ||         ||      || ||      || \\ \\      //
- * ||      ||      \\
- *  \\     //\\     //_ //_ _ _\_\||_ _ _    || _  _    ||_ _   ||      //
- * \\    //  ||_ _   ||      //
- *   \\   //  \\   // -//         ||     \\          || ||      || _ // \\  //
- * ||      || _ //
- *    \\_//    \\_//   \\_ _ _ _  ||_ _ _//  || _ _ _|| ||_ _ _ || \\     \\//
- * ||_ _ _ ||     \\
- *
- *
+ * +--------------------------------------------------------------------------+
+ * |                                                                          |
+ * |  W   W  EEEEE  BBBBB   SSSSS  EEEEE  RRRR   V   V  EEEEE  RRRR         |
+ * |  W   W  E      B    B  S      E      R   R   V   V  E      R   R        |
+ * |  W W W  EEEE   BBBBB    SSS   EEEE   RRRR    V   V  EEEE   RRRR         |
+ * |  W W W  E      B    B      S  E      R  R     V V   E      R  R          |
+ * |   W W   EEEEE  BBBBB   SSSSS  EEEEE  R   R    V    EEEEE  R   R         |
+ * |                                                                          |
+ * +--------------------------------------------------------------------------+
  */
 
 ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value &tv, const void *act) {
