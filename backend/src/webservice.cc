@@ -1796,67 +1796,48 @@ std::string WebServiceEntry::handle_DELETE(std::string &in,
 std::int32_t WebServiceEntry::process_request(ACE_HANDLE handle,
                                               std::string &req,
                                               MongodbClient &dbInst) {
-  std::string rsp("");
-  std::int32_t ret = 0;
-
-  if (std::string::npos != req.find("OPTIONS", 0)) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l OPTIONS request:%s\n"),
-               req.c_str()));
-    rsp = handle_OPTIONS(req);
-
-  } else if (std::string::npos != req.find("GET", 0)) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l GET request:%s\n"),
-               req.c_str()));
-    rsp = handle_GET(req, dbInst);
-
-  } else if (std::string::npos != req.find("POST", 0)) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l POST request:%s\n"),
-               req.c_str()));
-    rsp = handle_POST(req, dbInst);
-
-  } else if (std::string::npos != req.find("PUT", 0)) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l PUT request:%s\n"),
-               req.c_str()));
-    rsp = handle_PUT(req, dbInst);
-
-  } else if (std::string::npos != req.find("DELETE", 0)) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l DELETE request:%s\n"),
-               req.c_str()));
-    rsp = handle_DELETE(req, dbInst);
-
-  } else {
-    ACE_DEBUG(
-        (LM_DEBUG,
-         ACE_TEXT(
-             "%D [worker:%t] %M %N:%l Method is not supported request:%s\n"),
-         req.c_str()));
-    /* Not supported Method */
-    return (ret);
-  }
+  Http http(req);
+  const std::string &method = http.method();
 
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l the response length:%d\n"),
+             ACE_TEXT("%D [worker:%t] %M %N:%l %s %s\n"),
+             method.c_str(), http.uri().c_str()));
+
+  std::string rsp;
+  if      (method == "OPTIONS") rsp = handle_OPTIONS(req);
+  else if (method == "GET")     rsp = handle_GET(req, dbInst);
+  else if (method == "POST")    rsp = handle_POST(req, dbInst);
+  else if (method == "PUT")     rsp = handle_PUT(req, dbInst);
+  else if (method == "DELETE")  rsp = handle_DELETE(req, dbInst);
+  else {
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [worker:%t] %M %N:%l unsupported method: %s\n"),
+               method.c_str()));
+    return (0);
+  }
+
+  if (rsp.empty())
+    return (0);
+
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu\n"),
              rsp.length()));
 
-  std::int32_t toBeSent = rsp.length();
+  const std::int32_t total = static_cast<std::int32_t>(rsp.length());
   std::int32_t offset = 0;
-  do {
-    ret = send(handle, (rsp.c_str() + offset), (toBeSent - offset), 0);
 
-    if (ret < 0) {
+  while (offset < total) {
+    std::int32_t sent = ::send(handle, rsp.c_str() + offset, total - offset, 0);
+    if (sent < 0) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l sent to peer is failed\n")));
-      break;
+                 ACE_TEXT("%D [worker:%t] %M %N:%l send failed errno:%d\n"),
+                 errno));
+      return (-1);
     }
+    offset += sent;
+  }
 
-    offset += ret;
-    ret = 0;
-
-  } while ((toBeSent != offset));
-
-  return (ret);
+  return (0);
 }
 
 std::string WebServiceEntry::get_contentType(std::string ext) {
