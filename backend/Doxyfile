@@ -1,0 +1,20 @@
+PROJECT_NAME           = "xpmile backend"
+PROJECT_BRIEF          = "HTTP microservice backend (ACE + MongoDB)"
+
+INPUT                  = inc src
+RECURSIVE              = NO
+FILE_PATTERNS          = *.h *.hpp *.cc *.cpp
+
+OUTPUT_DIRECTORY       = docs
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = NO
+
+WARN_IF_UNDOCUMENTED   = YES
+QUIET                  = YES
