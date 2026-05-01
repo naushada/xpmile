@@ -190,6 +190,49 @@ std::string Http::get_header(const std::string& in)
     return in;
 }
 
+std::size_t Http::message_length(const std::string& buf)
+{
+    const std::string sep("\r\n\r\n");
+    auto sep_pos = buf.find(sep);
+    if (sep_pos == std::string::npos)
+        return 0;
+
+    const std::size_t header_len = sep_pos + sep.size();
+
+    std::string te, cl;
+    std::istringstream iss(buf.substr(0, header_len));
+    std::string line;
+    std::getline(iss, line); // skip request line
+    while (std::getline(iss, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) break;
+        auto colon = line.find(':');
+        if (colon == std::string::npos) continue;
+        std::string key = line.substr(0, colon);
+        std::string val = (colon + 2 <= line.size()) ? line.substr(colon + 2) : "";
+        if (key == "Transfer-Encoding") te = val;
+        else if (key == "Content-Length") cl = val;
+    }
+
+    if (te == "chunked") {
+        const std::string terminal("0\r\n\r\n");
+        auto end_pos = buf.find(terminal, header_len);
+        if (end_pos == std::string::npos)
+            return 0;
+        return end_pos + terminal.size();
+    }
+
+    if (!cl.empty()) {
+        try {
+            return header_len + static_cast<std::size_t>(std::stoul(cl));
+        } catch (...) {
+            return 0;
+        }
+    }
+
+    return header_len;
+}
+
 std::string Http::get_body(const std::string& in)
 {
     const std::string te = get_element("Transfer-Encoding");

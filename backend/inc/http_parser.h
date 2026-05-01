@@ -99,6 +99,25 @@ public:
     /// Write parsed fields to the ACE debug log.
     void dump() const;
 
+    /**
+     * @brief Determine the total wire length of the HTTP/1.1 message in @p buf.
+     *
+     * Intended for use in socket read loops: peek a chunk of bytes, call this
+     * function, then allocate and receive exactly that many bytes.
+     *
+     * Rules applied in order:
+     *  1. If the header separator (CRLFCRLF) is not yet present → returns 0.
+     *  2. @c Transfer-Encoding: chunked → scans for the terminal @c 0\\r\\n\\r\\n
+     *     chunk; returns 0 if it is not yet in @p buf.
+     *  3. @c Content-Length: N → returns header_length + N (covers plain, gzip,
+     *     and deflate bodies, all of which are framed by Content-Length on the wire).
+     *  4. No body headers (GET, DELETE, OPTIONS …) → returns header length only.
+     *
+     * @param buf Raw bytes received from the socket (peek or partial read).
+     * @return Total byte count of the complete message, or 0 if more data is needed.
+     */
+    static std::size_t message_length(const std::string& buf);
+
 private:
     /**
      * @brief Extract the header section from the raw request.

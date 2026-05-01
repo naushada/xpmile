@@ -1759,7 +1759,7 @@ ACE_INT32 WebConnection::handle_timeout(const ACE_Time_Value &tv,
 }
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
-  std::vector<char> in(4096);
+  std::vector<char> in(65536);
   std::int32_t effectiveLength = 0;
   std::stringstream ss("");
   auto rc = ::recv(handle, in.data(), in.size(), MSG_PEEK);
@@ -1772,19 +1772,19 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
     auto gc = parent()->connectionPool().erase(handle);
     return (-1);
 
-  } else if (rc < in.size()) {
-    // pre-parsing of Http request.
-    Http http(std::string(in.data(), rc));
-    effectiveLength = http.header().length();
-
-    if (http.get_element("Content-Length").length()) {
-      effectiveLength = http.header().length() +
-                        std::stoi(http.get_element("Content-Length"));
-    }
+  } else if (rc > 0) {
+    effectiveLength = static_cast<std::int32_t>(
+        Http::message_length(std::string(in.data(), rc)));
 
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\n"),
                effectiveLength));
+
+    if (effectiveLength == 0) {
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [Master:%t] %M %N:%l incomplete message in peek, closing\n")));
+      return (-1);
+    }
   }
 
   std::int32_t offset = 0;
