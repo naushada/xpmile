@@ -1,5 +1,5 @@
-#ifndef __webservice_h__
-#define __webservice_h__
+#ifndef WEBSERVICE_H
+#define WEBSERVICE_H
 
 #include <vector>
 #include <memory>
@@ -17,7 +17,6 @@
 #include "ace/SOCK_Acceptor.h"
 #include "ace/Task_T.h"
 #include "ace/Timer_Queue_T.h"
-#include "ace/Reactor.h"
 #include "ace/OS_Memory.h"
 #include "ace/Thread_Manager.h"
 #include "ace/Get_Opt.h"
@@ -191,19 +190,15 @@ class WebServer : public ACE_Event_Handler {
           return(m_connectionPool);
         }
 
-        std::vector<MicroService*>& workerPool() {
-            return(m_workerPool);
+        std::vector<std::unique_ptr<MicroService>>& workerPool() {
+            return m_workerPool;
         }
 
-        std::vector<MicroService*>::iterator currentWorker()
+        std::vector<std::unique_ptr<MicroService>>::iterator currentWorker()
         {
-            if(m_currentWorker == std::end(m_workerPool)) {
-              m_currentWorker = std::begin(m_workerPool);
-            }
-            
-            auto curr = m_currentWorker;
-            ++m_currentWorker;
-            return(curr);
+            if (m_currentWorker == std::end(m_workerPool))
+                m_currentWorker = std::begin(m_workerPool);
+            return m_currentWorker++;
         }
 
         MongodbClient* mongodbcInst() {
@@ -220,8 +215,8 @@ class WebServer : public ACE_Event_Handler {
         ACE_SOCK_Acceptor m_server;
         bool m_stopMe;
         std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>> m_connectionPool;
-        std::vector<MicroService*> m_workerPool;
-        std::vector<MicroService*>::iterator m_currentWorker;
+        std::vector<std::unique_ptr<MicroService>> m_workerPool;
+        std::vector<std::unique_ptr<MicroService>>::iterator m_currentWorker;
         /* mongo db interface */
         std::unique_ptr<MongodbClient> mMongodbc;
         std::unique_ptr<ACE_Semaphore> m_semaphore;
@@ -267,4 +262,4 @@ class WebServiceEntry {
 };
 
 
-#endif /*__webservice_h__*/
+#endif // WEBSERVICE_H

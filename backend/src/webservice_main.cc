@@ -1,6 +1,3 @@
-#ifndef __webservice_main_cc__
-#define __webservice_main_cc__
-
 #include "webservice.h"
 #include "emailservice.hpp"
 
@@ -163,4 +160,4 @@ int main(int argc, char* argv[])
 
 
 
-#endif /* __webservice_main_cc__*/
+

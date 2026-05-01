@@ -1,6 +1,3 @@
-#ifndef __webservice_cc__
-#define __webservice_cc__
-
 #include "webservice.h"
 #include "http_parser.h"
 #include "emailservice.hpp"
@@ -690,7 +687,7 @@ std::string MicroService::handle_GET(std::string& in, MongodbClient& dbInst)
             std::string newFile = "../webgui/webui/index.html";
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"), newFile.c_str()));
             /* Open the index.html file and send it to web browser. */
-            std::ifstream ifs(newFile.c_str(), ios::binary);
+            std::ifstream ifs(newFile.c_str(), std::ios::binary);
             std::stringstream _str("");
             std::string cntType("");
 
@@ -705,65 +702,30 @@ std::string MicroService::handle_GET(std::string& in, MongodbClient& dbInst)
             }
         }
     } else if(!uri.compare(0, 8, "/assets/")) {
-        /* build the file name now */
-        std::string fileName("");
-        std::string ext("");
-
+        std::string ext;
         std::size_t found = uri.find_last_of(".");
         if(found != std::string::npos) {
-          ext = uri.substr((found + 1), (uri.length() - found));
+          ext = uri.substr(found + 1);
           std::string newFile = "../webgui/webui" + uri;
           ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s The extension is %s\n"), newFile.c_str(), ext.c_str()));
-          /* Open the index.html file and send it to web browser. */
-          std::ifstream ifs(newFile.c_str(), ios::binary);
-          std::stringstream _str("");
-          std::string cntType("");
-
+          std::ifstream ifs(newFile.c_str(), std::ios::binary);
+          std::stringstream _str;
           if(ifs.is_open()) {
               ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"), uri.c_str()));
-
-              cntType = get_contentType(ext);
               _str << ifs.rdbuf();
-              ifs.close();
-
-              return(build_responseOK(_str.str(), cntType));
+              return(build_responseOK(_str.str(), get_contentType(ext)));
           }
-        }
-
-    } else if((!uri.compare(0, 7, "/webui/"))) {
-        std::string newFile = "../webgui/webui/index.html";
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"), newFile.c_str()));
-        /* Open the index.html file and send it to web browser. */
-        std::ifstream ifs(newFile.c_str(), ios::binary);
-        std::stringstream _str("");
-        std::string cntType("");
-
-        if(ifs.is_open()) {
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"), uri.c_str()));
-
-            cntType = "text/html";
-            _str << ifs.rdbuf();
-            ifs.close();
-
-            return(build_responseOK(_str.str(), cntType));
         }
 
     } else if(!uri.compare(0, 1, "/")) {
         std::string newFile = "../webgui/webui/index.html";
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"), newFile.c_str()));
-        /* Open the index.html file and send it to web browser. */
-        std::ifstream ifs(newFile.c_str(), ios::binary);
-        std::stringstream _str("");
-        std::string cntType("");
-
+        std::ifstream ifs(newFile.c_str(), std::ios::binary);
+        std::stringstream _str;
         if(ifs.is_open()) {
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"), uri.c_str()));
-
-            cntType = "text/html";
             _str << ifs.rdbuf();
-            ifs.close();
-
-            return(build_responseOK(_str.str(), cntType));
+            return(build_responseOK(_str.str(), "text/html"));
         }
     }
 
@@ -1240,7 +1202,9 @@ std::string MicroService::handle_inventory_GET(std::string& in, MongodbClient& d
 
 std::string MicroService::handle_email_GET(std::string& in, MongodbClient& dbInst)
 {
-
+    ACE_UNUSED_ARG(in);
+    ACE_UNUSED_ARG(dbInst);
+    return {};
 }
 
 std::string MicroService::handle_document_GET(std::string& in, MongodbClient& dbInst)
@@ -1282,7 +1246,9 @@ std::string MicroService::handle_document_GET(std::string& in, MongodbClient& db
 
 std::string MicroService::handle_config_GET(std::string& in, MongodbClient& dbInst)
 {
-
+    ACE_UNUSED_ARG(in);
+    ACE_UNUSED_ARG(dbInst);
+    return {};
 }
 
 /**
@@ -1520,8 +1486,6 @@ std::string MicroService::handle_OPTIONS(std::string& in)
 std::string MicroService::build_responseCreated()
 {
     std::string http_header;
-    ACE_Message_Block* rsp = nullptr;
-
     http_header = "HTTP/1.1 201 Created\r\n";
     http_header += "Connection: keep-alive\r\n";
     http_header += "Access-Control-Allow-Origin: *\r\n";
@@ -1569,24 +1533,24 @@ std::string MicroService::build_responseOK(std::string httpBody, std::string con
 std::string MicroService::build_responseERROR(std::string httpBody, std::string error)
 {
     std::string http_header;
-    std::string contentType("application/json");
+    const std::string contentType("application/json");
 
     http_header = "HTTP/1.1 " + error + " \r\n";
     http_header += "Connection: keep-alive\r\n";
     http_header += "Access-Control-Allow-Origin: *\r\n";
 
-    if(httpBody.length()) {
+    if (httpBody.length()) {
         http_header += "Content-Length: " + std::to_string(httpBody.length()) + "\r\n";
         http_header += "Content-Type: " + contentType + "\r\n";
         http_header += "\r\n";
-
+        http_header += httpBody;
     } else {
         http_header += "Content-Length: 0\r\n";
         http_header += "\r\n";
     }
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l respone length:%d response header:%s"), (http_header.length() + httpBody.length()), http_header.c_str()));
-    return(http_header);
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l respone length:%d response header:%s"), http_header.length(), http_header.c_str()));
+    return http_header;
 }
 
 ACE_INT32 MicroService::handle_signal(int signum, siginfo_t *s, ucontext_t *u)
@@ -1636,13 +1600,8 @@ int MicroService::svc()
             case ACE_Message_Block::MB_DATA:
             {
                 ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l svc::ACE_Message_Block::MB_DATA\n")));
-                /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-                 | 4-bytes handle   | 4-bytes db instance pointer   | request (payload) |
-                 |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ _|
-                */
                 std::string ss(mb->rd_ptr(), mb->length());
-                //mb->rd_ptr(mb->length());
-                delete mb;
+                mb->release();
 
                 std::istringstream istrstr(ss);
                 ACE_HANDLE handle;
@@ -1680,7 +1639,7 @@ int MicroService::svc()
             }
         } else {
             ACE_ERROR((LM_ERROR, ACE_TEXT("%D [worker:%t] %M %N:%l Micro service is stopped\n")));
-            mb->release();
+            // getq returned -1: mb was not set, do not release
             m_continue = false;
         }
     }
@@ -1791,13 +1750,13 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t* s, ucontext_t* ctx)
     ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Signal Number %d and its name %S is received for WebServer\n"), signum, signum));
 
     if(!workerPool().empty()) {
-        std::for_each(workerPool().begin(), workerPool().end(), [&](MicroService* ms) ->void {
+        std::for_each(workerPool().begin(), workerPool().end(), [&](const std::unique_ptr<MicroService>& ms) -> void {
 
             semaphore().acquire();
             ACE_Message_Block* req = nullptr;
             ACE_NEW_NORETURN(req, ACE_Message_Block(1));
             req->msg_type(ACE_Message_Block::MB_PCSIG);
-            if(ms->putq(req) < 0) {
+            if (ms->putq(req) < 0) {
                 req->release();
             }
             ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Sending to Worker Node\n")));
@@ -1929,19 +1888,9 @@ WebServer::~WebServer()
     }*/
     mMongodbc.reset(nullptr);
 
-    if(!workerPool().empty()) {
-        for(auto it = workerPool().begin(); it != workerPool().end();) {
-            
-            auto ent = *it;
-            delete ent;
-            it = workerPool().erase(it);
-
-        }
-        workerPool().clear();
-    }
-
-    //delete m_semaphore;
-    m_semaphore.reset(nullptr);
+    // unique_ptr elements are deleted automatically on erase/clear
+    m_workerPool.clear();
+    m_semaphore.reset();
 }
 
 bool WebServer::start()
@@ -2115,7 +2064,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle)
 #endif
     WebServiceEntry wentry;
     std::string rr(request.begin(), request.end());
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l request:\n%s"), request));
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l request:\n%s"), rr.c_str()));
     wentry.process_request(handle, rr, *(parent()->mongodbcInst()));
     return(0);
 }
@@ -2224,12 +2173,11 @@ std::string WebServiceEntry::handle_DELETE(std::string& in, MongodbClient& dbIns
             r = {
                 {"status", "success"}
             };
-            return(build_responseOK(r));
-        } 
+            return(build_responseOK(r.dump()));
+        }
     }
 
     std::string err("400 Bad Request");
-    //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Invalid AWB Bill No.\", \"error\" : 400}");
     json err_message = json::object();
     err_message = {
         {"status", "failure"},
@@ -2844,7 +2792,7 @@ std::string WebServiceEntry::handle_GET(std::string& in, MongodbClient& dbInst)
             std::string newFile = "../webgui/webui/index.html";
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"), newFile.c_str()));
             /* Open the index.html file and send it to web browser. */
-            std::ifstream ifs(newFile.c_str(), ios::binary);
+            std::ifstream ifs(newFile.c_str(), std::ios::binary);
             std::stringstream _str("");
             std::string cntType("");
 
@@ -2859,65 +2807,30 @@ std::string WebServiceEntry::handle_GET(std::string& in, MongodbClient& dbInst)
             }
         }
     } else if(!uri.compare(0, 8, "/assets/")) {
-        /* build the file name now */
-        std::string fileName("");
-        std::string ext("");
-
+        std::string ext;
         std::size_t found = uri.find_last_of(".");
         if(found != std::string::npos) {
-          ext = uri.substr((found + 1), (uri.length() - found));
+          ext = uri.substr(found + 1);
           std::string newFile = "../webgui/webui" + uri;
           ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s The extension is %s\n"), newFile.c_str(), ext.c_str()));
-          /* Open the index.html file and send it to web browser. */
-          std::ifstream ifs(newFile.c_str(), ios::binary);
-          std::stringstream _str("");
-          std::string cntType("");
-
+          std::ifstream ifs(newFile.c_str(), std::ios::binary);
+          std::stringstream _str;
           if(ifs.is_open()) {
               ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"), uri.c_str()));
-
-              cntType = get_contentType(ext);
               _str << ifs.rdbuf();
-              ifs.close();
-
-              return(build_responseOK(_str.str(), cntType));
+              return(build_responseOK(_str.str(), get_contentType(ext)));
           }
-        }
-
-    } else if((!uri.compare(0, 7, "/webui/"))) {
-        std::string newFile = "../webgui/webui/index.html";
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"), newFile.c_str()));
-        /* Open the index.html file and send it to web browser. */
-        std::ifstream ifs(newFile.c_str(), ios::binary);
-        std::stringstream _str("");
-        std::string cntType("");
-
-        if(ifs.is_open()) {
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"), uri.c_str()));
-
-            cntType = "text/html";
-            _str << ifs.rdbuf();
-            ifs.close();
-
-            return(build_responseOK(_str.str(), cntType));
         }
 
     } else if(!uri.compare(0, 1, "/")) {
         std::string newFile = "../webgui/webui/index.html";
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"), newFile.c_str()));
-        /* Open the index.html file and send it to web browser. */
-        std::ifstream ifs(newFile.c_str(), ios::binary);
-        std::stringstream _str("");
-        std::string cntType("");
-
+        std::ifstream ifs(newFile.c_str(), std::ios::binary);
+        std::stringstream _str;
         if(ifs.is_open()) {
             ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"), uri.c_str()));
-
-            cntType = "text/html";
             _str << ifs.rdbuf();
-            ifs.close();
-
-            return(build_responseOK(_str.str(), cntType));
+            return(build_responseOK(_str.str(), "text/html"));
         }
     }
 
@@ -3656,7 +3569,9 @@ std::string WebServiceEntry::handle_inventory_GET(std::string& in, MongodbClient
 
 std::string WebServiceEntry::handle_email_GET(std::string& in, MongodbClient& dbInst)
 {
-
+    ACE_UNUSED_ARG(in);
+    ACE_UNUSED_ARG(dbInst);
+    return {};
 }
 
 std::string WebServiceEntry::handle_document_GET(std::string& in, MongodbClient& dbInst)
@@ -3715,7 +3630,9 @@ std::string WebServiceEntry::handle_document_GET(std::string& in, MongodbClient&
 
 std::string WebServiceEntry::handle_config_GET(std::string& in, MongodbClient& dbInst)
 {
-
+    ACE_UNUSED_ARG(in);
+    ACE_UNUSED_ARG(dbInst);
+    return {};
 }
 
 /**
@@ -4034,11 +3951,10 @@ std::string WebServiceEntry::handle_inventory_PUT(std::string& in, MongodbClient
             //r = "{\"status\": \"success\"}";
             json r = json::object();
             r["status"] = "success";
-            return(build_responseOK(r));
+            return(build_responseOK(r.dump()));
         }
 
         std::string err("400 Bad Request");
-        //std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment Updated Failed\", \"error\" : 400}");
         json err_message = json::object();
         err_message["status"] = "failure";
         err_message["cause"] = "Inventory Update Failed";
@@ -4129,8 +4045,6 @@ std::string WebServiceEntry::handle_OPTIONS(std::string& in)
 std::string WebServiceEntry::build_responseCreated()
 {
     std::string http_header;
-    ACE_Message_Block* rsp = nullptr;
-
     http_header = "HTTP/1.1 201 Created\r\n";
     http_header += "Connection: keep-alive\r\n";
     http_header += "Access-Control-Allow-Origin: *\r\n";
@@ -4199,4 +4113,4 @@ std::string WebServiceEntry::build_responseERROR(std::string httpBody, std::stri
     return(http_header);
 }
 
-#endif /* __webservice_cc__*/
+
