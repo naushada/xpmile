@@ -883,13 +883,13 @@ std::string MicroService::handle_shipment_GET(std::string &in,
     return build_responseERROR(err.dump(), "400 Bad Request");
   };
 
-  const auto awbNo       = http.get_element("awbNo");
-  const auto altRefNo    = http.get_element("altRefNo");
+  const auto awbNo = http.get_element("awbNo");
+  const auto altRefNo = http.get_element("altRefNo");
   const auto senderRefNo = http.get_element("senderRefNo");
   const auto accountCode = http.get_element("accountCode");
-  const auto fromDate    = http.get_element("fromDate");
-  const auto toDate      = http.get_element("toDate");
-  const auto country     = http.get_element("country");
+  const auto fromDate = http.get_element("fromDate");
+  const auto toDate = http.get_element("toDate");
+  const auto country = http.get_element("country");
 
   if (!awbNo.empty()) {
     json doc = {{"shipment.awbno", {{"$in", csv_to_array(awbNo)}}}};
@@ -928,88 +928,60 @@ std::string MicroService::handle_shipment_GET(std::string &in,
 
 std::string MicroService::handle_account_GET(std::string &in,
                                              MongodbClient &dbInst) {
-  /* Check for Query string */
   Http http(in);
-
-  /* Action based on uri in get request */
-  std::string uri(http.uri());
-
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
-             uri.c_str()));
+             http.uri().c_str()));
 
-  if (!uri.compare("/api/v1/account/account")) {
-    std::string collectionName("account");
+  if (http.uri() != "/api/v1/account/account")
+    return {};
 
-    /* user is trying to log in - authenticate now */
-    auto user = http.get_element("userId");
-    auto pwd = http.get_element("password");
+  const std::string collection("account");
+  const json projection = {{"_id", false}};
 
-    if (user.length() && pwd.length()) {
-      /* do an authentication with DB now */
-      std::string document =
-          "{\"loginCredentials.accountCode\" : \"" + user + "\", " +
-          "\"loginCredentials.accountPassword\" : \"" + pwd + "\"" + "}";
-      // std::string projection("{\"accountCode\" : true, \"_id\" : false}");
-      std::string projection("{\"_id\" : false}");
-      std::string record =
-          dbInst.get_document(collectionName, document, projection);
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l User details:%s\n"),
-                 record.c_str()));
+  // Fetch a single document; return OK on hit, ERROR with given status on miss
+  auto fetch_one = [&](const json &doc, const std::string &http_err,
+                       const json &err_body) {
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l query:%s\n"),
+               doc.dump().c_str()));
+    std::string record =
+        dbInst.get_document(collection, doc.dump(), projection.dump());
+    if (!record.empty())
+      return build_responseOK(record);
+    return build_responseERROR(err_body.dump(), http_err);
+  };
 
-      if (!record.length()) {
-        std::string err("400 Bad Request");
-        std::string err_message(
-            "{\"status\" : \"faiure\", \"cause\" : \"Invalid Credentials\", "
-            "\"errorCode\" : 404}");
-        return (build_responseERROR(err_message, err));
-      } else {
-        return (build_responseOK(record));
-      }
-    } else if (http.get_element("accountCode").length()) {
+  const auto userId = http.get_element("userId");
+  const auto pwd = http.get_element("password");
+  const auto accCode = http.get_element("accountCode");
 
-      auto accCode = http.get_element("accountCode");
-
-      /* do an authentication with DB now */
-      std::string document =
-          "{\"loginCredentials.accountCode\" : \"" + accCode + "\" " + "}";
-      // std::string projection("{\"accountCode\" : true, \"_id\" : false}");
-      std::string projection("{\"_id\" : false}");
-      std::string record =
-          dbInst.get_document(collectionName, document, projection);
-      if (record.length()) {
-        ACE_DEBUG(
-            (LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l Customer Account Info %s\n"),
-             record.c_str()));
-        return (build_responseOK(record));
-      } else {
-        std::string err("400 Bad Request");
-        std::string err_message(
-            "{\"status\" : \"faiure\", \"cause\" : \"Invalid Account Code\", "
-            "\"errorCode\" : 400}");
-        return (build_responseERROR(err_message, err));
-      }
-    } else {
-      // for account list
-      std::string projection("{\"_id\" : false}");
-      std::string record = dbInst.get_documents(collectionName, projection);
-      if (!record.length()) {
-        /* No Customer Account is found */
-        std::string err("404 Not Found");
-        std::string err_message(
-            "{\"status\" : \"faiure\", \"cause\" : \"There\'s no customer "
-            "record\", \"error\" : 404}");
-        return (build_responseERROR(err_message, err));
-      }
-
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l account_list:%s\n"),
-                 record.c_str()));
-      return (build_responseOK(record));
-    }
+  if (!userId.empty() && !pwd.empty()) {
+    json doc = {{"loginCredentials.accountCode", userId},
+                {"loginCredentials.accountPassword", pwd}};
+    json err = {{"status", "failure"},
+                {"cause", "Invalid Credentials"},
+                {"error", 404}};
+    return fetch_one(doc, "400 Bad Request", err);
   }
-  return (std::string());
+
+  if (!accCode.empty()) {
+    json doc = {{"loginCredentials.accountCode", accCode}};
+    json err = {{"status", "failure"},
+                {"cause", "Invalid Account Code"},
+                {"error", 400}};
+    return fetch_one(doc, "400 Bad Request", err);
+  }
+
+  // No filter: return the full account list
+  std::string record = dbInst.get_documents(collection, projection.dump());
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l account_list:%s\n"),
+             record.c_str()));
+  if (record.empty()) {
+    json err = {{"status", "failure"},
+                {"cause", "There's no customer record"},
+                {"error", 404}};
+    return build_responseERROR(err.dump(), "404 Not Found");
+  }
+  return build_responseOK(record);
 }
 
 std::string MicroService::handle_inventory_GET(std::string &in,
@@ -1645,7 +1617,7 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
           connEnt.get(),
           ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
       // Transfer ownershipt to STL container
-      m_connectionPool[peerStream.get_handle()] = std::move(connEnt);
+      m_connectionPool.at(peerStream.get_handle()) = std::move(connEnt);
     }
   } else {
     ACE_ERROR((
@@ -1903,7 +1875,7 @@ ACE_INT32 WebConnection::handle_timeout(const ACE_Time_Value &tv,
 }
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
-  std::vector<char> in(2048);
+  std::vector<char> in(4096);
   std::int32_t effectiveLength = 0;
   std::stringstream ss("");
   auto rc = ::recv(handle, in.data(), in.size(), MSG_PEEK);
@@ -1911,17 +1883,12 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
              ACE_TEXT("%D [Master:%t] %M %N:%l handle_input handle:%d rc:%d\n"),
              handle, rc));
 
-  if (rc <= 0) {
+  if (!rc) {
     rc = ::recv(handle, in.data(), in.size(), 0);
-    if (timerId() > 0) {
-      /* start 1/2 second timer i.e. 500 milli second*/
-      ACE_Time_Value to(0, 1);
-      parent()->stop_conn_cleanup_timer(timerId());
-      m_timerId = parent()->start_conn_cleanup_timer(handle, to);
-    }
+    auto gc = parent()->connectionPool().erase(handle);
     return (-1);
 
-  } else if (rc <= in.size()) {
+  } else if (rc < in.size()) {
     // pre-parsing of Http request.
     Http http(std::string(in.data(), rc));
     effectiveLength = http.header().length();
@@ -2899,13 +2866,13 @@ std::string WebServiceEntry::handle_shipment_GET(std::string &in,
     return build_responseERROR(err.dump(), "400 Bad Request");
   };
 
-  const auto awbNo       = http.get_element("awbNo");
-  const auto altRefNo    = http.get_element("altRefNo");
+  const auto awbNo = http.get_element("awbNo");
+  const auto altRefNo = http.get_element("altRefNo");
   const auto senderRefNo = http.get_element("senderRefNo");
   const auto accountCode = http.get_element("accountCode");
-  const auto fromDate    = http.get_element("fromDate");
-  const auto toDate      = http.get_element("toDate");
-  const auto country     = http.get_element("country");
+  const auto fromDate = http.get_element("fromDate");
+  const auto toDate = http.get_element("toDate");
+  const auto country = http.get_element("country");
 
   if (!awbNo.empty()) {
     json doc = {{"shipment.awbno", {{"$in", csv_to_array(awbNo)}}}};
@@ -2944,119 +2911,60 @@ std::string WebServiceEntry::handle_shipment_GET(std::string &in,
 
 std::string WebServiceEntry::handle_account_GET(std::string &in,
                                                 MongodbClient &dbInst) {
-  /* Check for Query string */
   Http http(in);
-
-  /* Action based on uri in get request */
-  std::string uri(http.uri());
-
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
-             uri.c_str()));
+             http.uri().c_str()));
 
-  if (!uri.compare("/api/v1/account/account")) {
-    std::string collectionName("account");
+  if (http.uri() != "/api/v1/account/account")
+    return {};
 
-    /* user is trying to log in - authenticate now */
-    auto user = http.get_element("userId");
-    auto pwd = http.get_element("password");
-    auto accCode = http.get_element("accountCode");
+  const std::string collection("account");
+  const json projection = {{"_id", false}};
 
-    if (user.length() && pwd.length()) {
-      /* do an authentication with DB now */
-      // std::string document = "{\"loginCredentials.accountCode\" : \"" +  user
-      // + "\", " +
-      //                        "\"loginCredentials.accountPassword\" : \"" +
-      //                        pwd + "\"" +
-      //                         "}";
-      json document = json::object();
-      document = {{"loginCredentials.accountCode", user},
-                  {"loginCredentials.accountPassword", pwd}};
-      // std::string projection("{\"accountCode\" : true, \"_id\" : false}");
-      // std::string projection("{\"_id\" : false}");
-      json projection = json::object();
-      projection = {{"_id", false}};
+  // Fetch a single document; return OK on hit, ERROR with given status on miss
+  auto fetch_one = [&](const json &doc, const std::string &http_err,
+                       const json &err_body) {
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l query:%s\n"),
+               doc.dump().c_str()));
+    std::string record =
+        dbInst.get_document(collection, doc.dump(), projection.dump());
+    if (!record.empty())
+      return build_responseOK(record);
+    return build_responseERROR(err_body.dump(), http_err);
+  };
 
-      ACE_DEBUG(
-          (LM_DEBUG,
-           ACE_TEXT("%D [worker:%t] %M %N:%l document:%s projectionn:%s\n"),
-           document.dump().c_str(), projection.dump().c_str()));
+  const auto userId = http.get_element("userId");
+  const auto pwd = http.get_element("password");
+  const auto accCode = http.get_element("accountCode");
 
-      std::string record = dbInst.get_document(collectionName, document.dump(),
-                                               projection.dump());
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l User details:%s\n"),
-                 record.c_str()));
-
-      if (!record.length()) {
-        std::string err("400 Bad Request");
-        // std::string err_message("{\"status\" : \"faiure\", \"cause\" :
-        // \"Invalid Credentials\", \"errorCode\" : 404}");
-        json err_message = json::object();
-        err_message = {{"status", "failure"},
-                       {"cause", "Invalid Credentials"},
-                       {"error", 404}};
-        return (build_responseERROR(err_message.dump(), err));
-      } else {
-        return (build_responseOK(record));
-      }
-    } else if (accCode.length()) {
-
-      /* do an authentication with DB now */
-      // std::string document = "{\"loginCredentials.accountCode\" : \"" +
-      // accCode + "\" " +
-      //                         "}";
-      json document = json::object();
-      document = {{"loginCredentials.accountCode", accCode}};
-      // std::string projection("{\"accountCode\" : true, \"_id\" : false}");
-      // std::string projection("{\"_id\" : false}");
-      json projection = json::object();
-      projection = {{"_id", false}};
-
-      std::string record = dbInst.get_document(collectionName, document.dump(),
-                                               projection.dump());
-      if (record.length()) {
-        ACE_DEBUG(
-            (LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l Customer Account Info %s\n"),
-             record.c_str()));
-        return (build_responseOK(record));
-      } else {
-        std::string err("400 Bad Request");
-        // std::string err_message("{\"status\" : \"faiure\", \"cause\" :
-        // \"Invalid Account Code\", \"errorCode\" : 400}");
-        json err_message = json::object();
-        err_message = {{"status", "failure"},
-                       {"cause", "Invalid Account Code"},
-                       {"error", 400}};
-        return (build_responseERROR(err_message.dump(), err));
-      }
-    } else {
-      // for account list
-      // std::string projection("{\"_id\" : false}");
-      json projection = json::object();
-      projection = {{"_id", false}};
-
-      std::string record =
-          dbInst.get_documents(collectionName, projection.dump());
-      if (!record.length()) {
-        /* No Customer Account is found */
-        std::string err("404 Not Found");
-        // std::string err_message("{\"status\" : \"faiure\", \"cause\" :
-        // \"There\'s no customer record\", \"error\" : 404}");
-        json err_message = json::object();
-        err_message = {{"status", "failure"},
-                       {"cause", "Invalid Account Code"},
-                       {"error", 400}};
-        return (build_responseERROR(err_message.dump(), err));
-      }
-
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l account_list:%s\n"),
-                 record.c_str()));
-      return (build_responseOK(record));
-    }
+  if (!userId.empty() && !pwd.empty()) {
+    json doc = {{"loginCredentials.accountCode", userId},
+                {"loginCredentials.accountPassword", pwd}};
+    json err = {{"status", "failure"},
+                {"cause", "Invalid Credentials"},
+                {"error", 404}};
+    return fetch_one(doc, "400 Bad Request", err);
   }
-  return (std::string());
+
+  if (!accCode.empty()) {
+    json doc = {{"loginCredentials.accountCode", accCode}};
+    json err = {{"status", "failure"},
+                {"cause", "Invalid Account Code"},
+                {"error", 400}};
+    return fetch_one(doc, "400 Bad Request", err);
+  }
+
+  // No filter: return the full account list
+  std::string record = dbInst.get_documents(collection, projection.dump());
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l account_list:%s\n"),
+             record.c_str()));
+  if (record.empty()) {
+    json err = {{"status", "failure"},
+                {"cause", "There's no customer record"},
+                {"error", 404}};
+    return build_responseERROR(err.dump(), "404 Not Found");
+  }
+  return build_responseOK(record);
 }
 
 std::string WebServiceEntry::handle_inventory_GET(std::string &in,
