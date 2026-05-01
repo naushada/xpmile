@@ -366,6 +366,142 @@ MongodbClient::get_tracking_no_for_ajoul(const std::string &json_obj,
   return {};
 }
 
+std::string MongodbClient::store_file(const std::string &filename,
+                                      const std::string &content_type,
+                                      const std::vector<std::uint8_t> &data) {
+  auto conn = m_pool->acquire();
+  if (!conn) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
+                        "for GridFS store_file\n")));
+    return {};
+  }
+
+  try {
+    auto db     = conn->database(m_dbName.c_str());
+    auto bucket = db.gridfs_bucket();
+
+    // Generate the file OID upfront so we can return it without parsing
+    // the result of close() whose return type varies across driver versions.
+    bsoncxx::oid id;
+    bsoncxx::types::bson_value::view id_view{bsoncxx::types::b_oid{id}};
+
+    auto meta = bsoncxx::builder::stream::document{}
+                << "contentType" << content_type
+                << bsoncxx::builder::stream::finalize;
+
+    mongocxx::options::gridfs::upload opts;
+    opts.metadata(meta.view());
+
+    auto uploader = bucket.open_upload_stream_with_id(id_view, filename, opts);
+    uploader.write(data.data(), data.size());
+    uploader.close();
+
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l stored file '%s' (%zu bytes) "
+                        "OID: %s\n"),
+               filename.c_str(), data.size(), id.to_string().c_str()));
+    return id.to_string();
+  } catch (const std::exception &e) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l store_file failed: %s\n"),
+               e.what()));
+    return {};
+  }
+}
+
+std::vector<std::uint8_t> MongodbClient::fetch_file(const std::string &filename) {
+  auto conn = m_pool->acquire();
+  if (!conn) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
+                        "for GridFS fetch_file\n")));
+    return {};
+  }
+
+  try {
+    auto db         = conn->database(m_dbName.c_str());
+    auto bucket     = db.gridfs_bucket();
+    auto downloader = bucket.open_download_stream_by_name(filename);
+
+    auto file_len = static_cast<std::size_t>(downloader.file_length());
+    std::vector<std::uint8_t> buf(file_len);
+    downloader.read(buf.data(), file_len);
+
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l fetched file '%s' (%zu bytes)\n"),
+               filename.c_str(), buf.size()));
+    return buf;
+  } catch (const std::exception &e) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l fetch_file '%s' failed: %s\n"),
+               filename.c_str(), e.what()));
+    return {};
+  }
+}
+
+std::vector<std::uint8_t> MongodbClient::fetch_file_by_id(const std::string &oid_str) {
+  auto conn = m_pool->acquire();
+  if (!conn) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
+                        "for GridFS fetch_file_by_id\n")));
+    return {};
+  }
+
+  try {
+    auto db     = conn->database(m_dbName.c_str());
+    auto bucket = db.gridfs_bucket();
+
+    bsoncxx::oid id(oid_str);
+    bsoncxx::types::bson_value::view id_view{bsoncxx::types::b_oid{id}};
+    auto downloader = bucket.open_download_stream(id_view);
+
+    auto file_len = static_cast<std::size_t>(downloader.file_length());
+    std::vector<std::uint8_t> buf(file_len);
+    downloader.read(buf.data(), file_len);
+
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l fetched file OID '%s' (%zu bytes)\n"),
+               oid_str.c_str(), buf.size()));
+    return buf;
+  } catch (const std::exception &e) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l fetch_file_by_id '%s' failed: %s\n"),
+               oid_str.c_str(), e.what()));
+    return {};
+  }
+}
+
+bool MongodbClient::delete_file(const std::string &oid_str) {
+  auto conn = m_pool->acquire();
+  if (!conn) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
+                        "for GridFS delete_file\n")));
+    return false;
+  }
+
+  try {
+    auto db     = conn->database(m_dbName.c_str());
+    auto bucket = db.gridfs_bucket();
+
+    bsoncxx::oid id(oid_str);
+    bsoncxx::types::bson_value::view id_view{bsoncxx::types::b_oid{id}};
+    bucket.delete_file(id_view);
+
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l deleted GridFS file OID '%s'\n"),
+               oid_str.c_str()));
+    return true;
+  } catch (const std::exception &e) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l delete_file '%s' failed: %s\n"),
+               oid_str.c_str(), e.what()));
+    return false;
+  }
+}
+
 JsonExtract MongodbClient::from_json(const std::string &json_obj,
                                      const std::string &key) const {
   bsoncxx::document::value doc_val = bsoncxx::from_json(json_obj.c_str());

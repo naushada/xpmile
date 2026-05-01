@@ -19,8 +19,10 @@
 #include <mongocxx/bulk_write.hpp>
 #include <mongocxx/client.hpp>
 #include <mongocxx/cursor.hpp>
+#include <mongocxx/gridfs/bucket.hpp>
 #include <mongocxx/instance.hpp>
 #include <mongocxx/options/find.hpp>
+#include <mongocxx/options/gridfs/upload.hpp>
 #include <mongocxx/pool.hpp>
 #include <mongocxx/stdx.hpp>
 #include <mongocxx/uri.hpp>
@@ -187,6 +189,48 @@ public:
    */
   std::string get_tracking_no_for_ajoul(const std::string &json_obj,
                                         std::string &reference_no);
+  ///@}
+
+  /** @name GridFS file storage */
+  ///@{
+  /**
+   * @brief Upload a binary file to GridFS.
+   *
+   * The file is sharded into chunks (default 255 KB) and stored in the
+   * @c fs.files / @c fs.chunks collections of the active database.
+   * The @p content_type string is persisted as GridFS metadata so it can be
+   * recovered on download without additional lookups.
+   *
+   * @param filename      Logical name used to retrieve the file later.
+   * @param content_type  MIME type, e.g. @c "application/pdf", @c "image/png".
+   * @param data          Raw file bytes.
+   * @return OID string of the stored file, or empty on failure.
+   */
+  std::string store_file(const std::string &filename,
+                         const std::string &content_type,
+                         const std::vector<std::uint8_t> &data);
+
+  /**
+   * @brief Download a file from GridFS by its logical name.
+   * @param filename  Name used when the file was uploaded.
+   * @return Raw file bytes, or empty vector if the file is not found.
+   */
+  std::vector<std::uint8_t> fetch_file(const std::string &filename);
+
+  /**
+   * @brief Download a file from GridFS by its OID.
+   * @param oid  OID string returned by @c store_file().
+   * @return Raw file bytes, or empty vector if the file is not found.
+   */
+  std::vector<std::uint8_t> fetch_file_by_id(const std::string &oid);
+
+  /**
+   * @brief Delete a file (chunks + metadata) from GridFS by its OID.
+   * @param oid  OID string returned by @c store_file().
+   * @return @c true on success, @c false if the file is not found or an
+   *         error occurs.
+   */
+  bool delete_file(const std::string &oid);
   ///@}
 
   /** @name JSON extraction utility */
