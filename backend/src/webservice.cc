@@ -648,7 +648,7 @@ std::string MicroService::handle_document_POST(std::string &in,
       auto result =
           dbInst.from_json_element_to_string(content, "corporate", value);
 
-      if (!result) {
+      if (result) {
         coll.clear();
         coll = value + "_attachment";
       }
@@ -991,13 +991,15 @@ std::string MicroService::handle_inventory_GET(std::string &in,
     return {};
 
   const json projection = {{"_id", false}};
-  const auto sku     = http.get_element("sku");
+  const auto sku = http.get_element("sku");
   const auto accCode = http.get_element("accountCode");
 
   // Build filter from whichever params are present; empty doc fetches all
   json doc = json::object();
-  if (!accCode.empty()) doc["accountCode"] = accCode;
-  if (!sku.empty())     doc["sku"]         = sku;
+  if (!accCode.empty())
+    doc["accountCode"] = accCode;
+  if (!sku.empty())
+    doc["sku"] = sku;
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Inventory query:%s\n"),
              doc.dump().c_str()));
@@ -1008,7 +1010,9 @@ std::string MicroService::handle_inventory_GET(std::string &in,
     return build_responseOK(record);
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l No Record found\n")));
-  json err = {{"status", "failure"}, {"cause", "There's no Inventory Record"}, {"error", 404}};
+  json err = {{"status", "failure"},
+              {"cause", "There's no Inventory Record"},
+              {"error", 404}};
   return build_responseERROR(err.dump(), "404 Not Found");
 }
 
@@ -1025,15 +1029,15 @@ std::string MicroService::handle_document_GET(std::string &in,
   if (http.uri() != "/api/v1/document")
     return {};
 
-  const json projection  = {{"_id", false}};
-  const auto collection  = http.get_element("corporate");
-  const auto userId      = http.get_element("userId");
-  const auto fileName    = http.get_element("file");
+  const json projection = {{"_id", false}};
+  const auto collection = http.get_element("corporate");
+  const auto userId = http.get_element("userId");
+  const auto fileName = http.get_element("file");
 
   json doc = {{"corporate", collection}};
   if (!userId.empty()) {
     doc["userId"] = userId;
-    doc["file"]   = fileName;
+    doc["file"] = fileName;
   }
 
   ACE_DEBUG((LM_DEBUG,
@@ -1044,7 +1048,8 @@ std::string MicroService::handle_document_GET(std::string &in,
 
   if (!record.empty())
     return build_responseOK(record);
-  json err = {{"status", "failure"}, {"cause", "Document not found"}, {"error", 404}};
+  json err = {
+      {"status", "failure"}, {"cause", "Document not found"}, {"error", 404}};
   return build_responseERROR(err.dump(), "404 Not Found");
 }
 
@@ -1093,21 +1098,22 @@ std::string MicroService::handle_shipment_PUT(std::string &in,
     return {};
 
   const std::string coll("shipping");
-  const auto content          = http.body();
-  const auto awbNo            = http.get_element("shipmentNo");
-  const auto accCode          = http.get_element("accountCode");
+  const auto content = http.body();
+  const auto awbNo = http.get_element("shipmentNo");
+  const auto accCode = http.get_element("accountCode");
   const auto isSingleShipment = http.get_element("isSingleShipment");
 
   const json not_pod = {{"$ne", "Proof of Delivery"}};
 
   // Execute update and return success or error response
   auto do_update = [&](const json &query, const json &doc) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
                doc.dump().c_str(), query.dump().c_str()));
     if (dbInst.update_collection(coll, query.dump(), doc.dump()))
       return build_responseOK(json{{"status", "success"}}.dump());
-    json err = {{"status", "failure"}, {"cause", "Shipment Update Failed"}, {"error", 400}};
+    json err = {{"status", "failure"},
+                {"cause", "Shipment Update Failed"},
+                {"error", 400}};
     return build_responseERROR(err.dump(), "400 Bad Request");
   };
 
@@ -1136,9 +1142,10 @@ std::string MicroService::handle_shipment_PUT(std::string &in,
                 {"shipment.shipmentInformation.activity.event", not_pod}};
   if (!accCode.empty())
     query["accountCode"] = accCode;
-  return do_update(query,
-                   {{"$push", {{"shipment.shipmentInformation.activity",
-                                json::parse(content)}}}});
+  return do_update(
+      query,
+      {{"$push",
+        {{"shipment.shipmentInformation.activity", json::parse(content)}}}});
 }
 
 std::string MicroService::handle_inventory_PUT(std::string &in,
@@ -1147,25 +1154,28 @@ std::string MicroService::handle_inventory_PUT(std::string &in,
   if (http.uri() != "/api/v1/inventory")
     return {};
 
-  const auto sku      = http.get_element("sku");
-  const auto qty      = http.get_element("qty");
-  const auto acc      = http.get_element("accountCode");
+  const auto sku = http.get_element("sku");
+  const auto qty = http.get_element("qty");
+  const auto acc = http.get_element("accountCode");
   const auto isUpdate = http.get_element("isUpdate");
 
   json query = json::object();
-  if (!sku.empty()) query["sku"]         = sku;
-  if (!acc.empty()) query["accountCode"] = acc;
+  if (!sku.empty())
+    query["sku"] = sku;
+  if (!acc.empty())
+    query["accountCode"] = acc;
 
   const int delta = isUpdate.empty() ? -std::stoi(qty) : std::stoi(qty);
   json doc = {{"$inc", {{"qty", delta}}}};
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("inventory", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
 
-  json err = {{"status", "failure"}, {"cause", "Inventory Update Failed"}, {"error", 400}};
+  json err = {{"status", "failure"},
+              {"cause", "Inventory Update Failed"},
+              {"error", 400}};
   return build_responseERROR(err.dump(), "400 Bad Request");
 }
 
@@ -1184,13 +1194,14 @@ std::string MicroService::handle_account_PUT(std::string &in,
 
   json doc = {{"$set", json::parse(content)}};
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("account", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
 
-  json err = {{"status", "failure"}, {"cause", "Account Update Failed"}, {"error", 400}};
+  json err = {{"status", "failure"},
+              {"cause", "Account Update Failed"},
+              {"error", 400}};
   return build_responseERROR(err.dump(), "400 Bad Request");
 }
 
@@ -1435,8 +1446,7 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
   ACE_INET_Addr peerAddr;
 
   if (m_server.accept(peerStream, &peerAddr) != 0) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Master:%t] %M %N:%l accept failed\n")));
+    ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l accept failed\n")));
     return (0);
   }
 
@@ -1463,9 +1473,9 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
   connEnt->handle(fd);
   connEnt->connAddr(peerAddr);
 
-  ACE_Reactor::instance()->register_handler(
-      connEnt.get(),
-      ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
+  ACE_Reactor::instance()->register_handler(connEnt.get(),
+                                            ACE_Event_Handler::READ_MASK |
+                                                ACE_Event_Handler::SIGNAL_MASK);
 
   m_connectionPool.emplace(fd, std::move(connEnt));
 
@@ -1497,9 +1507,9 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t *s, ucontext_t *ctx) {
   m_connectionPool.clear();
 
   // Stop accepting new connections and deregister the server handler.
-  ACE_Reactor::instance()->remove_handler(
-      m_server.get_handle(),
-      ACE_Event_Handler::ACCEPT_MASK | ACE_Event_Handler::SIGNAL_MASK);
+  ACE_Reactor::instance()->remove_handler(m_server.get_handle(),
+                                          ACE_Event_Handler::ACCEPT_MASK |
+                                              ACE_Event_Handler::SIGNAL_MASK);
 
   return (0);
 }
@@ -1637,9 +1647,10 @@ WebConnection::WebConnection(WebServer *parent) {
 }
 
 WebConnection::~WebConnection() {
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l handle:%d webconnection closing\n"),
-             m_handle));
+  ACE_DEBUG(
+      (LM_DEBUG,
+       ACE_TEXT("%D [Master:%t] %M %N:%l handle:%d webconnection closing\n"),
+       m_handle));
   if (m_handle != ACE_INVALID_HANDLE)
     ::close(m_handle);
 }
@@ -1692,9 +1703,10 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
     std::string request = m_recvBuf.substr(0, msgLen);
     m_recvBuf.erase(0, msgLen);
 
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l complete request (%zu bytes):\n%s"),
-               msgLen, request.c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [Master:%t] %M %N:%l complete request (%zu bytes):\n%s"),
+         msgLen, request.c_str()));
 
     WebServiceEntry wentry;
     wentry.process_request(handle, request, *(parent()->mongodbcInst()));
@@ -1714,7 +1726,8 @@ ACE_INT32 WebConnection::handle_signal(int signum, siginfo_t *s,
   return (0);
 }
 
-ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle, ACE_Reactor_Mask mask) {
+ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle,
+                                      ACE_Reactor_Mask mask) {
   ACE_UNUSED_ARG(mask);
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::handle_close "
@@ -1744,14 +1757,16 @@ std::string WebServiceEntry::handle_DELETE(std::string &in,
   Http http(in);
 
   if (http.uri() != "/api/v1/shipment/awblist") {
-    json err = {{"status", "failure"}, {"cause", "Invalid AWB Bill Number"}, {"error", 400}};
+    json err = {{"status", "failure"},
+                {"cause", "Invalid AWB Bill Number"},
+                {"error", 400}};
     return build_responseERROR(err.dump(), "400 Bad Request");
   }
 
   const std::string coll("shipping");
-  const auto awbNo     = http.get_element("awbList");
+  const auto awbNo = http.get_element("awbList");
   const auto startDate = http.get_element("startDate");
-  const auto endDate   = http.get_element("endDate");
+  const auto endDate = http.get_element("endDate");
 
   auto csv_to_array = [](const std::string &csv) {
     json arr = json::array();
@@ -1770,7 +1785,8 @@ std::string WebServiceEntry::handle_DELETE(std::string &in,
   } else if (!startDate.empty() && !endDate.empty()) {
     filter = {{"createdOn", {{"$gte", startDate}, {"$lte", endDate}}}};
   } else {
-    json err = {{"status", "failure"}, {"cause", "Invalid AWB Number"}, {"error", 400}};
+    json err = {
+        {"status", "failure"}, {"cause", "Invalid AWB Number"}, {"error", 400}};
     return build_responseERROR(err.dump(), "400 Bad Request");
   }
 
@@ -1780,7 +1796,9 @@ std::string WebServiceEntry::handle_DELETE(std::string &in,
   if (dbInst.delete_document(coll, filter.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
 
-  json err = {{"status", "failure"}, {"cause", "Delete operation failed"}, {"error", 400}};
+  json err = {{"status", "failure"},
+              {"cause", "Delete operation failed"},
+              {"error", 400}};
   return build_responseERROR(err.dump(), "400 Bad Request");
 }
 
@@ -1799,16 +1817,20 @@ std::int32_t WebServiceEntry::process_request(ACE_HANDLE handle,
   Http http(req);
   const std::string &method = http.method();
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l %s %s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l %s %s\n"),
              method.c_str(), http.uri().c_str()));
 
   std::string rsp;
-  if      (method == "OPTIONS") rsp = handle_OPTIONS(req);
-  else if (method == "GET")     rsp = handle_GET(req, dbInst);
-  else if (method == "POST")    rsp = handle_POST(req, dbInst);
-  else if (method == "PUT")     rsp = handle_PUT(req, dbInst);
-  else if (method == "DELETE")  rsp = handle_DELETE(req, dbInst);
+  if (method == "OPTIONS")
+    rsp = handle_OPTIONS(req);
+  else if (method == "GET")
+    rsp = handle_GET(req, dbInst);
+  else if (method == "POST")
+    rsp = handle_POST(req, dbInst);
+  else if (method == "PUT")
+    rsp = handle_PUT(req, dbInst);
+  else if (method == "DELETE")
+    rsp = handle_DELETE(req, dbInst);
   else {
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [worker:%t] %M %N:%l unsupported method: %s\n"),
@@ -2307,7 +2329,7 @@ std::string WebServiceEntry::handle_document_POST(std::string &in,
       auto result =
           dbInst.from_json_element_to_string(content, "corporate", value);
 
-      if (!result) {
+      if (result) {
         coll.clear();
         coll = value + "_attachment";
       }
@@ -2656,13 +2678,15 @@ std::string WebServiceEntry::handle_inventory_GET(std::string &in,
     return {};
 
   const json projection = {{"_id", false}};
-  const auto sku     = http.get_element("sku");
+  const auto sku = http.get_element("sku");
   const auto accCode = http.get_element("accountCode");
 
   // Build filter from whichever params are present; empty doc fetches all
   json doc = json::object();
-  if (!accCode.empty()) doc["accountCode"] = accCode;
-  if (!sku.empty())     doc["sku"]         = sku;
+  if (!accCode.empty())
+    doc["accountCode"] = accCode;
+  if (!sku.empty())
+    doc["sku"] = sku;
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Inventory query:%s\n"),
              doc.dump().c_str()));
@@ -2673,7 +2697,9 @@ std::string WebServiceEntry::handle_inventory_GET(std::string &in,
     return build_responseOK(record);
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l No Record found\n")));
-  json err = {{"status", "failure"}, {"cause", "There's no Inventory Record"}, {"error", 404}};
+  json err = {{"status", "failure"},
+              {"cause", "There's no Inventory Record"},
+              {"error", 404}};
   return build_responseERROR(err.dump(), "404 Not Found");
 }
 
@@ -2691,14 +2717,14 @@ std::string WebServiceEntry::handle_document_GET(std::string &in,
     return {};
 
   const json projection = {{"_id", false}};
-  const auto collection  = http.get_element("corporate");
-  const auto userId      = http.get_element("userId");
-  const auto fileName    = http.get_element("file");
+  const auto collection = http.get_element("corporate");
+  const auto userId = http.get_element("userId");
+  const auto fileName = http.get_element("file");
 
   json doc = {{"corporate", collection}};
   if (!userId.empty()) {
     doc["userId"] = userId;
-    doc["file"]   = fileName;
+    doc["file"] = fileName;
   }
 
   ACE_DEBUG((LM_DEBUG,
@@ -2709,7 +2735,8 @@ std::string WebServiceEntry::handle_document_GET(std::string &in,
 
   if (!record.empty())
     return build_responseOK(record);
-  json err = {{"status", "failure"}, {"cause", "Document not found"}, {"error", 404}};
+  json err = {
+      {"status", "failure"}, {"cause", "Document not found"}, {"error", 404}};
   return build_responseERROR(err.dump(), "404 Not Found");
 }
 
@@ -2825,21 +2852,22 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string &in,
     return {};
 
   const std::string coll("shipping");
-  const auto content          = http.body();
-  const auto awbNo            = http.get_element("shipmentNo");
-  const auto accCode          = http.get_element("accountCode");
+  const auto content = http.body();
+  const auto awbNo = http.get_element("shipmentNo");
+  const auto accCode = http.get_element("accountCode");
   const auto isSingleShipment = http.get_element("isSingleShipment");
 
   const json not_pod = {{"$ne", "Proof of Delivery"}};
 
   // Execute update and return success or error response
   auto do_update = [&](const json &query, const json &doc) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
                doc.dump().c_str(), query.dump().c_str()));
     if (dbInst.update_collection(coll, query.dump(), doc.dump()))
       return build_responseOK(json{{"status", "success"}}.dump());
-    json err = {{"status", "failure"}, {"cause", "Shipment Update Failed"}, {"error", 400}};
+    json err = {{"status", "failure"},
+                {"cause", "Shipment Update Failed"},
+                {"error", 400}};
     return build_responseERROR(err.dump(), "400 Bad Request");
   };
 
@@ -2868,9 +2896,10 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string &in,
                 {"shipment.shipmentInformation.activity.event", not_pod}};
   if (!accCode.empty())
     query["accountCode"] = accCode;
-  return do_update(query,
-                   {{"$push", {{"shipment.shipmentInformation.activity",
-                                json::parse(content)}}}});
+  return do_update(
+      query,
+      {{"$push",
+        {{"shipment.shipmentInformation.activity", json::parse(content)}}}});
 }
 
 std::string WebServiceEntry::handle_inventory_PUT(std::string &in,
@@ -2879,25 +2908,28 @@ std::string WebServiceEntry::handle_inventory_PUT(std::string &in,
   if (http.uri() != "/api/v1/inventory")
     return {};
 
-  const auto sku      = http.get_element("sku");
-  const auto qty      = http.get_element("qty");
-  const auto acc      = http.get_element("accountCode");
+  const auto sku = http.get_element("sku");
+  const auto qty = http.get_element("qty");
+  const auto acc = http.get_element("accountCode");
   const auto isUpdate = http.get_element("isUpdate");
 
   json query = json::object();
-  if (!sku.empty()) query["sku"]         = sku;
-  if (!acc.empty()) query["accountCode"] = acc;
+  if (!sku.empty())
+    query["sku"] = sku;
+  if (!acc.empty())
+    query["accountCode"] = acc;
 
   const int delta = isUpdate.empty() ? -std::stoi(qty) : std::stoi(qty);
   json doc = {{"$inc", {{"qty", delta}}}};
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("inventory", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
 
-  json err = {{"status", "failure"}, {"cause", "Inventory Update Failed"}, {"error", 400}};
+  json err = {{"status", "failure"},
+              {"cause", "Inventory Update Failed"},
+              {"error", 400}};
   return build_responseERROR(err.dump(), "400 Bad Request");
 }
 
@@ -2916,13 +2948,14 @@ std::string WebServiceEntry::handle_account_PUT(std::string &in,
 
   json doc = {{"$set", json::parse(content)}};
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("account", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
 
-  json err = {{"status", "failure"}, {"cause", "Account Update Failed"}, {"error", 400}};
+  json err = {{"status", "failure"},
+              {"cause", "Account Update Failed"},
+              {"error", 400}};
   return build_responseERROR(err.dump(), "400 Bad Request");
 }
 
