@@ -3,8 +3,10 @@
 
 #include <chrono>
 #include <cstdint>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
+#include <sstream>
 #include <tuple>
 #include <variant>
 #include <vector>
@@ -22,6 +24,7 @@
 #include <mongocxx/gridfs/bucket.hpp>
 #include <mongocxx/instance.hpp>
 #include <mongocxx/options/find.hpp>
+#include <mongocxx/options/find_one_and_update.hpp>
 #include <mongocxx/options/gridfs/upload.hpp>
 #include <mongocxx/pool.hpp>
 #include <mongocxx/stdx.hpp>
@@ -189,6 +192,36 @@ public:
    */
   std::string get_tracking_no_for_ajoul(const std::string &json_obj,
                                         std::string &reference_no);
+  ///@}
+
+  /** @name AWB number generation */
+  ///@{
+  /**
+   * @brief Atomically allocate the next AWB (Air Waybill) number.
+   *
+   * Uses the @b counter-collection pattern: a document
+   * @c {"_id":"awbno","seq":<n>} in the @c counters collection is atomically
+   * incremented with @c $inc via @c find_one_and_update (upsert).  Because
+   * MongoDB performs this as a single atomic operation at the document level,
+   * concurrent workers can call this method safely without generating
+   * duplicate numbers or needing any application-level lock.
+   *
+   * The returned string has the form @c \<prefix\>NNNNNNNNN, where NNNNNNNNN is
+   * a zero-padded 9-digit decimal sequence number starting at 1.  The prefix
+   * defaults to @c "AWB", giving values like @c AWB000000001, @c AWB000000002,
+   * etc.  Up to 999,999,999 unique numbers can be generated before wrap-around.
+   *
+   * @par Counter document schema (@c counters collection)
+   * @code
+   * { "_id": "awbno", "seq": <int64> }
+   * @endcode
+   *
+   * @param prefix  Leading string prepended to the numeric part.
+   *                Pass a carrier code (e.g. @c "DHL", @c "FDX") to issue
+   *                per-carrier sequences.
+   * @return Formatted AWB string (e.g. @c "AWB000000042"), or empty on error.
+   */
+  std::string next_awbno(const std::string &prefix = "AWB");
   ///@}
 
   /** @name GridFS file storage */

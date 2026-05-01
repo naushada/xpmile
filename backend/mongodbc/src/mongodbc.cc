@@ -366,6 +366,59 @@ MongodbClient::get_tracking_no_for_ajoul(const std::string &json_obj,
   return {};
 }
 
+std::string MongodbClient::next_awbno(const std::string &prefix) {
+  auto conn = m_pool->acquire();
+  if (!conn) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
+                        "for next_awbno\n")));
+    return {};
+  }
+
+  try {
+    auto collection =
+        conn->database(m_dbName.c_str()).collection("counters");
+
+    // Atomically increment the counter; upsert creates the document with
+    // seq=1 on the very first call.
+    auto filter = bsoncxx::builder::stream::document{}
+                  << "_id" << "awbno"
+                  << bsoncxx::builder::stream::finalize;
+
+    auto update = bsoncxx::builder::stream::document{}
+                  << "$inc"
+                  << bsoncxx::builder::stream::open_document
+                      << "seq" << std::int64_t(1)
+                  << bsoncxx::builder::stream::close_document
+                  << bsoncxx::builder::stream::finalize;
+
+    mongocxx::options::find_one_and_update opts;
+    opts.upsert(true);
+    opts.return_document(mongocxx::options::return_document::k_after);
+
+    auto result = collection.find_one_and_update(
+        filter.view(), update.view(), opts);
+
+    if (result) {
+      auto seq_elm = (*result)["seq"];
+      std::int64_t seq = (seq_elm.type() == bsoncxx::type::k_int64)
+                             ? seq_elm.get_int64().value
+                             : static_cast<std::int64_t>(seq_elm.get_int32().value);
+      std::ostringstream oss;
+      oss << prefix << std::setfill('0') << std::setw(9) << seq;
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l next_awbno: %s\n"),
+                 oss.str().c_str()));
+      return oss.str();
+    }
+  } catch (const std::exception &e) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Worker:%t] %M %N:%l next_awbno failed: %s\n"),
+               e.what()));
+  }
+  return {};
+}
+
 std::string MongodbClient::store_file(const std::string &filename,
                                       const std::string &content_type,
                                       const std::vector<std::uint8_t> &data) {
