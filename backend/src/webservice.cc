@@ -1743,69 +1743,45 @@ std::string WebServiceEntry::handle_DELETE(std::string &in,
                                            MongodbClient &dbInst) {
   Http http(in);
 
-  /* Action based on uri in get request */
-  std::string uri(http.uri());
-  // std::string document("");
-  json document = json::object();
-
-  if (!uri.compare("/api/v1/shipment/awblist")) {
-    /** Delete Shipment */
-    std::string coll("shipping");
-    std::string awbNo = http.get_element("awbList");
-    std::string startDate = http.get_element("startDate");
-    std::string endDate = http.get_element("endDate");
-    if (awbNo.length()) {
-      // awbList contains value with comma seperated and converting into an
-      // array
-      std::string lst("[");
-      std::string delim = ",";
-      auto start = 0U;
-      auto end = awbNo.find(delim);
-      while (end != std::string::npos) {
-        lst += "\"" + awbNo.substr(start, end - start) + "\"" + delim;
-        start = end + delim.length();
-        end = awbNo.find(delim, start);
-      }
-      lst += "\"" + awbNo.substr(start) + "\"";
-      lst += "]";
-
-      // document = "{\"shipmentNo\": {\"$in\" : " + lst + "}}";
-      document = {{"shipmentNo", {{"$in", lst}}}};
-
-    } else if (startDate.length() && endDate.length()) {
-      // deleting awb based on start & end date - bulk delete
-      // document = "{\"createdOn\": {\"$gte\" : \"" + startDate + "\"," +
-      // "\"$lte\" :\"" + endDate +"\"" +"}}";
-      document = {{"createdOn", {{"$gte", startDate}, {"$lte", endDate}}}};
-    } else {
-
-      std::string err("400 Bad Request");
-      // std::string err_message("{\"status\" : \"faiure\", \"cause\" :
-      // \"Invalid AWB Bill No.\", \"error\" : 400}");
-      json err_message = json::object();
-      err_message = {{"status", "failure"},
-                     {"cause", "Invalid AWB Number"},
-                     {"error", 400}};
-      return (build_responseERROR(err_message.dump(), err));
-    }
-
-    bool rsp = dbInst.delete_document(coll, document.dump());
-
-    if (rsp) {
-      // std::string r("");
-      json r = json::object();
-      // r = "{\"status\": \"success\"}";
-      r = {{"status", "success"}};
-      return (build_responseOK(r.dump()));
-    }
+  if (http.uri() != "/api/v1/shipment/awblist") {
+    json err = {{"status", "failure"}, {"cause", "Invalid AWB Bill Number"}, {"error", 400}};
+    return build_responseERROR(err.dump(), "400 Bad Request");
   }
 
-  std::string err("400 Bad Request");
-  json err_message = json::object();
-  err_message = {{"status", "failure"},
-                 {"cause", "Invalid AWB Bill Number"},
-                 {"error", 400}};
-  return (build_responseERROR(err_message.dump(), err));
+  const std::string coll("shipping");
+  const auto awbNo     = http.get_element("awbList");
+  const auto startDate = http.get_element("startDate");
+  const auto endDate   = http.get_element("endDate");
+
+  auto csv_to_array = [](const std::string &csv) {
+    json arr = json::array();
+    std::size_t start = 0, end;
+    while ((end = csv.find(',', start)) != std::string::npos) {
+      arr.push_back(csv.substr(start, end - start));
+      start = end + 1;
+    }
+    arr.push_back(csv.substr(start));
+    return arr;
+  };
+
+  json filter;
+  if (!awbNo.empty()) {
+    filter = {{"shipmentNo", {{"$in", csv_to_array(awbNo)}}}};
+  } else if (!startDate.empty() && !endDate.empty()) {
+    filter = {{"createdOn", {{"$gte", startDate}, {"$lte", endDate}}}};
+  } else {
+    json err = {{"status", "failure"}, {"cause", "Invalid AWB Number"}, {"error", 400}};
+    return build_responseERROR(err.dump(), "400 Bad Request");
+  }
+
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l delete filter:%s\n"),
+             filter.dump().c_str()));
+
+  if (dbInst.delete_document(coll, filter.dump()))
+    return build_responseOK(json{{"status", "success"}}.dump());
+
+  json err = {{"status", "failure"}, {"cause", "Delete operation failed"}, {"error", 400}};
+  return build_responseERROR(err.dump(), "400 Bad Request");
 }
 
 /**
