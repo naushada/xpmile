@@ -1505,15 +1505,16 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t *s, ucontext_t *ctx) {
 }
 
 ACE_INT32 WebServer::handle_close(ACE_HANDLE handle, ACE_Reactor_Mask mask) {
+  ACE_UNUSED_ARG(mask);
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l Closing connection on handle %d "
-                      "for webServer\n"),
+             ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_close "
+                      "handle:%d\n"),
              handle));
-  if (handle > 0) {
+
+  if (handle != ACE_INVALID_HANDLE) {
     m_server.close();
     m_stopMe = true;
   }
-  ACE_UNUSED_ARG(mask);
 
   return (0);
 }
