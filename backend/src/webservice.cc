@@ -1483,36 +1483,23 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t *s, ucontext_t *ctx) {
   ACE_UNUSED_ARG(ctx);
 
   ACE_ERROR((LM_ERROR,
-             ACE_TEXT("%D [Master:%t] %M %N:%l Signal Number %d and its name "
-                      "%S is received for WebServer\n"),
+             ACE_TEXT("%D [Master:%t] %M %N:%l signal %d (%S) received, "
+                      "initiating shutdown\n"),
              signum, signum));
 
-  if (!workerPool().empty()) {
-    std::for_each(
-        workerPool().begin(), workerPool().end(),
-        [&](const std::unique_ptr<MicroService> &ms) -> void {
-          semaphore().acquire();
-          ACE_Message_Block *req = nullptr;
-          ACE_NEW_NORETURN(req, ACE_Message_Block(1));
-          req->msg_type(ACE_Message_Block::MB_PCSIG);
-          if (ms->putq(req) < 0) {
-            req->release();
-          }
-          ACE_ERROR(
-              (LM_ERROR,
-               ACE_TEXT("%D [Master:%t] %M %N:%l Sending to Worker Node\n")));
-        });
+  // Unregister every active client connection from the reactor before
+  // destroying the handlers, preventing dangling raw pointer access.
+  for (auto &[fd, conn] : m_connectionPool) {
+    ACE_Reactor::instance()->remove_handler(
+        fd, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK |
+                ACE_Event_Handler::DONT_CALL);
   }
+  m_connectionPool.clear();
 
-  if (!connectionPool().empty()) {
-    for (auto it = connectionPool().begin(); it != connectionPool().end();) {
-      it = connectionPool().erase(it);
-    }
-  }
-
-  ACE_Reactor::instance()->remove_handler(m_server.get_handle(),
-                                          ACE_Event_Handler::ACCEPT_MASK |
-                                              ACE_Event_Handler::SIGNAL_MASK);
+  // Stop accepting new connections and deregister the server handler.
+  ACE_Reactor::instance()->remove_handler(
+      m_server.get_handle(),
+      ACE_Event_Handler::ACCEPT_MASK | ACE_Event_Handler::SIGNAL_MASK);
 
   return (0);
 }
