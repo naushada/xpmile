@@ -1434,46 +1434,49 @@ ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value &tv, const void *act) {
 
 ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
   ACE_UNUSED_ARG(handle);
-  int ret_status = 0;
   ACE_SOCK_Stream peerStream;
   ACE_INET_Addr peerAddr;
-  // WebConnection* connEnt = nullptr;
 
-  ret_status = m_server.accept(peerStream, &peerAddr);
-
-  if (!ret_status) {
-    auto it = m_connectionPool.find(peerStream.get_handle());
-    if (it != std::end(m_connectionPool)) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [Master:%t] %M %N:%l Existing connection on "
-                          "handle %d found in connection pool\n"),
-                 peerStream.get_handle()));
-      // connEnt = it->second;
-    } else {
-      // ACE_NEW_RETURN(connEnt, WebConnection(this), -1);
-      auto connEnt = std::make_unique<WebConnection>(this);
-
-      ACE_DEBUG(
-          (LM_DEBUG,
-           ACE_TEXT("%D [Master:%t] %M %N:%l New connection is created for "
-                    "handle: %d peer ip address: %u (%s) peer port %d\n"),
-           peerStream.get_handle(), peerAddr.get_ip_address(),
-           peerAddr.get_host_addr(), peerAddr.get_port_number()));
-
-      connEnt->handle(peerStream.get_handle());
-      connEnt->connAddr(peerAddr);
-      // Discrete event handler for each connected client.
-      ACE_Reactor::instance()->register_handler(
-          connEnt.get(),
-          ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
-      // Transfer ownershipt to STL container
-      m_connectionPool.at(peerStream.get_handle()) = std::move(connEnt);
-    }
-  } else {
-    ACE_ERROR((
-        LM_ERROR,
-        ACE_TEXT("%D [Master:%t] %M %N:%l Accept to new connection failed\n")));
+  if (m_server.accept(peerStream, &peerAddr) != 0) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [Master:%t] %M %N:%l accept failed\n")));
+    return (0);
   }
+
+  const ACE_HANDLE fd = peerStream.get_handle();
+
+  // The OS occasionally recycles a file descriptor whose pool entry was not
+  // cleaned up (e.g. due to an earlier error path).  Nullify the stale
+  // handler's handle before erasing so that its destructor does not call
+  // close() on the fd we just accepted.
+  auto it = m_connectionPool.find(fd);
+  if (it != std::end(m_connectionPool)) {
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [Master:%t] %M %N:%l stale pool entry for "
+                        "handle %d — removing before reuse\n"),
+               fd));
+    it->second->handle(ACE_INVALID_HANDLE);
+    ACE_Reactor::instance()->remove_handler(
+        fd, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK |
+                ACE_Event_Handler::DONT_CALL);
+    m_connectionPool.erase(it);
+  }
+
+  auto connEnt = std::make_unique<WebConnection>(this);
+  connEnt->handle(fd);
+  connEnt->connAddr(peerAddr);
+
+  ACE_Reactor::instance()->register_handler(
+      connEnt.get(),
+      ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
+
+  m_connectionPool.emplace(fd, std::move(connEnt));
+
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [Master:%t] %M %N:%l new connection handle:%d "
+                      "peer %s:%d active:%zu\n"),
+             fd, peerAddr.get_host_addr(), peerAddr.get_port_number(),
+             m_connectionPool.size()));
 
   return (0);
 }
@@ -1650,10 +1653,10 @@ WebConnection::WebConnection(WebServer *parent) {
 
 WebConnection::~WebConnection() {
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l handle:%d for webconnection is "
-                      "closed successfully\n"),
+             ACE_TEXT("%D [Master:%t] %M %N:%l handle:%d webconnection closing\n"),
              m_handle));
-  close(m_handle);
+  if (m_handle != ACE_INVALID_HANDLE)
+    ::close(m_handle);
 }
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
