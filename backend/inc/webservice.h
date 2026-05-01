@@ -197,14 +197,13 @@ class MicroService : public ACE_Task<ACE_MT_SYNCH> {
 /**
  * @brief ACE event handler for a single accepted client connection.
  *
- * Registered with the reactor on accept.  Reads incoming bytes and
- * forwards them to the next available @c MicroService worker.  A
- * keep-alive timer is started on creation and restarted on every
- * successful read; when it fires the connection is closed.
+ * Registered with the reactor on accept.  Accumulates incoming bytes in
+ * @c m_recvBuf until @c Http::message_length() reports a complete message,
+ * then dispatches to @c WebServiceEntry::process_request().  The connection
+ * is closed as soon as the peer disconnects or a socket error occurs.
  */
 class WebConnection : public ACE_Event_Handler {
     public:
-        ACE_INT32 handle_timeout(const ACE_Time_Value &tv, const void *act=0) override;
         ACE_INT32 handle_input(ACE_HANDLE handle) override;
         ACE_INT32 handle_signal(int signum, siginfo_t *s = 0, ucontext_t *u = 0) override;
         ACE_INT32 handle_close (ACE_HANDLE = ACE_INVALID_HANDLE, ACE_Reactor_Mask = 0) override;
@@ -216,16 +215,6 @@ class WebConnection : public ACE_Event_Handler {
          */
         WebConnection(WebServer* parent);
         virtual ~WebConnection();
-
-        /// Return the keep-alive timer ID registered with the reactor.
-        long timerId() const {
-            return(m_timerId);
-        }
-
-        /// Set the keep-alive timer ID.
-        void timerId(long tid) {
-            m_timerId = tid;
-        }
 
         /// Return the underlying socket descriptor.
         ACE_HANDLE handle() const {
@@ -248,10 +237,10 @@ class WebConnection : public ACE_Event_Handler {
         }
 
     private:
-        long m_timerId;
         ACE_HANDLE m_handle;
         ACE_INET_Addr m_connAddr;
         WebServer* m_parent;
+        std::string m_recvBuf;
 };
 
 /**
@@ -292,24 +281,6 @@ class WebServer : public ACE_Event_Handler {
         bool start();
         /// Request a graceful shutdown.
         bool stop();
-
-        /**
-         * @brief Schedule a keep-alive cleanup timer for @p handle.
-         * @param handle Socket descriptor to close on expiry.
-         * @param to     Timeout duration (default 30 minutes).
-         * @return Reactor timer ID; pass to stop_conn_cleanup_timer() to cancel.
-         */
-        long start_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to = ACE_Time_Value(1800,0));
-
-        /// Cancel a previously scheduled keep-alive timer.
-        void stop_conn_cleanup_timer(long timerId);
-
-        /**
-         * @brief Reset a keep-alive timer to a shorter expiry.
-         * @param handle Socket descriptor the timer is associated with.
-         * @param to     New timeout duration (default 60 seconds).
-         */
-        void restart_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to = ACE_Time_Value(60,0));
 
         /// Return the live connection pool (socket → handler map).
         std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>>& connectionPool() {

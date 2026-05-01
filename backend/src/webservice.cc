@@ -1428,37 +1428,7 @@ MicroService::~MicroService() {
 
 ACE_INT32 WebServer::handle_timeout(const ACE_Time_Value &tv, const void *act) {
   ACE_UNUSED_ARG(tv);
-  std::uintptr_t _handle = reinterpret_cast<std::uintptr_t>(act);
-
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT(
-           "%D [Master:%t] %M %N:%l WebServer::handle_timeout for handle:%d\n"),
-       _handle));
-  auto conIt = m_connectionPool.find(_handle);
-
-  if (conIt != std::end(m_connectionPool)) {
-
-    std::unique_ptr<WebConnection> connEnt = std::move(conIt->second);
-    /* let the reactor call handle_close on this handle */
-    ACE_Reactor::instance()->remove_handler(
-        _handle, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
-    stop_conn_cleanup_timer(connEnt->timerId());
-    /* reclaim the heap memory */
-    // delete connEnt;
-    m_connectionPool.erase(conIt);
-    // close(_handle);
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l active connection:%d \n"),
-               m_connectionPool.size()));
-
-  } else {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_timedout no "
-                        "connEnt found for handle %d\n"),
-               _handle));
-  }
-
+  ACE_UNUSED_ARG(act);
   return (0);
 }
 
@@ -1490,10 +1460,6 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
            peerStream.get_handle(), peerAddr.get_ip_address(),
            peerAddr.get_host_addr(), peerAddr.get_port_number()));
 
-      /*! Start Handle Cleanup Timer to get rid of this handle from
-       * connectionPool*/
-      long tId = start_conn_cleanup_timer(peerStream.get_handle());
-      connEnt->timerId(tId);
       connEnt->handle(peerStream.get_handle());
       connEnt->connAddr(peerAddr);
       // Discrete event handler for each connected client.
@@ -1540,28 +1506,12 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t *s, ucontext_t *ctx) {
 
   if (!connectionPool().empty()) {
     for (auto it = connectionPool().begin(); it != connectionPool().end();) {
-
-      // This is done explicitly for scoping of stack variable ---- don't remove
-      // it.
-      {
-        auto wc = std::move(it->second);
-        // increamenting it to next element.
-        it = connectionPool().erase(it);
-        stop_conn_cleanup_timer(wc->timerId());
-      }
-      // wc will be destroyed here.
-      ACE_ERROR((LM_ERROR,
-                 ACE_TEXT("%D [Master:%t] %M %N:%l its name %S is received for "
-                          "WebServer\n"),
-                 signum));
-      // delete wc;
+      it = connectionPool().erase(it);
     }
-    connectionPool().clear();
   }
 
   ACE_Reactor::instance()->remove_handler(m_server.get_handle(),
                                           ACE_Event_Handler::ACCEPT_MASK |
-                                              ACE_Event_Handler::TIMER_MASK |
                                               ACE_Event_Handler::SIGNAL_MASK);
 
   return (0);
@@ -1671,8 +1621,7 @@ WebServer::~WebServer() {
 
 bool WebServer::start() {
   ACE_Reactor::instance()->register_handler(
-      this, ACE_Event_Handler::ACCEPT_MASK | ACE_Event_Handler::TIMER_MASK |
-                ACE_Event_Handler::SIGNAL_MASK);
+      this, ACE_Event_Handler::ACCEPT_MASK | ACE_Event_Handler::SIGNAL_MASK);
   /* subscribe for signal */
   ACE_Sig_Set ss;
   ss.empty_set();
@@ -1694,50 +1643,7 @@ bool WebServer::start() {
 
 bool WebServer::stop() { return (true); }
 
-long WebServer::start_conn_cleanup_timer(ACE_HANDLE handle, ACE_Time_Value to) {
-  long timerId = -1;
-  /* 30 minutes */
-  // ACE_Time_Value to(1800,0);
-  timerId =
-      ACE_Reactor::instance()->schedule_timer(this, (const void *)handle, to);
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l webconnection cleanup timer is "
-                      "started for handle %d\n"),
-             handle));
-  return (timerId);
-}
-
-void WebServer::stop_conn_cleanup_timer(long timerId) {
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l webconnection cleanup "
-                                "timer is stopping\n")));
-  if (ACE_Reactor::instance()->cancel_timer(timerId)) {
-    ACE_DEBUG((
-        LM_DEBUG,
-        ACE_TEXT(
-            "%D [Master:%t] %M %N:%l Running timer is stopped succesfully\n")));
-  }
-}
-
-void WebServer::restart_conn_cleanup_timer(ACE_HANDLE handle,
-                                           ACE_Time_Value to) {
-  // ACE_Time_Value to(20,0);
-  auto conIt = connectionPool().find(handle);
-
-  if (conIt != std::end(connectionPool())) {
-    auto &connEnt = conIt->second;
-    long tId = connEnt->timerId();
-
-    if (!ACE_Reactor::instance()->reset_timer_interval(tId, to)) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [Master:%t] %M %N:%l webserver connection "
-                          "cleanup timer is re-started for handle %d\n"),
-                 handle));
-    }
-  }
-}
-
 WebConnection::WebConnection(WebServer *parent) {
-  m_timerId = -1;
   m_handle = -1;
   m_parent = parent;
 }
@@ -1750,106 +1656,62 @@ WebConnection::~WebConnection() {
   close(m_handle);
 }
 
-ACE_INT32 WebConnection::handle_timeout(const ACE_Time_Value &tv,
-                                        const void *act) {
-  (void)tv;
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l "
-                                "Webconnection::handle_timeout do nothing\n")));
-  return (0);
-}
-
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
-  std::vector<char> in(65536);
-  std::int32_t effectiveLength = 0;
-  std::stringstream ss("");
-  auto rc = ::recv(handle, in.data(), in.size(), MSG_PEEK);
+  char tmp[65536];
+  ssize_t rc = ::recv(handle, tmp, sizeof(tmp), 0);
+
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [Master:%t] %M %N:%l handle_input handle:%d rc:%d\n"),
              handle, rc));
 
-  if (!rc) {
-    rc = ::recv(handle, in.data(), in.size(), 0);
-    auto gc = parent()->connectionPool().erase(handle);
+  if (rc == 0) {
+    // Peer closed the connection cleanly
+    parent()->connectionPool().erase(handle);
     return (-1);
-
-  } else if (rc > 0) {
-    effectiveLength = static_cast<std::int32_t>(
-        Http::message_length(std::string(in.data(), rc)));
-
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l effectiveLength is %d\n"),
-               effectiveLength));
-
-    if (effectiveLength == 0) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [Master:%t] %M %N:%l incomplete message in peek, closing\n")));
-      return (-1);
-    }
   }
 
-  std::int32_t offset = 0;
-  std::vector<char> request(effectiveLength);
+  if (rc < 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      // Spurious reactor wakeup — data not ready yet, keep the connection open
+      return (0);
+    }
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [Master:%t] %M %N:%l recv error errno:%d\n"),
+               errno));
+    parent()->connectionPool().erase(handle);
+    return (-1);
+  }
 
-  do {
-    rc = ::recv(handle, request.data() + offset, effectiveLength - offset, 0);
-    if (rc <= 0) {
-      // Error handling
-      if (timerId() > 0) {
-        /* start 1/2 second timer i.e. 500 milli second*/
-        ACE_Time_Value to(0, 1);
-        parent()->stop_conn_cleanup_timer(timerId());
-        m_timerId = parent()->start_conn_cleanup_timer(handle, to);
-      }
-      return (-1);
+  m_recvBuf.append(tmp, rc);
+
+  // Process all complete messages that have accumulated in the buffer.
+  // A single recv() may deliver more than one pipelined request, and a
+  // single request may arrive across multiple recv() calls, so we loop
+  // until no full message remains.
+  while (!m_recvBuf.empty()) {
+    std::size_t msgLen = Http::message_length(m_recvBuf);
+
+    if (msgLen == 0 || m_recvBuf.size() < msgLen) {
+      // Headers not yet complete, or body not yet fully received — wait
+      // for the next handle_input() call to deliver the remaining bytes.
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [Master:%t] %M %N:%l partial message buffered "
+                          "(%zu bytes), waiting for more\n"),
+                 m_recvBuf.size()));
+      break;
     }
 
-    offset += rc;
-    // ss << std::string(in.data(), rc);
+    std::string request = m_recvBuf.substr(0, msgLen);
+    m_recvBuf.erase(0, msgLen);
 
-  } while (offset != effectiveLength);
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [Master:%t] %M %N:%l complete request (%zu bytes):\n%s"),
+               msgLen, request.c_str()));
 
-#if 0
-    /*_ _ _ _ _  _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _________________________
-     | 4-bytes handle   | 4-bytes db instance pointer   | 4 bytes Parent Instance | 4 bytes payload length |request (payload) |
-     |_ _ _ _ _ _ _ _ _ |_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _|_ _ _ _ _ _ _ _ _ __ __ _|_ _ _ _ _ _ _ _ _ _________________________|
-     */
-    std::stringstream data;
-    data.write(reinterpret_cast <const char *>(&handle), sizeof(handle));
-    /* db instance */
-    std::uintptr_t inst = reinterpret_cast<std::uintptr_t>(parent()->mongodbcInst());
-    data.write(reinterpret_cast <const char *>(&inst), sizeof(inst));
-    /* parent instance */
-    inst = reinterpret_cast<std::uintptr_t>(parent());
-    data.write(reinterpret_cast <const char *>(&inst), sizeof(inst));
-    /* Payload length */
-    auto len = ss.str().length();
-    data.write(reinterpret_cast <const char *>(&len), sizeof(std::uint32_t));
-    data.write(reinterpret_cast <const char *>(ss.str().data()),  len);
+    WebServiceEntry wentry;
+    wentry.process_request(handle, request, *(parent()->mongodbcInst()));
+  }
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l len %d req:\n%s"), len, ss.str().c_str()));
-#endif
-
-#if 0
-    /* Request is buffered now start processing it */
-    ACE_Message_Block* req = nullptr;
-    
-    ACE_NEW_NORETURN(req, ACE_Message_Block(data.str().length()));
-    if(req->copy(data.str().data(), data.str().length()) < 0) {
-        ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l copy failed\n")));
-    }
-
-    auto it = m_parent->currentWorker();
-    MicroService* mEnt = *it;
-    if(mEnt->putq(req) < 0) {
-        ACE_DEBUG((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l Failed to send request to worker\n")));
-        delete req;
-	}
-#endif
-  WebServiceEntry wentry;
-  std::string rr(request.begin(), request.end());
-  ACE_DEBUG(
-      (LM_DEBUG, ACE_TEXT("%D [Master:%t] %M %N:%l request:\n%s"), rr.c_str()));
-  wentry.process_request(handle, rr, *(parent()->mongodbcInst()));
   return (0);
 }
 
@@ -1857,27 +1719,18 @@ ACE_INT32 WebConnection::handle_signal(int signum, siginfo_t *s,
                                        ucontext_t *u) {
   ACE_UNUSED_ARG(s);
   ACE_UNUSED_ARG(u);
-
-  ACE_DEBUG((
-      LM_DEBUG,
-      ACE_TEXT("%D [Master:%t] %M %N:%l signal number - %d (%S) is received\n"),
-      signum));
-  if (m_timerId > 0) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l Running timer is stopped for "
-                        "signal (%S)\n"),
-               signum));
-    m_parent->stop_conn_cleanup_timer(m_timerId);
-  }
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [Master:%t] %M %N:%l signal %d (%S) received on "
+                      "handle %d\n"),
+             signum, signum, m_handle));
   return (0);
 }
 
-ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle,
-                                      ACE_Reactor_Mask mask) {
+ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle, ACE_Reactor_Mask mask) {
   ACE_UNUSED_ARG(mask);
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::handle_close "
-                      "handle %d will be closed upon timer expiry\n"),
+                      "handle %d\n"),
              handle));
   return (0);
 }
