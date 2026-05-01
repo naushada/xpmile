@@ -335,18 +335,28 @@ std::string MicroService::handle_shipment_POST(std::string &in,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length:%d \n"),
                  content.length()));
 
+      // Collect AWB numbers from the input before insert so they can be
+      // returned to the caller.  The bulk body is an object whose values are
+      // shipment documents; each document carries awbno inside "shipment".
+      auto awb_numbers = json::array();
+      try {
+        auto body = json::parse(content);
+        for (auto &[key, doc] : body.items())
+          if (doc.contains("shipment") && doc["shipment"].contains("awbno"))
+            awb_numbers.push_back(doc["shipment"]["awbno"].get<std::string>());
+      } catch (...) {}
+
       std::int32_t cnt =
           dbInst.create_bulk_document(dbInst.get_database(), coll, content);
 
       if (cnt) {
-        std::string rec = "{\"createdShipments\": " + std::to_string(cnt) + "}";
-        return (build_responseOK(rec));
+        json rec = {{"createdShipments", cnt}, {"awbNumbers", awb_numbers}};
+        return (build_responseOK(rec.dump()));
       } else {
-        std::string err("400 Bad Request");
-        std::string err_message(
-            "{\"status\" : \"faiure\", \"cause\" : \"Bulk Shipment Creation is "
-            "failed\", \"errorCode\" : 400}");
-        return (build_responseERROR(err_message, err));
+        json err_message = {{"status", "failure"},
+                            {"cause", "Bulk Shipment Creation Failed"},
+                            {"error", 400}};
+        return (build_responseERROR(err_message.dump(), "400 Bad Request"));
       }
     }
 
@@ -2008,24 +2018,25 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length:%d \n"),
                  content.length()));
 
+      auto awb_numbers = json::array();
+      try {
+        auto body = json::parse(content);
+        for (auto &[key, doc] : body.items())
+          if (doc.contains("shipment") && doc["shipment"].contains("awbno"))
+            awb_numbers.push_back(doc["shipment"]["awbno"].get<std::string>());
+      } catch (...) {}
+
       std::int32_t cnt =
           dbInst.create_bulk_document(dbInst.get_database(), coll, content);
 
       if (cnt) {
-        // std::string rec = "{\"createdShipments\": " + std::to_string(cnt) +
-        // "}";
-        json rec = json::object();
-        rec = {{"createdShipments", std::to_string(cnt)}};
+        json rec = {{"createdShipments", cnt}, {"awbNumbers", awb_numbers}};
         return (build_responseOK(rec.dump()));
       } else {
-        std::string err("400 Bad Request");
-        // std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Bulk
-        // Shipment Creation is failed\", \"errorCode\" : 400}");
-        json err_message = json::object();
-        err_message = {{"status", "failure"},
-                       {"cause", "Bulk Shipment Creation Failed"},
-                       {"error", 400}};
-        return (build_responseERROR(err_message.dump(), err));
+        json err_message = {{"status", "failure"},
+                            {"cause", "Bulk Shipment Creation Failed"},
+                            {"error", 400}};
+        return (build_responseERROR(err_message.dump(), "400 Bad Request"));
       }
     }
 
