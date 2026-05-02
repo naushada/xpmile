@@ -1,3 +1,4 @@
 export const environment = {
-  production: true
+  production: true,
+  apiUrl: ''   // empty = same origin (served by the backend)
 };

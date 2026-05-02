@@ -116,15 +116,6 @@ class MicroService : public ACE_Task<ACE_MT_SYNCH> {
         }
 
         /**
-         * @brief Decode an @c ACE_Message_Block request and send the response.
-         * @param handle  Socket descriptor for the client connection.
-         * @param mb      Message block carrying the raw HTTP request bytes.
-         * @param dbInst  MongoDB client to use for database operations.
-         * @return 0 on success, -1 on error.
-         */
-        std::int32_t process_request(ACE_HANDLE handle, ACE_Message_Block& mb, MongodbClient& dbInst);
-
-        /**
          * @brief Process a raw HTTP request string and send the response.
          * @param handle  Socket descriptor for the client connection.
          * @param req     Raw HTTP request string.

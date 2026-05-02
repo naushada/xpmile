@@ -1,0 +1,7 @@
+.git/
+backend/ix86_64x/
+backend/build/
+ui/node_modules/
+ui/dist/
+ui/.angular/
+docker/

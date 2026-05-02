@@ -10,13 +10,8 @@ import { environment } from 'src/environments/environment';
 })
 export class HttpsvcService {
 
-  private apiURL:string = "";
-  constructor(private http: HttpClient) {
-
-    if(!environment.production) {
-      this.apiURL = "http://localhost:8080"; 
-    }
-   }
+  private apiURL: string = environment.apiUrl;
+  constructor(private http: HttpClient) {}
   
 
   httpOptions = {
@@ -396,30 +391,13 @@ export class HttpsvcService {
     return this.http.post<Inventory>(this.getUri("from_web_inventory"), JSON.stringify(product), this.httpOptions);
   }
 
-  //3rd Part Shipment Creation 
-  create3rdPartyShipment(awbList:string, uri:string, acc?: string): Observable<any> {
-    let param:string = "" ;
-    let options:any;
-
-    if(acc && acc.length) {
-      param = `&accountCode=${acc}`;
-    }
-
-    if(param.length) {
-      const options = {
-                     params: new HttpParams({fromString: param}),
-                     headers: new HttpHeaders({
-                              'Content-Type': 'application/json'
-                      })
-                    };
-    } else {
-      const options = {
-        headers: new HttpHeaders({
-                 'Content-Type': 'application/json'
-         })
-       };
-    }
-    return this.http.post<any>((uri), JSON.stringify(awbList), this.httpOptions);
+  //3rd Part Shipment Creation
+  create3rdPartyShipment(awbList: string, uri: string, acc?: string): Observable<any> {
+    const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+    const options = acc && acc.length
+      ? { headers, params: new HttpParams({ fromString: `accountCode=${acc}` }) }
+      : { headers };
+    return this.http.post<any>(uri, JSON.stringify(awbList), options);
   }
 
 

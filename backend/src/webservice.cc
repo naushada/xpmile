@@ -2,8 +2,93 @@
 #include "emailservice.hpp"
 #include "http_parser.h"
 #include "json.hpp"
+#include <cstring>
 
 using json = nlohmann::json;
+
+namespace {
+
+struct WorkCtx {
+    ACE_HANDLE    handle;
+    MongodbClient *db;
+    std::string   request;
+};
+
+std::string http_build_created() {
+    std::string hdr =
+        "HTTP/1.1 201 Created\r\n"
+        "Connection: keep-alive\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Content-Length: 0\r\n"
+        "\r\n";
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu response:%s\n"),
+               hdr.length(), hdr.c_str()));
+    return hdr;
+}
+
+std::string http_build_ok(std::string body, const std::string &contentType) {
+    std::string hdr =
+        "HTTP/1.1 200 OK\r\n"
+        "Connection: keep-alive\r\n"
+        "Access-Control-Allow-Origin: *\r\n";
+    if (!body.empty()) {
+        hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
+        hdr += "Content-Type: " + contentType + "\r\n";
+    } else {
+        hdr += "Content-Length: 0\r\n";
+    }
+    hdr += "\r\n";
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
+               hdr.length() + body.length(), hdr.c_str()));
+    return body.empty() ? hdr : hdr + std::move(body);
+}
+
+std::string http_build_error(std::string body, const std::string &status) {
+    std::string hdr =
+        "HTTP/1.1 " + status + " \r\n"
+        "Connection: keep-alive\r\n"
+        "Access-Control-Allow-Origin: *\r\n";
+    if (!body.empty()) {
+        hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
+        hdr += "Content-Type: application/json\r\n";
+        hdr += "\r\n";
+        hdr += std::move(body);
+    } else {
+        hdr += "Content-Length: 0\r\n";
+        hdr += "\r\n";
+    }
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
+               hdr.length(), hdr.c_str()));
+    return hdr;
+}
+
+std::int32_t http_send(ACE_HANDLE handle, const std::string &rsp) {
+    if (rsp.empty())
+        return 0;
+
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu\n"),
+               rsp.length()));
+
+    const std::int32_t total = static_cast<std::int32_t>(rsp.length());
+    std::int32_t offset = 0;
+    while (offset < total) {
+        std::int32_t sent = ::send(handle, rsp.c_str() + offset, total - offset, 0);
+        if (sent < 0) {
+            ACE_DEBUG((LM_DEBUG,
+                       ACE_TEXT("%D [worker:%t] %M %N:%l send failed errno:%d\n"),
+                       errno));
+            return -1;
+        }
+        offset += sent;
+    }
+    return 0;
+}
+
+} // namespace
 
 /**
  * @brief This member function processes the DELETE for a given uri.
@@ -70,126 +155,33 @@ std::string MicroService::handle_DELETE(std::string &in,
   return (build_responseERROR(err_message, err));
 }
 
-std::int32_t MicroService::process_request(ACE_HANDLE handle,
-                                           ACE_Message_Block &mb,
-                                           MongodbClient &dbInst) {
-  std::string http_header, http_body;
-  http_header.clear();
-  http_body.clear();
-  std::string rsp;
-
-  std::string req(mb.rd_ptr(), mb.length());
-
-  if (std::string::npos != req.find("OPTIONS", 0)) {
-    rsp = handle_OPTIONS(req);
-  } else if (std::string::npos != req.find("GET", 0)) {
-    rsp = handle_GET(req, dbInst);
-  } else if (std::string::npos != req.find("POST", 0)) {
-    rsp = handle_POST(req, dbInst);
-  } else if (std::string::npos != req.find("PUT", 0)) {
-    rsp = handle_PUT(req, dbInst);
-  } else if (std::string::npos != req.find("DELETE", 0)) {
-    rsp = handle_DELETE(req, dbInst);
-  } else {
-    /* Not supported Method */
-  }
-
-  std::int32_t ret = 0;
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l the response length is %d\n"),
-             rsp.length()));
-
-  std::int32_t toBeSent = rsp.length();
-  std::int32_t offset = 0;
-  do {
-    ret = send(handle, (rsp.c_str() + offset), (toBeSent - offset), 0);
-
-    if (ret < 0) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l sent to peer is failed\n")));
-      break;
-    }
-
-    offset += ret;
-    ret = 0;
-
-  } while ((toBeSent != offset));
-
-  return (ret);
-}
-
-/**
- * @brief This member function starts processing the incoming HTTP request and
- * based on HTTP method it calls respective member function.
- *
- * @param handle socker descriptor on which HTTP request is received
- * @param req HTTP request with MIME header
- * @param dbInst An instance of mongodb driver
- * @return std::int32_t
- */
 std::int32_t MicroService::process_request(ACE_HANDLE handle, std::string &req,
                                            MongodbClient &dbInst) {
-  std::string rsp("");
-  std::int32_t ret = 0;
+  Http http(req);
+  const std::string &method = http.method();
 
-  if (std::string::npos != req.find("OPTIONS", 0)) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l OPTIONS request:%s\n"),
-               req.c_str()));
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l %s %s\n"),
+             method.c_str(), http.uri().c_str()));
+
+  std::string rsp;
+  if (method == "OPTIONS")
     rsp = handle_OPTIONS(req);
-
-  } else if (std::string::npos != req.find("GET", 0)) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l GET request:%s\n"),
-               req.c_str()));
+  else if (method == "GET")
     rsp = handle_GET(req, dbInst);
-
-  } else if (std::string::npos != req.find("POST", 0)) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l POST request:%s\n"),
-               req.c_str()));
+  else if (method == "POST")
     rsp = handle_POST(req, dbInst);
-
-  } else if (std::string::npos != req.find("PUT", 0)) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l PUT request:%s\n"),
-               req.c_str()));
+  else if (method == "PUT")
     rsp = handle_PUT(req, dbInst);
-
-  } else if (std::string::npos != req.find("DELETE", 0)) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l DELETE request:%s\n"),
-               req.c_str()));
+  else if (method == "DELETE")
     rsp = handle_DELETE(req, dbInst);
-
-  } else {
-    ACE_DEBUG(
-        (LM_DEBUG,
-         ACE_TEXT(
-             "%D [worker:%t] %M %N:%l Method is not supported request:%s\n"),
-         req.c_str()));
-    /* Not supported Method */
-    return (ret);
+  else {
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [worker:%t] %M %N:%l unsupported method: %s\n"),
+               method.c_str()));
+    return 0;
   }
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l the response length:%d\n"),
-             rsp.length()));
-
-  std::int32_t toBeSent = rsp.length();
-  std::int32_t offset = 0;
-  do {
-    ret = send(handle, (rsp.c_str() + offset), (toBeSent - offset), 0);
-
-    if (ret < 0) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l sent to peer is failed\n")));
-      break;
-    }
-
-    offset += ret;
-    ret = 0;
-
-  } while ((toBeSent != offset));
-
-  return (ret);
+  return http_send(handle, rsp);
 }
 
 std::string MicroService::get_contentType(std::string ext) {
@@ -1244,83 +1236,17 @@ std::string MicroService::handle_OPTIONS(std::string &in) {
 }
 
 std::string MicroService::build_responseCreated() {
-  std::string http_header;
-  http_header = "HTTP/1.1 201 Created\r\n";
-  http_header += "Connection: keep-alive\r\n";
-  http_header += "Access-Control-Allow-Origin: *\r\n";
-  http_header += "Content-Length: 0\r\n";
-  http_header += "\r\n";
-
-  // ACE_NEW_RETURN(rsp, ACE_Message_Block(256), nullptr);
-
-  // std::memcpy(rsp->wr_ptr(), http_header.c_str(), http_header.length());
-  // rsp->wr_ptr(http_header.length());
-
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l respone length %d response %s \n"),
-       http_header.length(), http_header.c_str()));
-  return (http_header);
+  return http_build_created();
 }
 
 std::string MicroService::build_responseOK(std::string httpBody,
                                            std::string contentType) {
-  std::string http_header;
-  // ACE_Message_Block* rsp = nullptr;
-  std::string rsp;
-
-  http_header = "HTTP/1.1 200 OK\r\n";
-  http_header += "Connection: keep-alive\r\n";
-  http_header += "Access-Control-Allow-Origin: *\r\n";
-
-  if (httpBody.length()) {
-    http_header +=
-        "Content-Length: " + std::to_string(httpBody.length()) + "\r\n";
-    http_header += "Content-Type: " + contentType + "\r\n";
-    http_header += "\r\n";
-
-  } else {
-    http_header += "Content-Length: 0\r\n";
-    http_header += "\r\n";
-  }
-  rsp = http_header;
-
-  if (httpBody.length()) {
-    rsp += httpBody;
-  }
-
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l respone length:%d response header:%s"),
-       (http_header.length() + httpBody.length()), http_header.c_str()));
-  return (rsp);
+  return http_build_ok(std::move(httpBody), contentType);
 }
 
 std::string MicroService::build_responseERROR(std::string httpBody,
                                               std::string error) {
-  std::string http_header;
-  const std::string contentType("application/json");
-
-  http_header = "HTTP/1.1 " + error + " \r\n";
-  http_header += "Connection: keep-alive\r\n";
-  http_header += "Access-Control-Allow-Origin: *\r\n";
-
-  if (httpBody.length()) {
-    http_header +=
-        "Content-Length: " + std::to_string(httpBody.length()) + "\r\n";
-    http_header += "Content-Type: " + contentType + "\r\n";
-    http_header += "\r\n";
-    http_header += httpBody;
-  } else {
-    http_header += "Content-Length: 0\r\n";
-    http_header += "\r\n";
-  }
-
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l respone length:%d response header:%s"),
-       http_header.length(), http_header.c_str()));
-  return http_header;
+  return http_build_error(std::move(httpBody), error);
 }
 
 ACE_INT32 MicroService::handle_signal(int signum, siginfo_t *s, ucontext_t *u) {
@@ -1363,61 +1289,45 @@ int MicroService::svc() {
 
   while (m_continue) {
     ACE_Message_Block *mb = nullptr;
-    if (-1 != getq(mb)) {
-      std::uint32_t offset = 0;
 
-      switch (mb->msg_type()) {
-      case ACE_Message_Block::MB_DATA: {
-        ACE_DEBUG(
-            (LM_DEBUG,
-             ACE_TEXT(
-                 "%D [worker:%t] %M %N:%l svc::ACE_Message_Block::MB_DATA\n")));
-        std::string ss(mb->rd_ptr(), mb->length());
-        mb->release();
-
-        std::istringstream istrstr(ss);
-        ACE_HANDLE handle;
-        istrstr.read(reinterpret_cast<char *>(&handle), sizeof(ACE_HANDLE));
-        std::uintptr_t inst;
-        istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
-        MongodbClient *dbInst = reinterpret_cast<MongodbClient *>(inst);
-        istrstr.read(reinterpret_cast<char *>(&inst), sizeof(std::uintptr_t));
-        WebServer *parent = reinterpret_cast<WebServer *>(inst);
-        std::uint32_t len = 0;
-        istrstr.read(reinterpret_cast<char *>(&len), sizeof(std::uint32_t));
-        std::vector<char> str(len);
-        istrstr.read(reinterpret_cast<char *>(str.data()), len);
-        std::string request(str.begin(), str.end());
-        process_request(handle, request, *dbInst);
-        break;
-      }
-      case ACE_Message_Block::MB_PCSIG: {
-        ACE_DEBUG(
-            (LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Got MB_PCSIG \n")));
-        m_continue = false;
-        if (mb != nullptr) {
-          mb->release();
-        }
-        msg_queue()->deactivate();
-        webServer().semaphore().release();
-        break;
-      }
-      default: {
-        m_continue = false;
-        mb->release();
-        break;
-      }
-      }
-    } else {
-      ACE_ERROR(
-          (LM_ERROR,
-           ACE_TEXT("%D [worker:%t] %M %N:%l Micro service is stopped\n")));
-      // getq returned -1: mb was not set, do not release
+    if (getq(mb) == -1) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [worker:%t] %M %N:%l Micro service is stopped\n")));
       m_continue = false;
+      break;
+    }
+
+    switch (mb->msg_type()) {
+    case ACE_Message_Block::MB_DATA: {
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [worker:%t] %M %N:%l svc::ACE_Message_Block::MB_DATA\n")));
+
+      WorkCtx *ctx = nullptr;
+      std::memcpy(&ctx, mb->rd_ptr(), sizeof(ctx));
+      mb->release();
+
+      process_request(ctx->handle, ctx->request, *ctx->db);
+      delete ctx;
+      break;
+    }
+
+    case ACE_Message_Block::MB_PCSIG:
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [worker:%t] %M %N:%l Got MB_PCSIG\n")));
+      mb->release();
+      msg_queue()->deactivate();
+      webServer().semaphore().release();
+      m_continue = false;
+      break;
+
+    default:
+      mb->release();
+      m_continue = false;
+      break;
     }
   }
 
-  return (0);
+  return 0;
 }
 
 MicroService::MicroService(ACE_Thread_Manager *thr_mgr, WebServer *parent)
@@ -1523,6 +1433,12 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t *s, ucontext_t *ctx) {
                                           ACE_Event_Handler::ACCEPT_MASK |
                                               ACE_Event_Handler::SIGNAL_MASK);
 
+  // Send a poison pill to every worker so MicroService::svc() exits cleanly.
+  for (auto &w : m_workerPool) {
+    auto *mb = new ACE_Message_Block(0, ACE_Message_Block::MB_PCSIG);
+    w->putq(mb);
+  }
+
   return (0);
 }
 
@@ -1584,25 +1500,16 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   // mMongodbc = new MongodbClient(uri);
   mMongodbc = std::make_unique<MongodbClient>(uri);
 
-#if 0
-    //ACE_NEW_NORETURN(m_semaphore, ACE_Semaphore());
-    m_semaphore = std::make_unique<ACE_Semaphore>();
+  m_semaphore = std::make_unique<ACE_Semaphore>();
 
-    m_workerPool.clear();
-    std::uint32_t cnt;
-
-    for(cnt = 0; cnt < workerPool; ++cnt) {
-
-        semaphore().acquire();
-        MicroService* worker = nullptr;
-        ACE_NEW_NORETURN(worker, MicroService(ACE_Thread_Manager::instance(), this));
-        m_workerPool.push_back(worker);
-        worker->open();
-        
-    }
-
-    m_currentWorker = std::begin(m_workerPool);
-#endif
+  m_workerPool.clear();
+  for (ACE_UINT32 cnt = 0; cnt < workerPool; ++cnt) {
+    auto *worker = new MicroService(ACE_Thread_Manager::instance(), this);
+    worker->open();
+    semaphore().acquire();
+    m_workerPool.push_back(std::unique_ptr<MicroService>(worker));
+  }
+  m_currentWorker = std::begin(m_workerPool);
   /* Start listening for incoming connection */
   int reuse_addr = 1;
   if (m_server.open(m_listen, reuse_addr)) {
@@ -1720,8 +1627,16 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
          ACE_TEXT("%D [Master:%t] %M %N:%l complete request (%zu bytes):\n%s"),
          msgLen, request.c_str()));
 
-    WebServiceEntry wentry;
-    wentry.process_request(handle, request, *(parent()->mongodbcInst()));
+    auto it = parent()->currentWorker();
+    if (it != std::end(parent()->workerPool())) {
+      auto *ctx = new WorkCtx{handle, parent()->mongodbcInst(), std::move(request)};
+      auto *mb = new ACE_Message_Block(sizeof(ctx));
+      mb->copy(reinterpret_cast<const char *>(&ctx), sizeof(ctx));
+      (*it)->putq(mb);
+    } else {
+      WebServiceEntry wentry;
+      wentry.process_request(handle, request, *(parent()->mongodbcInst()));
+    }
   }
 
   return (0);
@@ -1847,31 +1762,10 @@ std::int32_t WebServiceEntry::process_request(ACE_HANDLE handle,
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [worker:%t] %M %N:%l unsupported method: %s\n"),
                method.c_str()));
-    return (0);
+    return 0;
   }
 
-  if (rsp.empty())
-    return (0);
-
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu\n"),
-             rsp.length()));
-
-  const std::int32_t total = static_cast<std::int32_t>(rsp.length());
-  std::int32_t offset = 0;
-
-  while (offset < total) {
-    std::int32_t sent = ::send(handle, rsp.c_str() + offset, total - offset, 0);
-    if (sent < 0) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l send failed errno:%d\n"),
-                 errno));
-      return (-1);
-    }
-    offset += sent;
-  }
-
-  return (0);
+  return http_send(handle, rsp);
 }
 
 std::string WebServiceEntry::get_contentType(std::string ext) {
@@ -3001,82 +2895,15 @@ std::string WebServiceEntry::handle_OPTIONS(std::string &in) {
 }
 
 std::string WebServiceEntry::build_responseCreated() {
-  std::string http_header;
-  http_header = "HTTP/1.1 201 Created\r\n";
-  http_header += "Connection: keep-alive\r\n";
-  http_header += "Access-Control-Allow-Origin: *\r\n";
-  http_header += "Content-Length: 0\r\n";
-  http_header += "\r\n";
-
-  // ACE_NEW_RETURN(rsp, ACE_Message_Block(256), nullptr);
-
-  // std::memcpy(rsp->wr_ptr(), http_header.c_str(), http_header.length());
-  // rsp->wr_ptr(http_header.length());
-
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l respone length %d response %s \n"),
-       http_header.length(), http_header.c_str()));
-  return (http_header);
+  return http_build_created();
 }
 
 std::string WebServiceEntry::build_responseOK(std::string httpBody,
                                               std::string contentType) {
-  std::string http_header;
-  // ACE_Message_Block* rsp = nullptr;
-  std::string rsp;
-
-  http_header = "HTTP/1.1 200 OK\r\n";
-  http_header += "Connection: keep-alive\r\n";
-  http_header += "Access-Control-Allow-Origin: *\r\n";
-
-  if (httpBody.length()) {
-    http_header +=
-        "Content-Length: " + std::to_string(httpBody.length()) + "\r\n";
-    http_header += "Content-Type: " + contentType + "\r\n";
-    http_header += "\r\n";
-
-  } else {
-    http_header += "Content-Length: 0\r\n";
-    http_header += "\r\n";
-  }
-  rsp = http_header;
-
-  if (httpBody.length()) {
-    rsp += httpBody;
-  }
-
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l respone length:%d response header:%s"),
-       (http_header.length() + httpBody.length()), http_header.c_str()));
-  return (rsp);
+  return http_build_ok(std::move(httpBody), contentType);
 }
 
 std::string WebServiceEntry::build_responseERROR(std::string httpBody,
                                                  std::string error) {
-  std::string http_header;
-  std::string contentType("application/json");
-
-  http_header = "HTTP/1.1 " + error + " \r\n";
-  http_header += "Connection: keep-alive\r\n";
-  http_header += "Access-Control-Allow-Origin: *\r\n";
-
-  if (httpBody.length()) {
-    http_header +=
-        "Content-Length: " + std::to_string(httpBody.length()) + "\r\n";
-    http_header += "Content-Type: " + contentType + "\r\n";
-    http_header += "\r\n";
-    http_header += httpBody;
-
-  } else {
-    http_header += "Content-Length: 0\r\n";
-    http_header += "\r\n";
-  }
-
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l respone length:%d response header:%s"),
-       (http_header.length() + httpBody.length()), http_header.c_str()));
-  return (http_header);
+  return http_build_error(std::move(httpBody), error);
 }
