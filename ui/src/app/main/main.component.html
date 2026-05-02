@@ -28,7 +28,7 @@
         <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role === 'Customer'">{{this.loggedInUser?.customerInfo?.companyName}}</span>
         <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role != 'Customer'">{{this.loggedInUser?.personalInfo?.name}}</span>
         <clr-dropdown>
-            <button class="nav-icon" clrDropdownTrigger aria-label="toggle settings menu">
+            <button type="button" class="nav-icon" clrDropdownTrigger aria-label="toggle settings menu">
                 <clr-icon shape="user" ></clr-icon>
             </button>
             <clr-dropdown-menu *clrIfOpen clrPosition="bottom-right">

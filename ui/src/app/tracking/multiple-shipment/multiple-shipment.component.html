@@ -45,23 +45,23 @@
 
     <div class="clr-row" >
         <div class="clr-col">
-            <button class="btn btn-primary" (click)="onSubmit()">Submit</button>
-            <button class="btn btn-primary" (click)="onExcelExport()" [disabled]="isButtonDisabled">Export To Excel</button>
+            <button type="button" class="btn btn-primary" (click)="onSubmit()">Submit</button>
+            <button type="button" class="btn btn-primary" (click)="onExcelExport()" [disabled]="isButtonDisabled">Export To Excel</button>
         </div>
     </div>
 </form>
 
 <div class="btn-group">
-    <button class="btn" (click)="onCreateA2Label()">
+    <button type="button" class="btn" (click)="onCreateA2Label()">
         <clr-icon shape="printer" aria-label="print"></clr-icon>A2
     </button>
-    <button class="btn" (click)="onCreateA4Label()">
+    <button type="button" class="btn" (click)="onCreateA4Label()">
         <clr-icon shape="printer"></clr-icon>A4
     </button>
-    <button class="btn" (click)="onCreateA6Label()">
+    <button type="button" class="btn" (click)="onCreateA6Label()">
         <clr-icon shape="printer"></clr-icon>A6
     </button>
-    <button class="btn" (click)="onCreateInvoice()">
+    <button type="button" class="btn" (click)="onCreateInvoice()">
         <clr-icon shape="printer"></clr-icon>Generate Invoice
     </button>
 </div>
@@ -78,7 +78,7 @@
         <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[activityOffset - 1].event}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[activityOffset - 1].event}}</clr-dg-cell>
-        <clr-dg-cell><button class="btn" (click)="viewSingleShipment(sh)">View</button></clr-dg-cell>
+        <clr-dg-cell><button type="button" class="btn" (click)="viewSingleShipment(sh)">View</button></clr-dg-cell>
     
     </clr-dg-row>
     <clr-dg-footer>
