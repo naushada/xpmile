@@ -1,0 +1,111 @@
+# xpmile
+
+Logistics management platform — C++ backend (ACE + MongoDB) with an Angular UI, packaged as a multi-container Docker deployment.
+
+---
+
+## Quick start
+
+```sh
+git clone https://github.com/naushada/xpmile.git
+cd xpmile
+docker compose up --build
+```
+
+The app is served on `http://localhost:8080` by default.  
+MongoDB listens on `localhost:27017` (remove that port mapping in `docker-compose.yml` if direct access is not needed).
+
+---
+
+## Services
+
+| Service | Image | Description |
+|---|---|---|
+| `mongodb` | `xpmile-mongo:latest` | MongoDB 7, auth enabled, seeded with a bootstrap admin account |
+| `app` | `xpmile:latest` | C++ HTTP server + pre-built Angular UI |
+
+---
+
+## Authentication
+
+MongoDB runs with authentication enabled. On first startup the init
+script (`docker/mongo-init.js`) creates:
+
+- A root admin user (used by the healthcheck only)
+- An `xpmile` app user with `readWrite` on the `xpmile` database
+
+### Default credentials
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MONGO_ROOT_USER` | `root` | MongoDB root (internal only) |
+| `MONGO_ROOT_PASS` | `changeme` | MongoDB root password |
+| `MONGO_APP_USER` | `xpmile` | App database user |
+| `MONGO_APP_PASS` | `xpmile_pass` | App database password |
+
+### Overriding passwords
+
+Create a `.env` file next to `docker-compose.yml` before the first `up`:
+
+```sh
+MONGO_ROOT_PASS=a-strong-root-password
+MONGO_APP_PASS=a-strong-app-password
+```
+
+> **Important:** the init script only runs when the `mongo-data` volume
+> is empty. If you change passwords after the first start, drop the
+> volume first:
+> ```sh
+> docker compose down -v
+> docker compose up --build
+> ```
+
+---
+
+## Configuration reference
+
+All variables can be set in `.env` or passed via `docker compose up -e`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `8080` | Port the app listens on inside the container |
+| `HOST_PORT` | `8080` | Host port mapped to the container |
+| `SERVER_WORKERS` | `5` | Number of MicroService worker threads |
+| `MONGO_DB` | `xpmile` | MongoDB database name |
+| `MONGO_POOL` | `20` | MongoDB connection pool size |
+| `MONGO_ROOT_USER` | `root` | MongoDB root username |
+| `MONGO_ROOT_PASS` | `changeme` | MongoDB root password |
+| `MONGO_APP_USER` | `xpmile` | App database username |
+| `MONGO_APP_PASS` | `xpmile_pass` | App database password |
+
+---
+
+## Project layout
+
+```
+.
+├── backend/            C++ HTTP server source
+│   ├── inc/            Public headers
+│   ├── src/            webservice.cc and handlers
+│   ├── mongodbc/       MongoDB client library (see mongodbc/README.md)
+│   └── test/           googletest off-target tests
+├── ui/                 Angular 14 frontend
+├── docker/
+│   ├── Dockerfile      Multi-stage build (C++ builder → UI builder → runtime)
+│   ├── Dockerfile.mongo Custom mongo:7 image with init script baked in
+│   └── mongo-init.js   DB user creation + bootstrap admin document
+└── docker-compose.yml
+```
+
+---
+
+## Bootstrap admin account
+
+The first `up` seeds the `xpmile.account` collection with an admin user:
+
+```
+accountCode:     admin
+accountPassword: admin@123
+```
+
+Change this password through the application UI after first login.

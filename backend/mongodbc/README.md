@@ -11,7 +11,12 @@ safely without any additional locking.
 ## Construction
 
 ```cpp
+// No auth (development only)
 MongodbClient db("mongodb://localhost:27017/xpmile?maxPoolSize=20");
+
+// With authentication (production)
+MongodbClient db("mongodb://xpmile:xpmile_pass@localhost:27017/xpmile"
+                 "?authSource=admin&maxPoolSize=20");
 ```
 
 The URI must include the database name.  Pool size is controlled via the
@@ -249,18 +254,20 @@ using JsonExtract = std::variant<
 >;
 ```
 
-Typical usage with `std::get_if`:
+Typical usage with `std::get_if` — `from_json()` returns by value, so
+the result must be bound to a named variable before taking its address.
+Use C++17 if-init statements:
 
 ```cpp
 // Scalar string
-if (auto *s = std::get_if<std::string>(&dbInst.from_json(body, "awbno")))
+if (auto v = dbInst.from_json(body, "awbno"); auto *s = std::get_if<std::string>(&v))
     awbno = *s;
 
 // Array of strings (e.g. recipient list)
-if (auto *v = std::get_if<JsonStrVec>(&dbInst.from_json(body, "to")))
-    recipients = std::move(*v);
+if (auto v = dbInst.from_json(body, "to"); auto *p = std::get_if<JsonStrVec>(&v))
+    recipients = std::move(*p);
 
 // Array of file attachments
-if (auto *m = std::get_if<JsonDocList>(&dbInst.from_json(body, "files")))
-    attachments = std::move(*m);
+if (auto v = dbInst.from_json(body, "files"); auto *p = std::get_if<JsonDocList>(&v))
+    attachments = std::move(*p);
 ```
