@@ -35,16 +35,16 @@ EmailServiceTest::EmailServiceTest(std::string in)
         /* Check for Query string */
     
     std::string json_body = in;
-    std::vector<std::string> out_vec;
-    std::vector<std::tuple<std::string, std::string>> out_list;
+    JsonStrVec  out_vec;
+    JsonDocList out_list;
     std::string subj;
     std::string body;
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email request:%s\n"), json_body.c_str()));
-    mMongodbc->from_json_array_to_vector(json_body, "to", out_vec);
-    mMongodbc->from_json_element_to_string(json_body, "subject", subj);
-    mMongodbc->from_json_element_to_string(json_body, "body", body);
-    mMongodbc->from_json_object_to_map(json_body, "files", out_list);
+    if (auto v = mMongodbc->from_json(json_body, "to");      auto *p = std::get_if<JsonStrVec>(&v))  out_vec  = std::move(*p);
+    if (auto v = mMongodbc->from_json(json_body, "subject"); auto *p = std::get_if<std::string>(&v)) subj     = *p;
+    if (auto v = mMongodbc->from_json(json_body, "body");    auto *p = std::get_if<std::string>(&v)) body     = *p;
+    if (auto v = mMongodbc->from_json(json_body, "files");   auto *p = std::get_if<JsonDocList>(&v)) out_list = std::move(*p);
     for(const auto& elm: out_vec) {
         ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email to list:%s\n"), elm.c_str()));
     }
