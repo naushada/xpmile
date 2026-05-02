@@ -60,9 +60,11 @@ WORKDIR /root/googletest/build
 RUN cmake .. && make -j$(nproc) install && ldconfig
 
 # Build uniservice
+# -j2: webservice.cc is large enough to OOM the builder at full nproc
+# -fconcepts: suppresses the set_state(auto) warning from emailservice.hpp
 COPY backend/ /src/backend/
 WORKDIR /src/backend/build
-RUN cmake .. && make -j$(nproc)
+RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
 
 # ============================================================
 # Stage 2: Build Angular UI
