@@ -121,6 +121,9 @@ COPY --from=cpp-builder /src/backend/build/uniservice /opt/xAPP/granada/uniservi
 RUN mkdir -p /opt/xAPP/webgui
 COPY --from=ui-builder /ui/dist/webui /opt/xAPP/webgui/webui
 
+# Set CWD so that relative paths ../webgui/webui/ resolve correctly
+WORKDIR /opt/xAPP/granada
+
 # CMD_ARGS: --server-ip <ip> --server-port <port> --server-worker <n>
 #           --mongo-db-name <name> --mongo-db-connection-pool <n> --mongo-db-uri <uri>
 ENV ARGS="--server-worker 5"
