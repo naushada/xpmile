@@ -1,81 +1,68 @@
-<form clrForm clrLayout="vertical" clrLabelSize="1" [formGroup]="shipmentListForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-date-container>
-                <label>Start Date</label>
-                <input type="date" clrDate name="startDate" formControlName="startDate">
-            </clr-date-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-date-container>
-                <label>End Date</label>
-                <input type="date" clrDate name="endDate" formControlName="endDate">
-            </clr-date-container>
-            
-        </div>
+<form clrForm clrLayout="compact" [formGroup]="shipmentListForm">
+  <div class="clr-row filter-row">
+    <div class="clr-col-auto">
+      <clr-date-container>
+        <label>Start Date</label>
+        <input type="date" clrDate name="startDate" formControlName="startDate" />
+      </clr-date-container>
     </div>
-    <div class="clr-row">
-        <div class="clr-col">
-            <button class="btn btn-primary" (click)="retrieveShipmentList()">Submit</button>
-            <button class="btn btn-primary" (click)="onClear()">Clear</button>
-        </div>
-        
+    <div class="clr-col-auto">
+      <clr-date-container>
+        <label>End Date</label>
+        <input type="date" clrDate name="endDate" formControlName="endDate" />
+      </clr-date-container>
     </div>
+    <div class="clr-col-auto filter-row__actions">
+      <button class="btn btn-primary" type="button" (click)="retrieveShipmentList()">Submit</button>
+      <button class="btn" type="button" (click)="onClear()">Clear</button>
+    </div>
+  </div>
 </form>
+
 <clr-dg-action-bar>
-    <div class="btn-group">
-        <button class="btn" (click)="onCreateA2Label()">
-            <clr-icon shape="printer" aria-label="print"></clr-icon>A2
-        </button>
-        <button class="btn" (click)="onCreateA4Label()">
-            <clr-icon shape="printer"></clr-icon>A4
-        </button>
-        <button class="btn" (click)="onCreateA6Label()">
-            <clr-icon shape="printer"></clr-icon>A6
-        </button>
-        <button class="btn" (click)="onCreateInvoice()">
-            <clr-icon shape="printer"></clr-icon>Gennerate Invoice
-        </button>
-    </div>
+  <div class="btn-group">
+    <button class="btn" type="button" (click)="onCreateA2Label()">
+      <clr-icon shape="printer" aria-label="print"></clr-icon>A2
+    </button>
+    <button class="btn" type="button" (click)="onCreateA4Label()">
+      <clr-icon shape="printer"></clr-icon>A4
+    </button>
+    <button class="btn" type="button" (click)="onCreateA6Label()">
+      <clr-icon shape="printer"></clr-icon>A6
+    </button>
+    <button class="btn" type="button" (click)="onCreateInvoice()">
+      <clr-icon shape="printer"></clr-icon>Generate Invoice
+    </button>
+  </div>
 </clr-dg-action-bar>
 
-<clr-datagrid  (clrDgSelectedChange)="onSelectionChanged($event)" [(clrDgSelected)]="rowsSelected">
-    <clr-dg-column >Serial No</clr-dg-column>
-    <!--<clr-dg-column>Invoice</clr-dg-column>--->
-    <clr-dg-column >Shipment No</clr-dg-column>
-    <clr-dg-column >Alternate ReferenceNo</clr-dg-column>
-    <clr-dg-column >Created By</clr-dg-column>
-    <clr-dg-column >Created On</clr-dg-column>
-    <clr-dg-column >Service</clr-dg-column>
-    <clr-dg-column >Receipient</clr-dg-column>
-    <clr-dg-column >Location</clr-dg-column>
-    <clr-dg-column >Country</clr-dg-column>
-    
-    
-    <clr-dg-row *clrDgItems="let sh of shipments; let idx = index" [clrDgItem]="sh">
-        
-        <clr-dg-cell>{{idx + 1}}</clr-dg-cell>
-        <!--<clr-dg-cell><input type="checkbox" clrToggle name="isGenerateeInvoice" value="sh.shipment.awbno" (change)="onInvoiceSelect($event)"></clr-dg-cell>-->
-        <clr-dg-cell>{{sh.shipment.awbno}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.shipmentInformation.createdBy}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.shipmentInformation.createdOn}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.shipmentInformation.service}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.receiverInformation.name}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[0].eventLocation}}</clr-dg-cell>
-        <clr-dg-cell>{{sh.shipment.receiverInformation.country}}</clr-dg-cell>
-        
-    </clr-dg-row>
+<clr-datagrid [(clrDgSelected)]="rowsSelected">
+  <clr-dg-column>Serial No</clr-dg-column>
+  <clr-dg-column>Shipment No</clr-dg-column>
+  <clr-dg-column>Alternate Reference No</clr-dg-column>
+  <clr-dg-column>Created By</clr-dg-column>
+  <clr-dg-column>Created On</clr-dg-column>
+  <clr-dg-column>Service</clr-dg-column>
+  <clr-dg-column>Recipient</clr-dg-column>
+  <clr-dg-column>Location</clr-dg-column>
+  <clr-dg-column>Country</clr-dg-column>
 
-	<!-- Inside the full datagrid declaration -->
-	<clr-dg-footer>
-		<clr-dg-pagination #pagination [clrDgPageSize]="10">
-			<clr-dg-page-size [clrPageSizeOptions]="[10,20,50,100]">Shipment per page</clr-dg-page-size>
-                {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}}
-        of {{pagination.totalItems}} shipments
-        </clr-dg-pagination>
-    </clr-dg-footer>
+  <clr-dg-row *clrDgItems="let sh of shipments; let idx = index" [clrDgItem]="sh">
+    <clr-dg-cell>{{idx + 1}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.awbno}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.altRefNo}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.shipmentInformation.createdBy}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.shipmentInformation.createdOn}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.shipmentInformation.service}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.receiverInformation.name}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.shipmentInformation.activity[0].eventLocation}}</clr-dg-cell>
+    <clr-dg-cell>{{sh.shipment.receiverInformation.country}}</clr-dg-cell>
+  </clr-dg-row>
+
+  <clr-dg-footer>
+    <clr-dg-pagination #pagination [clrDgPageSize]="10">
+      <clr-dg-page-size [clrPageSizeOptions]="[10,20,50,100]">Shipments per page</clr-dg-page-size>
+      {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}} of {{pagination.totalItems}} shipments
+    </clr-dg-pagination>
+  </clr-dg-footer>
 </clr-datagrid>
-
-
-

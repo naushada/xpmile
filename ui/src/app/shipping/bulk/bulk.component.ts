@@ -1,8 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import '@cds/core/file/register.js';
-import '@cds/core/time/register.js';
 
-import '@cds/core/button/register.js';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import { FormBuilder, FormGroup } from '@angular/forms';
 import { ExcelsvcService } from 'src/common/excelsvc.service';
@@ -19,186 +17,175 @@ import * as XLSX from 'xlsx';
 })
 export class BulkComponent implements OnInit, OnDestroy {
 
-  public loggedInUser?: Account;
-  public subsink: SubSink = new SubSink();
-  public bulkShipmentForm: FormGroup;
-  
-  public accountInfoList: Map<string, Account > = new Map<string, Account>();
-  public shipmentExcelRows?: Array<ShipmentExcelRow> = new Array<ShipmentExcelRow>();
+  loggedInUser?: Account;
+  bulkShipmentForm: FormGroup;
+  isButtonEnabled = true;
 
-  public isButtonEnabled:boolean = true;
+  private accountInfoList = new Map<string, Account>();
+  private shipmentExcelRows: ShipmentExcelRow[] = [];
+  private subsink = new SubSink();
 
-  constructor(private http: HttpsvcService, private fb: FormBuilder, private xls: ExcelsvcService, private subject: PubsubsvcService) {
-    this.subsink.sink = this.subject.onAccount.subscribe(rsp => {this.loggedInUser = rsp;},
-      error => {},
-      () => {});
-
-    this.bulkShipmentForm = this.fb.group({
-      excelFileName: ''
-    });
+  constructor(
+    private http: HttpsvcService,
+    private fb: FormBuilder,
+    private xls: ExcelsvcService,
+    private subject: PubsubsvcService
+  ) {
+    this.bulkShipmentForm = this.fb.group({ excelFileName: '' });
   }
 
   ngOnInit(): void {
+    this.subsink.add(
+      this.subject.onAccount.subscribe((rsp) => { this.loggedInUser = rsp; })
+    );
   }
 
-  onDownloadTemplate() {
-    this.xls.createAndSaveShipmentTemplate("ShipmentTemplate");
+  ngOnDestroy(): void {
+    this.subsink.unsubscribe();
   }
 
-  onCreateBulkShipment() {
-    let bulkShipment: Array<string> = [];
+  onFileSelect(event: any): void {
+    this.isButtonEnabled = true;
+    this.processShipmentExcelFile(event, this.loggedInUser?.personalInfo.role ?? '');
+  }
 
-    this.shipmentExcelRows?.forEach((ent: ShipmentExcelRow) => {
+  onDownloadTemplate(): void {
+    this.xls.createAndSaveShipmentTemplate('ShipmentTemplate');
+  }
 
-      let accCode:string = ent.AccountCode;
-      let senderInfo = this.accountInfoList.get(ent.AccountCode);
+  onCreateBulkShipment(): void {
+    const now   = new Date();
+    const today = formatDate(now, 'dd/MM/yyyy', 'en-GB');
+    const time  = `${now.getHours()}:${now.getMinutes()}`;
 
-      if(senderInfo != undefined) {
+    const bulkShipment: any[] = [];
 
-        let shipment:FormGroup = this.fb.group({
-          isAutoGenerate: true,
-          awbno: '',
-          altRefNo: ent.AlternateReferenceNo,
+    this.shipmentExcelRows.forEach((ent: ShipmentExcelRow) => {
+      const senderInfo = this.accountInfoList.get(ent.AccountCode);
+      if (!senderInfo) return;
 
-          senderInformation : this.fb.group({
-            accountNo: ent.AccountCode,
-            referenceNo: ent.ReferenceNo as string,
-            name: ent.SenderName && ent.SenderName || senderInfo.personalInfo.name,
-            companyName:senderInfo.customerInfo.companyName,
-            country: senderInfo.personalInfo.city,
-            city:senderInfo.personalInfo.city,
-            state: senderInfo.personalInfo.state,
-            address: senderInfo.personalInfo.address,
-            postalCode: senderInfo.personalInfo.postalCode,
-            contact: senderInfo.personalInfo.contact,
-            phoneNumber: senderInfo.personalInfo.contact,
-            email: senderInfo.personalInfo.email,
-            receivingTaxId: senderInfo.customerInfo.vat
-          }),
+      const shipment = this.fb.group({
+        isAutoGenerate: true,
+        awbno:          '',
+        altRefNo:       ent.AlternateReferenceNo,
 
-          shipmentInformation : this.fb.group({
-            activity: this.fb.array([{date: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'), event: "Document Created", 
-                                  time:new Date().getHours() + ':' + new Date().getMinutes(), notes:'Document Created', driver:'', 
-                                  updatedBy: this.loggedInUser?.personalInfo.name, eventLocation: this.loggedInUser?.personalInfo.eventLocation}]),
-            skuNo:'',
-            service:'Non Document',
-            numberOfItems: 1,
-            goodsDescription: ent.GoodsDescription,
-            goodsValue: ent.CustomsValue,
-            customsValue:ent.CustomsValue,
-            codAmount: ent.CodAmount,
-            vat: '',
-            currency:ent.CustomsCurrency,
-            weight: ent.Weight,
-            weightUnits:'KG',
-            cubicWeight: '',
-            createdOn: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'),
-            createdBy: this.loggedInUser?.personalInfo.name,
-            hsCode: ent.HSCode
-          }),
+        senderInformation: this.fb.group({
+          accountNo:      ent.AccountCode,
+          referenceNo:    ent.ReferenceNo,
+          name:           ent.SenderName || senderInfo.personalInfo.name,
+          companyName:    senderInfo.customerInfo.companyName,
+          country:        senderInfo.personalInfo.city,
+          city:           senderInfo.personalInfo.city,
+          state:          senderInfo.personalInfo.state,
+          address:        senderInfo.personalInfo.address,
+          postalCode:     senderInfo.personalInfo.postalCode,
+          contact:        senderInfo.personalInfo.contact,
+          phoneNumber:    senderInfo.personalInfo.contact,
+          email:          senderInfo.personalInfo.email,
+          receivingTaxId: senderInfo.customerInfo.vat
+        }),
 
-          receiverInformation: this.fb.group({
-            name: ent.ReceiverName,
-            country: ent.ReceiverCountry,
-            city: ent.ReceiverCity,
-            state: ent.ReceiverCity,
-            postalCode: '',
-            contact: ent.ReceiverPhoneNo,
-            address: ent.ReceiverAddress,
-            phone: ent.ReceiverAlternatePhoneNo,
-            email: ''
-         })
+        shipmentInformation: this.fb.group({
+          activity: this.fb.array([
+            this.fb.group({
+              date:          today,
+              event:         'Document Created',
+              time:          time,
+              notes:         'Document Created',
+              driver:        '',
+              updatedBy:     this.loggedInUser?.personalInfo.name ?? '',
+              eventLocation: this.loggedInUser?.personalInfo.eventLocation ?? ''
+            })
+          ]),
+          skuNo:            '',
+          service:          'Non Document',
+          numberOfItems:    1,
+          goodsDescription: ent.GoodsDescription,
+          goodsValue:       ent.CustomsValue,
+          customsValue:     ent.CustomsValue,
+          codAmount:        ent.CodAmount,
+          vat:              '',
+          currency:         ent.CustomsCurrency,
+          weight:           ent.Weight,
+          weightUnits:      'KG',
+          cubicWeight:      '',
+          createdOn:        today,
+          createdBy:        this.loggedInUser?.personalInfo.name ?? '',
+          hsCode:           ent.HSCode
+        }),
+
+        receiverInformation: this.fb.group({
+          name:       ent.ReceiverName,
+          country:    ent.ReceiverCountry,
+          city:       ent.ReceiverCity,
+          state:      ent.ReceiverCity,
+          postalCode: '',
+          contact:    ent.ReceiverPhoneNo,
+          address:    ent.ReceiverAddress,
+          phone:      ent.ReceiverAlternatePhoneNo,
+          email:      ''
+        })
       });
-      
-      let tmpShipment:any = {"shipment": {...shipment.value}};
-      bulkShipment.push(tmpShipment);
+
+      bulkShipment.push({ shipment: { ...shipment.value } });
+    });
+
+    if (this.accountInfoList.size) {
+      this.subsink.add(
+        this.http.createBulkShipment(JSON.stringify(bulkShipment)).subscribe({
+          next: (rsp: any) => alert(`Shipments created: ${rsp.createdShipments}`)
+        })
+      );
     }
 
-  });
-
-  if(this.accountInfoList.size) {
-    //bulkShipment.forEach(elm => {console.log("elm: " + JSON.stringify(elm));});
-    this.http.createBulkShipment(JSON.stringify(bulkShipment)).subscribe(rsp => {
-      let record: any; 
-      let jObj = JSON.stringify(rsp);
-      record = JSON.parse(jObj); alert("Shipments Create are: " + record.createdShipments);
-    },
-    error => {},
-    () => {});
+    this.accountInfoList.clear();
+    this.shipmentExcelRows = [];
   }
 
-  this.accountInfoList.clear();
-  this.shipmentExcelRows = [];
-}
-
-
-  public getridofDupElement(data: Array<string>) {
-    return data.filter((value, idx) => data.indexOf(value) === idx);
+  private deduplicate(data: string[]): string[] {
+    return [...new Set(data)];
   }
 
-  public processShipmentExcelFile(evt: any, accountType: string) {
-    if(evt.target.files[0] == undefined) {
+  private processShipmentExcelFile(evt: any, accountType: string): void {
+    if (!evt.target.files[0]) {
       this.isButtonEnabled = true;
       return;
     }
-    
-    let rows: any[] = [];
-    let accList: Array<string> = new Array<string>;
-    
-    accList.length = 0;
+
+    const accList: string[] = [];
     const fileReader = new FileReader();
     fileReader.readAsBinaryString(evt.target.files[0]);
 
-    /** This is lamda Funtion = anonymous function */
     fileReader.onload = (event) => {
-      let binaryData = event.target?.result;
-      /** wb -- workBook of excel sheet */
-      let wb = XLSX.read(binaryData, {type:'binary'});
-      
+      const wb = XLSX.read(event.target?.result, { type: 'binary' });
       wb.SheetNames.forEach(sheet => {
-        let data = XLSX.utils.sheet_to_json(wb.Sheets[sheet]);
-        rows = <any[]>data;
-        for(let idx:number = 0; idx < rows.length; ++idx) {
-          
-          accList.push(JSON.parse(JSON.stringify(rows.at(idx))).AccountCode);
-          this.shipmentExcelRows?.push(new ShipmentExcelRow(rows.at(idx) as ShipmentExcelRow));
-        }
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]) as any[];
+        rows.forEach(row => {
+          accList.push(row.AccountCode);
+          this.shipmentExcelRows.push(new ShipmentExcelRow(row));
+        });
       });
-    }
+    };
 
-    /** This lamda Fn is invoked once excel file is loaded */
-    fileReader.onloadend = (event) => {
+    fileReader.onloadend = () => {
       this.isButtonEnabled = false;
-      if(accountType == "Employee" || accountType == "Admin") {
-        let uniq: Array<string> = this.getridofDupElement(accList);
-
-        for(let idx: number = 0; idx < uniq.length; ++idx) {
-          this.http.getCustomerInfo(uniq[idx]).subscribe(
-            (data: Account) => {
-              this.accountInfoList.set(data.loginCredentials.accountCode, data);
-            },
-            (error: any) => {alert("Invalid AccountCode "); this.isButtonEnabled = true;},
-            () => {this.isButtonEnabled = false;}
+      if (accountType === 'Employee' || accountType === 'Admin') {
+        this.deduplicate(accList).forEach(code => {
+          this.subsink.add(
+            this.http.getCustomerInfo(code).subscribe({
+              next:  (data: Account) => { this.accountInfoList.set(data.loginCredentials.accountCode, data); },
+              error: () => { alert('Invalid AccountCode'); this.isButtonEnabled = true; }
+            })
           );
-        }
+        });
       } else {
-        alert("Bulk Upload is not supported for your Account");
+        alert('Bulk Upload is not supported for your Account');
       }
-    }
+    };
 
-    fileReader.onerror = (event) => {
-      alert("Excel File is invalid: ");
+    fileReader.onerror = () => {
+      alert('Excel file is invalid');
       this.isButtonEnabled = true;
-    }
-  }
-
-  onFileSelect(event: any) {
-    this.isButtonEnabled = true;
-    let accType:string = this.loggedInUser?.personalInfo.role as string;
-    this.processShipmentExcelFile(event, accType);
-  }
-  
-  ngOnDestroy(): void {
-      this.subsink.unsubscribe();
+    };
   }
 }

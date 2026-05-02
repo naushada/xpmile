@@ -1,8 +1,65 @@
-.mandatory {
+:host {
+
+  .mandatory {
     background-color: yellow;
-}
+  }
 
-.disabled {
+  .disabled {
     background-color: lightgrey;
+  }
 
+  .section-head {
+    margin: 0 0 4px 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #454545;
+    letter-spacing: 0.02em;
+  }
+
+  .awb-row {
+    align-items: flex-end;
+    margin-bottom: 4px;
+  }
+
+  // Pull the form body columns flush to the top
+  .form-body {
+    align-items: flex-start;
+  }
+
+  // Account row: select/input + retrieve button side by side
+  .acct-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+
+    clr-select-container,
+    clr-input-container {
+      flex: 1;
+    }
+
+    .acct-btn {
+      margin-bottom: 6px;
+    }
+  }
+
+  // Compact overrides: reduce vertical gap between fields
+  clr-input-container,
+  clr-select-container {
+    margin-top: 0 !important;
+  }
+
+  .clr-form-control {
+    margin-top: 0 !important;
+  }
+
+  // Shrink inputs slightly so more rows fit
+  input.clr-input,
+  select.clr-select {
+    height: 1.5rem;
+    font-size: 0.7rem;
+  }
+
+  label {
+    font-size: 0.7rem;
+  }
 }

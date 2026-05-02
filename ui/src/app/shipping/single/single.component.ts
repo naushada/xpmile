@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup } from '@angular/forms';
-import { Router } from '@angular/router';
-import { Account, AppGlobals, AppGlobalsDefault, Shipment } from 'src/common/app-globals';
+import { FormBuilder, FormGroup } from '@angular/forms';
+import { Account, AppGlobals, AppGlobalsDefault } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import { formatDate } from '@angular/common';
 import { SubSink } from 'subsink';
@@ -15,169 +14,152 @@ import { PubsubsvcService } from 'src/common/pubsubsvc.service';
 export class SingleComponent implements OnInit, OnDestroy {
 
   singleShipmentForm: FormGroup;
-  
+
   defValue?: AppGlobals;
-  isAutoGenerateState: boolean = false;
-  isAwbNoDisabled: boolean = true;
+  isAwbNoDisabled = true;
 
   accountInfoList: Account[] = [];
   loggedInUser?: Account;
-  subsink = new SubSink();
 
-  constructor(private fb: FormBuilder, private rt:Router, private http:HttpsvcService, private subject: PubsubsvcService) {
-    
-    this.defValue = {...AppGlobalsDefault};
+  private subsink = new SubSink();
 
-    this.subsink.sink = this.subject.onAccount.subscribe(rsp => {this.loggedInUser = rsp;},
-      error => {},
-      () => {});
-
-    this.subsink.sink = this.subject.onAccountList.subscribe(rsp => {
-      rsp?.forEach((elm: Account) => {this.accountInfoList.push(elm);});
-      },
-      error => {},
-      () => {});
-
-    this.singleShipmentForm = this.fb.group({
-      isAutoGenerate: true,
-      awbno: '',
-      altRefNo: '',
-
-      senderInformation : this.fb.group({
-        accountNo: '',
-        referenceNo: '',
-        name:'',
-        companyName:'',
-        country: this.defValue.CountryName?.at(1),
-        city:'',
-        state:'',
-        address:'',
-        postalCode:'',
-        contact:'',
-        phoneNumber:'',
-        email:'',
-        receivingTaxId:''
-      }),
-
-      shipmentInformation : this.fb.group({
-        activity: this.fb.array([{date: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'), event: "Document Created", 
-                                  time:new Date().getHours() + ':' + new Date().getMinutes(), notes:'Document Created', driver:'', 
-                                  updatedBy: this.loggedInUser?.personalInfo.name, eventLocation:'Riyadh'}]),
-        skuNo:'',
-        service:this.defValue.ServiceType?.at(1),
-        numberOfItems:'',
-        goodsDescription:'',
-        goodsValue:'',
-        customsValue:'',
-        codAmount:'',
-        vat:'',
-        currency: this.defValue.Currency?.at(1),
-        weight:'',
-        weightUnits:'',
-        cubicWeight:'',
-        createdOn: formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'),
-        createdBy: this.loggedInUser?.personalInfo.name
-      }),
-
-      receiverInformation: this.fb.group({
-        name:'',
-        country:this.defValue.CountryName?.at(1),
-        city:'',
-        state:'',
-        postalCode:'',
-        contact:'',
-        address:'',
-        phone:'',
-        email:''
-      })
-
-    });
-
-
-
-  }
-  onAutoGenerate(event:any) {
-    if(event.target.checked){
-      // do something here
-      this.isAutoGenerateState = true;
-      this.isAwbNoDisabled = true;
-    } else {
-      this.isAutoGenerateState = false;
-      this.isAwbNoDisabled = false;
-    }
-
-  }
-
-  onShipmentCreate()
-  {
-      console.log(this.singleShipmentForm.value);
-      let new_shipment:any = {"shipment": { ...this.singleShipmentForm.value}
-                    };
-
-      //alert(JSON.stringify(new_shipment));
-      this.http.createShipment(JSON.stringify(new_shipment)).subscribe((resp: any) => {alert("Waybill is create successfully for shipment.")},
-                                                                       error => {alert("Waybill creation failed");},
-                                                                       () => {});
+  constructor(
+    private fb: FormBuilder,
+    private http: HttpsvcService,
+    private subject: PubsubsvcService
+  ) {
+    this.defValue = { ...AppGlobalsDefault };
+    this.singleShipmentForm = this.buildForm();
   }
 
   ngOnInit(): void {
-    if(true == this.isAutoGenerateState) {
-      //this.singleShipmentForm.get('awbno')?.disable();
-    } else {
-      this.singleShipmentForm.get('awbno')?.enable();
-    }
+    this.singleShipmentForm.get('awbno')?.enable();
 
-    if( !this.accountInfoList.length) {
-      this.subsink.unsubscribe();
-      this.http.getAccountInfoList().subscribe((rsp: Account[]) => {
-        for(let idx = 0; idx < rsp.length; ++idx) {
-          this.accountInfoList[idx] = rsp[idx];
-        }
-        // Now we are publishing acctList for all observers
-        this.subject.emit_accountListInfo(this.accountInfoList);
-      });
-    }
-  }
+    this.subsink.add(
+      this.subject.onAccount.subscribe((rsp) => { this.loggedInUser = rsp; }),
+      this.subject.onAccountList.subscribe((rsp) => { this.accountInfoList = rsp ?? []; })
+    );
 
-  retrieveAccountInfo(): void {
-    
-    if('Customer' == this.loggedInUser?.personalInfo.role) {
-      this.singleShipmentForm.get('referenceNo')?.setValue(this.loggedInUser.personalInfo.name);
-
-    } else {
-      for (let idx:number = 0; idx < this.accountInfoList.length ; ++idx) {
-        if(this.accountInfoList[idx].loginCredentials.accountCode == this.singleShipmentForm.get('senderInformation.accountNo')?.value) {
-          this.singleShipmentForm.get('senderInformation')?.patchValue(
-            {
-              accountNo:      this.accountInfoList[idx].loginCredentials.accountCode,
-              name:           this.accountInfoList[idx].personalInfo.name,
-              companyName:    this.accountInfoList[idx].customerInfo.companyName,
-              city:           this.accountInfoList[idx].personalInfo.city,
-              state:          this.accountInfoList[idx].personalInfo.state,
-              address:        this.accountInfoList[idx].personalInfo.address,
-              postalCode:     this.accountInfoList[idx].personalInfo.postalCode,
-              contact:        this.accountInfoList[idx].personalInfo.contact,
-              phoneNumber:    this.accountInfoList[idx].personalInfo.contact,
-              email:          this.accountInfoList[idx].personalInfo.email,
-              receivingTaxId: this.accountInfoList[idx].customerInfo.vat
-            });
-        }
-      }
-    }
-
-  }
-
-  getIsAutoGenerateStatus(): boolean {
-    return(false);
-  }
-
-  isAutoGenerateClicked(evt: any): void {
-    if(true == evt.target.checked) {
-      this.singleShipmentForm.get("awbno")?.disable();
+    if (!this.accountInfoList.length) {
+      this.subsink.add(
+        this.http.getAccountInfoList().subscribe({
+          next: (rsp: Account[]) => {
+            this.accountInfoList = rsp;
+            this.subject.emit_accountListInfo(rsp);
+          }
+        })
+      );
     }
   }
 
   ngOnDestroy(): void {
-      this.subsink.unsubscribe();
+    this.subsink.unsubscribe();
+  }
+
+  onAutoGenerate(event: any): void {
+    this.isAwbNoDisabled = event.target.checked;
+  }
+
+  retrieveAccountInfo(): void {
+    if ('Customer' === this.loggedInUser?.personalInfo.role) {
+      this.singleShipmentForm.get('referenceNo')?.setValue(this.loggedInUser.personalInfo.name);
+      return;
+    }
+
+    const selectedCode = this.singleShipmentForm.get('senderInformation.accountNo')?.value;
+    const account = this.accountInfoList.find(
+      a => a.loginCredentials.accountCode === selectedCode
+    );
+    if (!account) return;
+
+    this.singleShipmentForm.get('senderInformation')?.patchValue({
+      accountNo:      account.loginCredentials.accountCode,
+      name:           account.personalInfo.name,
+      companyName:    account.customerInfo.companyName,
+      city:           account.personalInfo.city,
+      state:          account.personalInfo.state,
+      address:        account.personalInfo.address,
+      postalCode:     account.personalInfo.postalCode,
+      contact:        account.personalInfo.contact,
+      phoneNumber:    account.personalInfo.contact,
+      email:          account.personalInfo.email,
+      receivingTaxId: account.customerInfo.vat
+    });
+  }
+
+  onShipmentCreate(): void {
+    const payload = { shipment: { ...this.singleShipmentForm.value } };
+    this.http.createShipment(JSON.stringify(payload)).subscribe({
+      next:  () => alert('Waybill created successfully.'),
+      error: () => alert('Waybill creation failed.')
+    });
+  }
+
+  private buildForm(): FormGroup {
+    const now   = new Date();
+    const today = formatDate(now, 'dd/MM/yyyy', 'en-GB');
+    const time  = `${now.getHours()}:${now.getMinutes()}`;
+
+    return this.fb.group({
+      isAutoGenerate: true,
+      awbno:          '',
+      altRefNo:       '',
+
+      senderInformation: this.fb.group({
+        accountNo:      '',
+        referenceNo:    '',
+        name:           '',
+        companyName:    '',
+        country:        this.defValue?.CountryName?.[0] ?? '',
+        city:           '',
+        state:          '',
+        address:        '',
+        postalCode:     '',
+        contact:        '',
+        phoneNumber:    '',
+        email:          '',
+        receivingTaxId: ''
+      }),
+
+      shipmentInformation: this.fb.group({
+        activity: this.fb.array([
+          this.fb.group({
+            date:          today,
+            event:         'Document Created',
+            time:          time,
+            notes:         'Document Created',
+            driver:        '',
+            updatedBy:     '',
+            eventLocation: 'Riyadh'
+          })
+        ]),
+        skuNo:            '',
+        service:          this.defValue?.ServiceType?.[0] ?? '',
+        numberOfItems:    '',
+        goodsDescription: '',
+        goodsValue:       '',
+        customsValue:     '',
+        codAmount:        '',
+        vat:              '',
+        currency:         this.defValue?.Currency?.[0] ?? '',
+        weight:           '',
+        weightUnits:      '',
+        cubicWeight:      '',
+        createdOn:        today,
+        createdBy:        ''
+      }),
+
+      receiverInformation: this.fb.group({
+        name:       '',
+        country:    this.defValue?.CountryName?.[0] ?? '',
+        city:       '',
+        state:      '',
+        postalCode: '',
+        contact:    '',
+        address:    '',
+        phone:      '',
+        email:      ''
+      })
+    });
   }
 }

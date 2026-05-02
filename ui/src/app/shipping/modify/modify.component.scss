@@ -1,0 +1,43 @@
+:host {
+
+  .mandatory {
+    background-color: yellow;
+  }
+
+  .section-head {
+    margin: 0 0 4px 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #454545;
+    letter-spacing: 0.02em;
+  }
+
+  .lookup-row {
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 8px;
+  }
+
+  .form-body {
+    align-items: flex-start;
+  }
+
+  clr-input-container {
+    margin-top: 0 !important;
+  }
+
+  .clr-form-control {
+    margin-top: 0 !important;
+  }
+
+  input.clr-input {
+    height: 1.5rem;
+    font-size: 0.7rem;
+  }
+
+  label {
+    font-size: 0.7rem;
+  }
+
+}

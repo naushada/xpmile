@@ -1,0 +1,21 @@
+:host {
+
+  .upload-row {
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .upload-row__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .upload-row__label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #454545;
+  }
+
+}
