@@ -17,6 +17,78 @@ MongoDB listens on `localhost:27017` (remove that port mapping in `docker-compos
 
 ---
 
+## Running with Podman
+
+[Podman](https://podman.io) is a daemonless, rootless container engine that is a drop-in replacement for Docker on this project. All `docker compose` commands have direct `podman compose` equivalents.
+
+### Prerequisites
+
+**macOS**
+
+```sh
+brew install podman podman-compose
+podman machine init
+podman machine start
+```
+
+**Linux (Fedora / RHEL / CentOS)**
+
+```sh
+sudo dnf install -y podman podman-compose
+```
+
+**Linux (Debian / Ubuntu)**
+
+```sh
+sudo apt-get install -y podman
+pip3 install --user podman-compose
+```
+
+> Podman 4.0+ ships a built-in `podman compose` sub-command (backed by `podman-compose`). Either form works.
+
+### Quick start
+
+```sh
+git clone https://github.com/naushada/xpmile.git
+cd xpmile
+podman compose up --build
+```
+
+The app is served on `http://localhost:8080` — identical to the Docker workflow.
+
+### Command equivalents
+
+| Docker | Podman |
+|---|---|
+| `docker compose up --build` | `podman compose up --build` |
+| `docker compose up -d --build` | `podman compose up -d --build` |
+| `docker compose down` | `podman compose down` |
+| `docker compose down -v` | `podman compose down -v` |
+| `docker compose logs -f app` | `podman compose logs -f app` |
+| `docker compose ps` | `podman compose ps` |
+
+### Force-recompiling the UI (cache busting)
+
+```sh
+UI_BUST=$(date +%s) podman compose up -d --build app
+```
+
+### Resetting passwords / volumes
+
+```sh
+podman compose down -v
+podman compose up --build
+```
+
+### Key differences from Docker
+
+- **No daemon required** — Podman runs containers directly as your user process. No background service to start or stop.
+- **Rootless by default** — containers run without root privileges on the host. Ports ≥ 1024 work without any extra configuration.
+- **macOS requires a VM** — `podman machine` manages a lightweight Linux VM (similar to Docker Desktop's VM). Run `podman machine start` before any `podman compose` command.
+- **`podman-compose` vs Docker Compose** — `podman-compose` is a Python reimplementation and covers all features used by this project. If you hit a parsing edge-case, upgrade to the latest `podman-compose` with `pip3 install -U podman-compose`.
+
+---
+
 ## Services
 
 | Service | Image | Description |
