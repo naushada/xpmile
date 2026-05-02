@@ -21,7 +21,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   returnedToSender = 0;
   cancelled       = 0;
 
-  private accountCode = '';
+  accountCode = '';
   private subsink = new SubSink();
 
   constructor(

@@ -90,7 +90,12 @@ export class SingleComponent implements OnInit, OnDestroy {
   onShipmentCreate(): void {
     const payload = { shipment: { ...this.singleShipmentForm.value } };
     this.http.createShipment(JSON.stringify(payload)).subscribe({
-      next:  () => alert('Waybill created successfully.'),
+      next: (rsp: any) => {
+        if (rsp?.awbno) {
+          this.singleShipmentForm.patchValue({ awbno: rsp.awbno });
+        }
+        alert(`Waybill ${rsp?.awbno ?? ''} created successfully.`);
+      },
       error: () => alert('Waybill creation failed.')
     });
   }

@@ -1,7 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import {formatDate} from '@angular/common';
+import { formatDate } from '@angular/common';
 import { FormBuilder, FormGroup } from '@angular/forms';
-import { Router } from '@angular/router';
 import { Account, AppGlobals, AppGlobalsDefault, JobDetails } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
@@ -15,162 +14,136 @@ import { SubSink } from 'subsink';
 export class CollectShipmentComponent implements OnInit, OnDestroy {
 
   collectShipmentForm: FormGroup;
-  
-  defValue?: AppGlobals;
-  isAutoGenerateState: boolean = true;
-  isAwbNoDisabled: boolean = true;
-
+  defValue: AppGlobals = { ...AppGlobalsDefault };
   accountInfoList: Account[] = [];
   loggedInUser?: Account;
-  subsink = new SubSink();
-  accInfo?:Account;
+  jobDetails: JobDetails[] = [];
+  selected: JobDetails[] = [];
 
-  jobDetail?: JobDetails;
-  jobDetails:any[] = [] ;
-  selected:Array<JobDetails> = Array<JobDetails>();
+  private accInfo?: Account;
+  private subsink = new SubSink();
 
-  constructor(private fb: FormBuilder, private rt: Router, private http: HttpsvcService, private subject: PubsubsvcService) { 
-    this.defValue = {...AppGlobalsDefault};
-
-    this.subsink.sink = this.subject.onAccount.subscribe(rsp => {this.loggedInUser = rsp;},
-      error => {},
-      () => {});
-
-    this.subsink.sink = this.subject.onAccountList.subscribe(rsp => {
-      rsp?.forEach((elm: Account) => {this.accountInfoList.push(elm);});
-      },
-      error => {},
-      () => {});
-      
-      this.collectShipmentForm = this.fb.group({
-       from: this.fb.group({
-          jobId:'',
-          station:'',
-          customer:'',
-          accCode:'',
-          company:'',
-          collectionAddress:'',
-          city:'',
-          state:'',
-          country:'',
-          postcode:'',
-          service:'',
-          weight:'',
-          noOfShipments:'',
-          noOfItems:'',
-          dest:'',
-          area:'',
-          type:'',
-          when:formatDate(new Date(), 'dd/MM/yyyy', 'en-GB'),
-          readyTime: [new Date().getHours() + ':' + new Date().getMinutes()],
-          contact:'',
-          telephone:'',
-          email:'',
-          close:[new Date().getHours() + ':' + new Date().getMinutes()],
-          cash:'',
-          order:'',
-          pickupLocation:'',
-          transport:'',
-          additionalInfo:'',
-          specialInstructions:''
-        })
-      });
+  constructor(
+    private fb: FormBuilder,
+    private http: HttpsvcService,
+    private pubsub: PubsubsvcService
+  ) {
+    const now = new Date();
+    const hhmm = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+    this.collectShipmentForm = this.fb.group({
+      from: this.fb.group({
+        jobId:              '',
+        station:            '',
+        customer:           '',
+        accCode:            '',
+        company:            '',
+        collectionAddress:  '',
+        city:               '',
+        state:              '',
+        country:            '',
+        postcode:           '',
+        service:            '',
+        weight:             '',
+        noOfShipments:      '',
+        noOfItems:          '',
+        dest:               '',
+        area:               '',
+        type:               '',
+        when:               formatDate(now, 'dd/MM/yyyy', 'en-GB'),
+        readyTime:          hhmm,
+        contact:            '',
+        telephone:          '',
+        email:              '',
+        close:              hhmm,
+        cash:               '',
+        order:              '',
+        pickupLocation:     '',
+        transport:          '',
+        additionalInfo:     '',
+        specialInstructions: ''
+      })
+    });
   }
 
   ngOnInit(): void {
-    this.jobDetail = {
-          jobId: "12",
-          station:'Test',
-          customer:'ABC',
-          accCode:'Test',
-          company:'AABC Coo.',
-          collectionAddress:' From Delhi',
-          city:'New Delhi',
-          state:'New Delhii',
-          country:'India',
-          postcode:411048,
-          service:'Test 1',
-          weight:'1.3',
-          noOfShipments:2,
-          noOfItems:3,
-          dest:'Pune',
-          area:'Pune India, Maharastra',
-          type:'Test',
-          when:new Date(Date.now()),
-          readyTime: {hours:1,minutes:20},
-          contact:'Contact 1',
-          telephone:'997013613611',
-          email:"abc@example.com",
-          close: {hours:2, minutes:2},
-          cash:'12USD',
-          order:'1Pack',
-          pickupLocation:'NA',
-          transport:'NA',
-          additionalInfo:'NA',
-          specialInstructions:'NA'
-    };
-    this.jobDetails[0]=this.jobDetail;
+    this.subsink.add(
+      this.pubsub.onAccount.subscribe((rsp: Account | undefined) => { this.loggedInUser = rsp; })
+    );
+    this.subsink.add(
+      this.pubsub.onAccountList.subscribe((rsp: Account[] | undefined) => {
+        rsp?.forEach(elm => this.accountInfoList.push(elm));
+      })
+    );
+
+    this.jobDetails = [{
+      jobId:              '12',
+      station:            'Test',
+      customer:           'ABC',
+      accCode:            'Test',
+      company:            'AABC Coo.',
+      collectionAddress:  'From Delhi',
+      city:               'New Delhi',
+      state:              'New Delhi',
+      country:            'India',
+      postcode:           411048,
+      service:            'Test 1',
+      weight:             '1.3',
+      noOfShipments:      2,
+      noOfItems:          3,
+      dest:               'Pune',
+      area:               'Pune India, Maharastra',
+      type:               'Test',
+      when:               new Date(),
+      readyTime:          { hours: 1, minutes: 20 },
+      contact:            'Contact 1',
+      telephone:          '997013613611',
+      email:              'abc@example.com',
+      close:              { hours: 2, minutes: 2 },
+      cash:               '12USD',
+      order:              '1Pack',
+      pickupLocation:     'NA',
+      transport:          'NA',
+      additionalInfo:     'NA',
+      specialInstructions: 'NA'
+    }];
   }
 
-  onSchedulePickup() {
+  onEnter(_evt: any): void {
+    const code = this.collectShipmentForm.get('from.accCode')?.value;
+    if (!code) return;
 
-  }
-
-  onEnter(event: any) {
-    if(this.collectShipmentForm.get('from.accCode')?.value.length > 0) {
-      this.http.getAccountInfo(this.collectShipmentForm.get('from.accCode')?.value).subscribe(
-        (rsp:Account) => {
-          this.accInfo = rsp;
-          this.collectShipmentForm.get('from.company')?.setValue(this.accInfo.customerInfo.companyName);
-          this.collectShipmentForm.get('from.collectionAddress')?.setValue(this.accInfo.personalInfo.address);
-          this.collectShipmentForm.get('from.city')?.setValue(this.accInfo.personalInfo.city);
-          this.collectShipmentForm.get('from.state')?.setValue(this.accInfo.personalInfo.state);
-          this.collectShipmentForm.get('from.country')?.setValue(this.accInfo.personalInfo.eventLocation);
-          this.collectShipmentForm.get('from.postcode')?.setValue(this.accInfo.personalInfo.postalCode);
-        }, 
-        error => {
-          this.collectShipmentForm.get('from.company')?.setValue('');
-          this.collectShipmentForm.get('from.collectionAddress')?.setValue('');
-          this.collectShipmentForm.get('from.city')?.setValue('');
-          this.collectShipmentForm.get('from.state')?.setValue('');
-          this.collectShipmentForm.get('from.country')?.setValue('');
-          this.collectShipmentForm.get('from.postcode')?.setValue('');
-        }, 
-        () => {});
-    }
-    //alert(this.collectShipmentForm.get('from.accCode')?.value);
-  }
-
-  onJobCreate() {
-    //Get the Open Job Count
-    this.http.createJob(JSON.stringify(this.collectShipmentForm.value)).subscribe((rsp:any) => {
-      let result = JSON.parse(JSON.stringify(rsp));
-      this.collectShipmentForm.get('from.jobId')?.setValue(result["jobId"]);
-      this.jobDetail = {...this.collectShipmentForm.value};
-    },
-    (error) => {},
-    () => {} 
+    this.http.getAccountInfo(code).subscribe(
+      (rsp: Account) => {
+        this.accInfo = rsp;
+        this.collectShipmentForm.get('from')?.patchValue({
+          company:           rsp.customerInfo.companyName,
+          collectionAddress: rsp.personalInfo.address,
+          city:              rsp.personalInfo.city,
+          state:             rsp.personalInfo.state,
+          country:           rsp.personalInfo.eventLocation,
+          postcode:          rsp.personalInfo.postalCode
+        });
+      },
+      () => {
+        this.collectShipmentForm.get('from')?.patchValue({
+          company: '', collectionAddress: '', city: '', state: '', country: '', postcode: ''
+        });
+      }
     );
   }
 
-  onAssign() {
-
+  onJobCreate(): void {
+    this.http.createJob(JSON.stringify(this.collectShipmentForm.value)).subscribe((rsp: any) => {
+      this.collectShipmentForm.get('from.jobId')?.setValue(rsp.jobId);
+    });
   }
 
-  onFinalise() {
+  onAssign(): void {}
+  onFinalise(): void {}
+  onCancel(): void {}
+  onSelectionChanged(_evt: any): void {}
 
-  }
-
-  onCancel() {
-
-  }
-
-  onSelectionChanged(event:any) {
-
-  }
-  
   ngOnDestroy(): void {
     this.subsink.unsubscribe();
   }
-
 }

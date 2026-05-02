@@ -370,15 +370,14 @@ export interface Inventory {
 
 export interface Email {
     from: string;
-    //Password generated for APP
     passwd: string;
-    // Email sender's Name
     name: string;
     to: Array<string>;
     cc: string;
     bcc: string;
     emailbody: string;
     subject: string;
+    files?: Array<{ 'file-name': string; 'file-content': string }>;
 };
 
 export class UpdateAltRefForShipment {

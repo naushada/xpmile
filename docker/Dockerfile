@@ -64,7 +64,7 @@ RUN cmake .. && make -j$(nproc) install && ldconfig
 # -fconcepts: suppresses the set_state(auto) warning from emailservice.hpp
 COPY backend/ /src/backend/
 WORKDIR /src/backend/build
-RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j1
+RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make
 
 # ============================================================
 # Stage 2: Build Angular UI

@@ -28,6 +28,16 @@
     <textarea clrTextarea name="emailbody" formControlName="emailbody" rows="15"></textarea>
   </clr-textarea-container>
 
+  <div class="clr-row" style="margin-top: 8px; align-items: center;">
+    <div class="clr-col-auto" style="font-size: 0.7rem; font-weight: 600;">Attachments:</div>
+    <div class="clr-col-auto">
+      <input type="file" multiple (change)="onFilesSelected($event)" />
+    </div>
+    <div class="clr-col-auto" *ngIf="attachedFiles.length > 0" style="font-size: 0.7rem; color: #454545;">
+      {{ attachedFiles.length }} file(s) selected
+    </div>
+  </div>
+
   <div class="clr-row" style="margin-top: 8px;">
     <div class="clr-col-auto">
       <button class="btn btn-primary" type="button" (click)="sendEmail()">Send Email</button>

@@ -295,9 +295,6 @@ std::string MicroService::handle_shipment_POST(std::string &in,
 
   if (!uri.compare("/api/v1/shipment/shipping")) {
     std::string collectionName("shipping");
-
-    /*We need newly shipment No. */
-    std::string projection("{\"_id\" : false, \"shipmentNo\" : true}");
     std::string content = http.body();
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [worker:%t] %M %N:%l http request body length:%d "
@@ -305,14 +302,26 @@ std::string MicroService::handle_shipment_POST(std::string &in,
                content.length(), content.c_str()));
 
     if (content.length()) {
+      std::string awbno;
+      try {
+        auto doc = json::parse(content);
+        if (doc.contains("shipment")) {
+          auto &shipment = doc["shipment"];
+          if (shipment.value("isAutoGenerate", false)) {
+            awbno = dbInst.next_awbno();
+            shipment["awbno"] = awbno;
+            content = doc.dump();
+          } else if (shipment.contains("awbno")) {
+            awbno = shipment["awbno"].get<std::string>();
+          }
+        }
+      } catch (...) {}
 
       std::string record = dbInst.create_document(dbInst.get_database(),
                                                   collectionName, content);
-
       if (record.length()) {
-        std::string rsp("");
-        rsp = "{\"oid\" : \"" + record + "\"}";
-        return (build_responseOK(rsp));
+        json rsp_json = {{"oid", record}, {"awbno", awbno}};
+        return (build_responseOK(rsp_json.dump()));
       }
     }
 
@@ -1871,9 +1880,6 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
 
   if (!uri.compare("/api/v1/shipment/shipping")) {
     std::string collectionName("shipping");
-
-    /*We need newly shipment No. */
-    std::string projection("{\"_id\" : false, \"shipmentNo\" : true}");
     std::string content = http.body();
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [worker:%t] %M %N:%l http request body length:%d "
@@ -1881,14 +1887,26 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
                content.length(), content.c_str()));
 
     if (content.length()) {
+      std::string awbno;
+      try {
+        auto doc = json::parse(content);
+        if (doc.contains("shipment")) {
+          auto &shipment = doc["shipment"];
+          if (shipment.value("isAutoGenerate", false)) {
+            awbno = dbInst.next_awbno();
+            shipment["awbno"] = awbno;
+            content = doc.dump();
+          } else if (shipment.contains("awbno")) {
+            awbno = shipment["awbno"].get<std::string>();
+          }
+        }
+      } catch (...) {}
 
       std::string record = dbInst.create_document(dbInst.get_database(),
                                                   collectionName, content);
-
       if (record.length()) {
-        std::string rsp("");
-        rsp = "{\"oid\" : \"" + record + "\"}";
-        return (build_responseOK(rsp));
+        json rsp_json = {{"oid", record}, {"awbno", awbno}};
+        return (build_responseOK(rsp_json.dump()));
       }
     }
 

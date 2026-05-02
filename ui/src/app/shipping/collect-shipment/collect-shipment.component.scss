@@ -1,0 +1,28 @@
+:host {
+
+  .form-body {
+    align-items: flex-start;
+  }
+
+  clr-input-container,
+  clr-select-container,
+  clr-date-container,
+  clr-textarea-container {
+    margin-top: 0 !important;
+  }
+
+  .clr-form-control {
+    margin-top: 0 !important;
+  }
+
+  input.clr-input,
+  select.clr-select {
+    height: 1.5rem;
+    font-size: 0.7rem;
+  }
+
+  label {
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+}
