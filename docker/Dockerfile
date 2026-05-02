@@ -96,6 +96,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libzstd1 \
     libsasl2-2 \
     zlib1g \
+    libicu66 \
     && rm -rf /var/lib/apt/lists/*
 
 # ACE/TAO shared libraries (installed at non-standard prefix)
