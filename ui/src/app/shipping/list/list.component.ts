@@ -204,19 +204,64 @@ export class ListComponent implements OnInit, OnDestroy {
 
   private buildA4Body(): void {
     this.a4Body.length = 0;
-    this.rowsSelected.forEach((elm, idx, arr) => {
-      const table = this.buildLabelTable(elm, 200, 170, 70, 10) as any;
-      if (idx < arr.length - 1) { table.pageBreak = 'after'; }
-      this.a4Body.push([table]);
+    this.rowsSelected.forEach((elm: Shipment, idx, arr) => {
+      const awbno    = elm.shipment.awbno || 'N/A';
+      const altRefNo = elm.shipment.altRefNo?.toString() || awbno;
+      const domestic = this.isDomestic(elm);
+      const si       = elm.shipment.shipmentInformation;
+      const sender   = elm.shipment.senderInformation;
+      const receiver = elm.shipment.receiverInformation;
+      const entry: any = {
+        table: {
+          headerRows: 0,
+          widths: [200, '*'],
+          body: [
+            [{text: `Date: ${si.activity[0].date} ${si.activity[0].time}`},
+             {text: `Destination: ${receiver.country}\nProduct Type: ${si.service}`, bold: true}],
+            [{text: `Account Number: ${sender.accountNo}`},
+             {image: this.textToBase64Barcode(awbno, 70), alignment: 'center', rowSpan: 2, width: 170}],
+            [{text: `No. of Items: ${si.numberOfItems}\nWeight: ${si.weight}${si.weightUnits}\n${this.valueText(elm, domestic)}`}, ''],
+            [{text: `From:\n${sender.name}\nMobile: ${sender.phoneNumber}\nAlternate Mobile: ${sender.contact}\nCountry: ${sender.country}`},
+             {text: `To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.contact}\nAlternate Mobile: ${receiver.phone}\nCountry: ${receiver.country}`}],
+            [{text: `Description: ${si.goodsDescription}`},
+             {image: this.textToBase64Barcode(altRefNo, 70), alignment: 'center', rowSpan: 2, width: 170}],
+            [{text: `COD: ${si.codAmount} ${si.currency}`, bold: true}, ''],
+          ]
+        }
+      };
+      if (idx < arr.length - 1) { entry.pageBreak = 'after'; }
+      this.a4Body.push([entry]);
     });
   }
 
   private buildA2Body(): void {
     this.a2Body.length = 0;
-    this.rowsSelected.forEach((elm, idx, arr) => {
-      const table = this.buildLabelTable(elm, 200, 170, 70, 12, 'city') as any;
-      if (idx < arr.length - 1) { table.pageBreak = 'after'; }
-      this.a2Body.push([table]);
+    this.rowsSelected.forEach((elm: Shipment, idx, arr) => {
+      const awbno    = elm.shipment.awbno || 'N/A';
+      const altRefNo = elm.shipment.altRefNo?.toString() || awbno;
+      const si       = elm.shipment.shipmentInformation;
+      const sender   = elm.shipment.senderInformation;
+      const receiver = elm.shipment.receiverInformation;
+      const entry: any = {
+        table: {
+          headerRows: 0,
+          widths: [200, '*'],
+          body: [
+            [{text: `Date: ${si.activity[0].date} ${si.activity[0].time}`},
+             {text: `Destination: ${receiver.city}\nProduct Type: ${si.service}`, bold: true}],
+            [{text: `Account Number: ${sender.accountNo}`},
+             {image: this.textToBase64Barcode(awbno, 70), alignment: 'center', rowSpan: 2, width: 170}],
+            [{text: `No. of Items: ${si.numberOfItems}\nWeight: ${si.weight}${si.weightUnits}\nGoods Value: ${si.customsValue}`}, ''],
+            [{text: `From:\n${sender.name}\nMobile: ${sender.contact}\nAlternate Mobile: ${sender.phoneNumber}\nCountry: ${sender.country}`},
+             {text: `To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.phone}\nAlternate Mobile: ${receiver.contact}\nCountry: ${receiver.country}`}],
+            [{text: `Description: ${si.goodsDescription}`},
+             {image: this.textToBase64Barcode(altRefNo, 70), alignment: 'center', rowSpan: 2, width: 170}],
+            [{text: `COD: ${si.codAmount} ${si.currency}`, bold: true}, ''],
+          ]
+        }
+      };
+      if (idx < arr.length - 1) { entry.pageBreak = 'after'; }
+      this.a2Body.push([entry]);
     });
   }
 
