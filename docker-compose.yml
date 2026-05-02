@@ -10,6 +10,7 @@ services:
       dockerfile: Dockerfile.mongo
     image: xpmile-mongo:latest
     container_name: xpmile-mongo
+    user: "999:999"   # run as mongodb user directly; skips root chown of /proc/1/fd/*
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
