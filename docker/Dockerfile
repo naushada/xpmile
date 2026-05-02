@@ -73,6 +73,10 @@ FROM node:18-alpine AS ui-builder
 ENV NG_BUILD_MAX_WORKERS=1
 ENV NODE_OPTIONS=--max_old_space_size=1536
 
+# Pass --build-arg UI_BUST=$(date +%s) to force this stage to re-run
+# without invalidating the slower C++ stage above.
+ARG UI_BUST=0
+
 WORKDIR /ui
 # Copy manifests first so npm install layer is cached separately from source
 COPY ui/package.json ui/package-lock.json ./

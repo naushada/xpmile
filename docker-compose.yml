@@ -39,6 +39,8 @@ services:
     build:
       context: .                    # repo root — Dockerfile COPYs backend/ and ui/
       dockerfile: docker/Dockerfile
+      args:
+        UI_BUST: ${UI_BUST:-0}
     image: xpmile:latest
     container_name: xpmile-app
     restart: unless-stopped
