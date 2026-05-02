@@ -143,6 +143,26 @@ docker compose up --build
 Running `docker compose up` without `--build` reuses the last built
 image and will not pick up code or Dockerfile changes.
 
+### `xpmile-mongo is unhealthy` / `UserNotFound: Could not find user "root"`
+
+The MongoDB init scripts (`MONGO_INITDB_ROOT_USERNAME/PASSWORD` and
+`mongo-init.js`) **only run when the data volume is empty**.  If the
+`mongo-data` volume was created by an earlier run that predates
+authentication being enabled, MongoDB reuses the existing data directory
+and skips initialisation entirely — leaving the `root` user absent and
+every healthcheck ping failing with `Authentication failed`.
+
+Drop the stale volume and let MongoDB re-initialise from scratch:
+
+```sh
+docker compose down -v
+docker compose up --build
+```
+
+> `down -v` removes the named volume.  All stored shipment data is lost,
+> so only do this on a development instance or when you are prepared to
+> re-seed.
+
 ### Obsolete `version` field warning
 
 Docker Compose v2 ignores the top-level `version` field and prints a
