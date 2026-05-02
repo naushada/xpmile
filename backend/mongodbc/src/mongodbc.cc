@@ -440,12 +440,12 @@ std::vector<std::uint8_t> MongodbClient::fetch_file(const std::string &filename)
 
     // mongocxx v3.6 has no open_download_stream_by_name; find the file
     // metadata first to obtain its _id, then open by id.
+    // options::gridfs::find is also absent in v3.6, so we iterate and
+    // stop at the first match instead of passing a limit option.
     auto name_filter = bsoncxx::builder::stream::document{}
                        << "filename" << filename
                        << bsoncxx::builder::stream::finalize;
-    mongocxx::options::gridfs::find find_opts;
-    find_opts.limit(1);
-    auto cursor = bucket.find(name_filter.view(), find_opts);
+    auto cursor = bucket.find(name_filter.view());
     auto it = cursor.begin();
     if (it == cursor.end())
       throw std::runtime_error("file not found: " + filename);
