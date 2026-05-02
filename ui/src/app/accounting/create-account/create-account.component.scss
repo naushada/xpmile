@@ -1,0 +1,40 @@
+:host {
+
+  .section-head {
+    margin: 0 0 4px 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #454545;
+    letter-spacing: 0.02em;
+  }
+
+  .top-row {
+    align-items: flex-end;
+    margin-bottom: 8px;
+    gap: 1rem;
+  }
+
+  .form-body {
+    align-items: flex-start;
+  }
+
+  clr-input-container,
+  clr-select-container {
+    margin-top: 0 !important;
+  }
+
+  .clr-form-control {
+    margin-top: 0 !important;
+  }
+
+  input.clr-input,
+  select.clr-select {
+    height: 1.5rem;
+    font-size: 0.7rem;
+  }
+
+  label {
+    font-size: 0.7rem;
+  }
+
+}

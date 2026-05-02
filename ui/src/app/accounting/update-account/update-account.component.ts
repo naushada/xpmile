@@ -12,61 +12,79 @@ import { SubSink } from 'subsink';
 })
 export class UpdateAccountComponent implements OnInit, OnDestroy {
 
-  subsink = new SubSink();
-  defVal: AppGlobals = {...AppGlobalsDefault};
+  defVal: AppGlobals = { ...AppGlobalsDefault };
   accountForm: FormGroup;
 
-  constructor(private fb: FormBuilder, private http: HttpsvcService, private subject: PubsubsvcService) { 
-    this.accountForm = this.fb.group({
-      isAccountCodeAutoGen: true,
-      loginCredentials: this.fb.group({
-      accountCode: '',
-      accountPassword: ''}),
-      personalInfo: this.fb.group({
-        eventLocation:'',
-	      role:'',
-	      name: '',
-	      contact: '',
-	      email: '',
-	      address: '',
-		    city:'',
-		    state:'',
-		    postalCode:'',
-      }),
-      customerInfo: this.fb.group({
-        companyName:'',
-        quotedAmount: '',
-        tradingLicense:'',
-        vat: '',
-        currency:'',
-        bankAccountNumber: '',
-        iban: ''
-      })
-    });
+  private subsink = new SubSink();
+
+  constructor(
+    private fb: FormBuilder,
+    private http: HttpsvcService,
+    private subject: PubsubsvcService
+  ) {
+    this.accountForm = this.buildForm();
   }
 
-  
-
   ngOnInit(): void {
-    this.subsink.sink = this.subject.onAccount.subscribe(
-      (rsp) => {this.accountForm.setValue({...rsp});}, 
-      error => {}, 
-      () => {});
+    this.subsink.add(
+      this.subject.onAccount.subscribe({
+        next: (rsp) => { if (rsp) this.accountForm.setValue({ ...rsp }); }
+      })
+    );
   }
 
   ngOnDestroy(): void {
-      this.subsink.unsubscribe();
+    this.subsink.unsubscribe();
   }
-  
-  retrieveAccountInfo(): void {
-    let accCode: string = this.accountForm.get("loginCredentials.accountCode")?.value;
-    this.http.getCustomerInfo(accCode).subscribe((rsp: Account) => {this.accountForm.setValue({...rsp});}, error => {}, () => {});
 
+  retrieveAccountInfo(): void {
+    const accCode = this.accountForm.get('loginCredentials.accountCode')?.value;
+    if (!accCode) return;
+    this.subsink.add(
+      this.http.getCustomerInfo(accCode).subscribe({
+        next:  (rsp: Account) => { this.accountForm.setValue({ ...rsp }); },
+        error: ()             => { alert('Account not found.'); }
+      })
+    );
   }
 
   updateAccount(): void {
-    //alert("Not implemented yet");
-    let accCode: string = this.accountForm.get("loginCredentials.accountCode")?.value;
-    this.http.updateAccountInfo(accCode, this.accountForm.value).subscribe((rsp: any) => {}, error => {alert("Account is updated failed");}, () => {alert("Account is updated successfully");});
+    const accCode = this.accountForm.get('loginCredentials.accountCode')?.value;
+    this.subsink.add(
+      this.http.updateAccountInfo(accCode, this.accountForm.value).subscribe({
+        next:  () => alert('Account updated successfully.'),
+        error: () => alert('Account update failed.')
+      })
+    );
+  }
+
+  private buildForm(): FormGroup {
+    return this.fb.group({
+      isAccountCodeAutoGen: true,
+      loginCredentials: this.fb.group({
+        accountCode:     '',
+        accountPassword: ''
+      }),
+      personalInfo: this.fb.group({
+        eventLocation: '',
+        role:          '',
+        name:          '',
+        contact:       '',
+        email:         '',
+        address:       '',
+        city:          '',
+        state:         '',
+        postalCode:    ''
+      }),
+      customerInfo: this.fb.group({
+        companyName:       '',
+        quotedAmount:      '',
+        tradingLicense:    '',
+        vat:               '',
+        currency:          '',
+        bankAccountNumber: '',
+        iban:              ''
+      })
+    });
   }
 }
