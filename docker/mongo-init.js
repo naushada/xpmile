@@ -1,8 +1,20 @@
 // Runs once on first startup (when the data volume is empty).
-// Switch to the application database and insert the bootstrap admin user.
+// Creates a scoped app user and inserts the bootstrap admin document.
 
-db = db.getSiblingDB("xpmile");
+const appUser = process.env.MONGO_APP_USER || 'xpmile';
+const appPass = process.env.MONGO_APP_PASS || 'xpmile_pass';
 
+// Create the app user in the admin database with readWrite on xpmile only.
+db = db.getSiblingDB('admin');
+db.createUser({
+  user: appUser,
+  pwd:  appPass,
+  roles: [{ role: 'readWrite', db: 'xpmile' }]
+});
+print(`App DB user '${appUser}' created with readWrite on 'xpmile'`);
+
+// Seed the application database.
+db = db.getSiblingDB('xpmile');
 db.account.insertOne({
   isAccountCodeAutoGen: false,
   loginCredentials: {
@@ -30,5 +42,4 @@ db.account.insertOne({
     iban: ""
   }
 });
-
-print("Bootstrap admin user created — accountCode: admin / accountPassword: admin@123");
+print("Bootstrap admin document created — accountCode: admin / accountPassword: admin@123");

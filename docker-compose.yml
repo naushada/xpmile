@@ -13,6 +13,11 @@ services:
     image: xpmile-mongo:latest
     container_name: xpmile-mongo
     restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-changeme}
+      MONGO_APP_USER: ${MONGO_APP_USER:-xpmile}
+      MONGO_APP_PASS: ${MONGO_APP_PASS:-xpmile_pass}
     volumes:
       - mongo-data:/data/db
     ports:
@@ -20,7 +25,7 @@ services:
     networks:
       - xpmile-net
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--quiet"]
+      test: ["CMD-SHELL", "mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --eval \"db.adminCommand('ping')\" --quiet"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,7 +51,7 @@ services:
         --server-worker ${SERVER_WORKERS:-5}
         --mongo-db-name ${MONGO_DB:-xpmile}
         --mongo-db-connection-pool ${MONGO_POOL:-20}
-        --mongo-db-uri mongodb://mongodb:27017/${MONGO_DB:-xpmile}?maxPoolSize=${MONGO_POOL:-20}
+        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin&maxPoolSize=${MONGO_POOL:-20}
     ports:
       - "${HOST_PORT:-8080}:${PORT:-8080}"
     networks:
