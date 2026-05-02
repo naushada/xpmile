@@ -120,7 +120,7 @@ export class ListComponent implements OnInit, OnDestroy {
 
   textToBase64Barcode(text: string, ht: number, fSize = 15): string {
     const canvas = document.createElement('canvas');
-    JsBarcode(canvas, text || 'default', { format: 'CODE128', height: ht, fontOptions: 'bold', fontSize: fSize });
+    JsBarcode(canvas, text || 'N/A', { format: 'CODE128', height: ht, fontOptions: 'bold', fontSize: fSize });
     return canvas.toDataURL('image/png');
   }
 
@@ -135,96 +135,86 @@ export class ListComponent implements OnInit, OnDestroy {
       : `Customs Value: ${si.currency} ${si.customsValue}`;
   }
 
+  private buildLabelTable(
+    elm: Shipment,
+    leftWidth: number,
+    barcodeWidth: number,
+    barcodeHeight: number,
+    fontSize: number,
+    destinationField: 'country' | 'city' = 'country'
+  ): object {
+    const awbno    = elm.shipment.awbno || 'N/A';
+    const altRefNo = elm.shipment.altRefNo?.toString() || awbno;
+    const domestic = this.isDomestic(elm);
+    const si       = elm.shipment.shipmentInformation;
+    const sender   = elm.shipment.senderInformation;
+    const receiver = elm.shipment.receiverInformation;
+    const date     = si.activity?.[0]?.date ?? '';
+    const time     = si.activity?.[0]?.time ?? '';
+    const dest     = receiver[destinationField];
+
+    const c = (text: string, extra: object = {}): object => ({ text, fontSize, ...extra });
+    const awbBarcode    = this.textToBase64Barcode(awbno, barcodeHeight, fontSize + 2);
+    const altRefBarcode = this.textToBase64Barcode(altRefNo, Math.round(barcodeHeight * 0.9), fontSize);
+
+    return {
+      table: {
+        headerRows: 0,
+        widths: [leftWidth, '*'],
+        body: [
+          [
+            c(`Date: ${date} ${time}`),
+            c(`Destination: ${dest}\nProduct Type: ${si.service}`, { bold: true, fontSize: fontSize + 1 })
+          ],
+          [
+            c(`Account Number: ${sender.accountNo}`),
+            { image: awbBarcode, alignment: 'center', rowSpan: 2, width: barcodeWidth, margin: [0, 2, 0, 2] }
+          ],
+          [
+            c(`No. of Items: ${si.numberOfItems}\nWeight: ${si.weight} ${si.weightUnits}\n${this.valueText(elm, domestic)}`),
+            ''
+          ],
+          [
+            c(`From:\n${sender.name}\nMobile: ${sender.phoneNumber}\nAlternate Mobile: ${sender.contact}\nCountry: ${sender.country}`),
+            c(`To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.phone}\nAlternate Mobile: ${receiver.contact}\nCountry: ${receiver.country}`)
+          ],
+          [
+            c(`Description: ${si.goodsDescription}`),
+            { image: altRefBarcode, alignment: 'center', rowSpan: 2, width: barcodeWidth, margin: [0, 2, 0, 2] }
+          ],
+          [
+            c(`COD: ${si.codAmount} ${si.currency}`, { bold: true, fontSize: fontSize + 1 }),
+            ''
+          ],
+        ]
+      }
+    };
+  }
+
   private buildA6Body(): void {
     this.a6Body.length = 0;
-    this.rowsSelected.forEach((elm: Shipment) => {
-      const altRefNo   = elm.shipment.altRefNo?.toString() ?? 'default';
-      const domestic   = this.isDomestic(elm);
-      const si         = elm.shipment.shipmentInformation;
-      const sender     = elm.shipment.senderInformation;
-      const receiver   = elm.shipment.receiverInformation;
-
-      this.a6Body.push([{
-        table: {
-          headerRows: 0,
-          widths:  [100, '*'],
-          heights: ['auto', 'auto', 'auto', 20, 'auto'],
-          body: [
-            [{text: `Date: ${si.activity[0].date} ${si.activity[0].time}`, fontSize: 10},
-             {text: `Destination: ${receiver.country}\nProduct Type: ${si.service}`, bold: true}],
-            [{text: `Account Number: ${sender.accountNo}`, fontSize: 10},
-             {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center', rowSpan: 2, width: 170}],
-            [{text: `No. of Items: ${si.numberOfItems}\nWeight: ${si.weight}${si.weightUnits}\n${this.valueText(elm, domestic)}`, bold: false, fontSize: 10}, ''],
-            [{text: `From:\n${sender.name}\nMobile: ${sender.phoneNumber}\nAlternate Mobile: ${sender.contact}\nCountry: ${sender.country}`, bold: false, fontSize: 10},
-             {text: `To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.contact}\nAlternate Mobile: ${receiver.phone}\nCountry: ${receiver.country}`, fontSize: 10}],
-            [{text: `Description: ${si.goodsDescription}`, fontSize: 10},
-             {image: this.textToBase64Barcode(altRefNo, 70), bold: false, alignment: 'center', rowSpan: 2, width: 170}],
-            [{text: `COD: ${si.currency} ${si.codAmount}`, bold: true}, ''],
-          ]
-        },
-        pageBreak: 'after'
-      }]);
+    this.rowsSelected.forEach((elm, idx, arr) => {
+      const table = this.buildLabelTable(elm, 110, 148, 65, 8) as any;
+      if (idx < arr.length - 1) { table.pageBreak = 'after'; }
+      this.a6Body.push([table]);
     });
   }
 
   private buildA4Body(): void {
     this.a4Body.length = 0;
-    this.rowsSelected.forEach((elm: Shipment) => {
-      const altRefNo  = elm.shipment.altRefNo?.toString() ?? 'default';
-      const domestic  = this.isDomestic(elm);
-      const si        = elm.shipment.shipmentInformation;
-      const sender    = elm.shipment.senderInformation;
-      const receiver  = elm.shipment.receiverInformation;
-
-      this.a4Body.push([{
-        table: {
-          headerRows: 0,
-          widths: [200, '*'],
-          body: [
-            [{text: `Date: ${si.activity[0].date} ${si.activity[0].time}`},
-             {text: `Destination: ${receiver.country}\nProduct Type: ${si.service}`, bold: true}],
-            [{text: `Account Number: ${sender.accountNo}`},
-             {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center', rowSpan: 2, width: 170}],
-            [{text: `No. of Items: ${si.numberOfItems}\nWeight: ${si.weight}${si.weightUnits}\n${this.valueText(elm, domestic)}`, bold: false}, ''],
-            [{text: `From:\n${sender.name}\nMobile: ${sender.phoneNumber}\nAlternate Mobile: ${sender.contact}\nCountry: ${sender.country}`, bold: false},
-             {text: `To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.contact}\nAlternate Mobile: ${receiver.phone}\nCountry: ${receiver.country}`}],
-            [{text: `Description: ${si.goodsDescription}`},
-             {image: this.textToBase64Barcode(altRefNo, 70), bold: false, alignment: 'center', rowSpan: 2, width: 170}],
-            [{text: `COD: ${si.currency} ${si.codAmount}`, bold: true}, ''],
-          ]
-        },
-        pageBreak: 'after'
-      }]);
+    this.rowsSelected.forEach((elm, idx, arr) => {
+      const table = this.buildLabelTable(elm, 200, 170, 70, 10) as any;
+      if (idx < arr.length - 1) { table.pageBreak = 'after'; }
+      this.a4Body.push([table]);
     });
   }
 
   private buildA2Body(): void {
     this.a2Body.length = 0;
-    this.rowsSelected.forEach((elm: Shipment) => {
-      const altRefNo = elm.shipment.altRefNo?.toString() ?? 'default';
-      const si       = elm.shipment.shipmentInformation;
-      const sender   = elm.shipment.senderInformation;
-      const receiver = elm.shipment.receiverInformation;
-
-      this.a2Body.push([{
-        table: {
-          headerRows: 0,
-          widths: [200, '*'],
-          body: [
-            [{text: `Date: ${si.activity[0].date} ${si.activity[0].time}`},
-             {text: `Destination: ${receiver.city}\nProduct Type: ${si.service}`, bold: true}],
-            [{text: `Account Number: ${sender.accountNo}`},
-             {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center', rowSpan: 2, width: 170}],
-            [{text: `No. of Items: ${si.numberOfItems}\nWeight: ${si.weight}${si.weightUnits}\nGoods Value: ${si.customsValue}`, bold: false}, ''],
-            [{text: `From:\n${sender.name}\nMobile: ${sender.contact}\nAlternate Mobile: ${sender.phoneNumber}\nCountry: ${sender.country}`, bold: false},
-             {text: `To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.phone}\nAlternate Mobile: ${receiver.contact}\nCountry: ${receiver.country}`}],
-            [{text: `Description: ${si.goodsDescription}`},
-             {image: this.textToBase64Barcode(altRefNo, 70), bold: false, alignment: 'center', rowSpan: 2, width: 170}],
-            [{text: `COD: ${si.currency} ${si.codAmount}`, bold: true}, ''],
-          ]
-        },
-        pageBreak: 'after'
-      }]);
+    this.rowsSelected.forEach((elm, idx, arr) => {
+      const table = this.buildLabelTable(elm, 200, 170, 70, 12, 'city') as any;
+      if (idx < arr.length - 1) { table.pageBreak = 'after'; }
+      this.a2Body.push([table]);
     });
   }
 
