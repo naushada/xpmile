@@ -141,8 +141,7 @@ export class ListComponent implements OnInit, OnDestroy {
     barcodeWidth: number,
     barcodeHeight: number,
     fontSize: number,
-    destinationField: 'country' | 'city' = 'country',
-    rowHeights?: number[]
+    destinationField: 'country' | 'city' = 'country'
   ): object {
     const awbno    = elm.shipment.awbno || 'N/A';
     const altRefNo = elm.shipment.altRefNo?.toString() || awbno;
@@ -158,52 +157,46 @@ export class ListComponent implements OnInit, OnDestroy {
     const awbBarcode    = this.textToBase64Barcode(awbno, barcodeHeight, fontSize + 2);
     const altRefBarcode = this.textToBase64Barcode(altRefNo, Math.round(barcodeHeight * 0.9), fontSize);
 
-    const tableConfig: any = {
-      headerRows: 0,
-      widths: [leftWidth, '*'],
-      body: [
-        [
-          c(`Date: ${date} ${time}`),
-          c(`Destination: ${dest}\nProduct Type: ${si.service}`, { bold: true, fontSize: fontSize + 1 })
-        ],
-        [
-          c(`Account Number: ${sender.accountNo}`),
-          { image: awbBarcode, alignment: 'center', rowSpan: 2, width: barcodeWidth, margin: [0, 2, 0, 2] }
-        ],
-        [
-          c(`No. of Items: ${si.numberOfItems}\nWeight: ${si.weight} ${si.weightUnits}\n${this.valueText(elm, domestic)}`),
-          ''
-        ],
-        [
-          c(`From:\n${sender.name}\nMobile: ${sender.phoneNumber}\nAlternate Mobile: ${sender.contact}\nCountry: ${sender.country}`,
-            { maxLines: 6, ellipsis: true }),
-          c(`To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.phone}\nAlternate Mobile: ${receiver.contact}\nCountry: ${receiver.country}`,
-            { maxLines: 9, ellipsis: true })
-        ],
-        [
-          c(`Description: ${si.goodsDescription}`),
-          { image: altRefBarcode, alignment: 'center', rowSpan: 2, width: barcodeWidth, margin: [0, 2, 0, 2] }
-        ],
-        [
-          c(`COD: ${si.codAmount} ${si.currency}`, { bold: true, fontSize: fontSize + 1 }),
-          ''
-        ],
-      ]
+    return {
+      table: {
+        headerRows: 0,
+        widths: [leftWidth, '*'],
+        body: [
+          [
+            c(`Date: ${date} ${time}`),
+            c(`Destination: ${dest}\nProduct Type: ${si.service}`, { bold: true, fontSize: fontSize + 1 })
+          ],
+          [
+            c(`Account Number: ${sender.accountNo}`),
+            { image: awbBarcode, alignment: 'center', rowSpan: 2, width: barcodeWidth, margin: [0, 2, 0, 2] }
+          ],
+          [
+            c(`No. of Items: ${si.numberOfItems}\nWeight: ${si.weight} ${si.weightUnits}\n${this.valueText(elm, domestic)}`),
+            ''
+          ],
+          [
+            c(`From:\n${sender.name}\nMobile: ${sender.phoneNumber}\nAlternate Mobile: ${sender.contact}\nCountry: ${sender.country}`,
+              { maxLines: 6, ellipsis: true }),
+            c(`To:\n${receiver.name}\nAddress: ${receiver.address}\nCity: ${receiver.city}\nMobile: ${receiver.phone}\nAlternate Mobile: ${receiver.contact}\nCountry: ${receiver.country}`,
+              { maxLines: 9, ellipsis: true })
+          ],
+          [
+            c(`Description: ${si.goodsDescription}`),
+            { image: altRefBarcode, alignment: 'center', rowSpan: 2, width: barcodeWidth, margin: [0, 2, 0, 2] }
+          ],
+          [
+            c(`COD: ${si.codAmount} ${si.currency}`, { bold: true, fontSize: fontSize + 1 }),
+            ''
+          ],
+        ]
+      }
     };
-
-    if (rowHeights) { tableConfig.heights = rowHeights; }
-    return { table: tableConfig };
   }
 
   private buildA6Body(): void {
     this.a6Body.length = 0;
-    // A6 = 419.5 pt height, 5 pt margins → 409.5 pt usable.
-    // Row heights sum to 394 pt; 7 borders (~3.5 pt) brings total to ~397.5 pt.
-    // Rows 2+3 combined = 77 pt ≥ barcode 65 pt + 4 pt margin.
-    // Rows 5+6 combined = 75 pt ≥ alt-ref barcode 58 pt + 4 pt margin.
-    const a6Heights = [42, 25, 52, 200, 25, 50];
     this.rowsSelected.forEach((elm, idx, arr) => {
-      const table = this.buildLabelTable(elm, 110, 148, 65, 8, 'country', a6Heights) as any;
+      const table = this.buildLabelTable(elm, 110, 148, 65, 8) as any;
       if (idx < arr.length - 1) { table.pageBreak = 'after'; }
       this.a6Body.push([table]);
     });
