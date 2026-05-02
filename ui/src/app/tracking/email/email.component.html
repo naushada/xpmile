@@ -1,47 +1,39 @@
-<form [formGroup]="emailForm" clrForm clrLayout="compact" clrLabelSize="2">
+<form [formGroup]="emailForm">
 
-  <clr-input-container>
-    <label>To:</label>
-    <input clrInput name="to" formControlName="to" />
-    <clr-control-helper>Separate multiple addresses with a comma</clr-control-helper>
-  </clr-input-container>
+  <div class="compose-card">
 
-  <clr-input-container>
-    <label>Cc:</label>
-    <input clrInput name="cc" formControlName="cc" />
-    <clr-control-helper>Separate multiple addresses with a comma</clr-control-helper>
-  </clr-input-container>
+    <div class="compose-field">
+      <label>To</label>
+      <input type="text" formControlName="to" placeholder="Separate multiple addresses with a comma" />
+    </div>
 
-  <clr-input-container>
-    <label>Bcc:</label>
-    <input clrInput name="bcc" formControlName="bcc" />
-    <clr-control-helper>Separate multiple addresses with a comma</clr-control-helper>
-  </clr-input-container>
+    <div class="compose-field">
+      <label>Cc</label>
+      <input type="text" formControlName="cc" placeholder="Separate multiple addresses with a comma" />
+    </div>
 
-  <clr-input-container>
-    <label>Subject:</label>
-    <input clrInput name="subject" formControlName="subject" />
-  </clr-input-container>
+    <div class="compose-field">
+      <label>Bcc</label>
+      <input type="text" formControlName="bcc" placeholder="Separate multiple addresses with a comma" />
+    </div>
 
-  <clr-textarea-container>
-    <label>Message</label>
-    <textarea clrTextarea name="emailbody" formControlName="emailbody" rows="15"></textarea>
-  </clr-textarea-container>
+    <div class="compose-field">
+      <label>Subject</label>
+      <input type="text" formControlName="subject" />
+    </div>
 
-  <div class="clr-row" style="margin-top: 8px; align-items: center;">
-    <div class="clr-col-auto" style="font-size: 0.7rem; font-weight: 600;">Attachments:</div>
-    <div class="clr-col-auto">
+    <div class="compose-body">
+      <textarea formControlName="emailbody" rows="14" placeholder="Message"></textarea>
+    </div>
+
+    <div class="compose-attachments">
+      <label>Attachments</label>
       <input type="file" multiple (change)="onFilesSelected($event)" />
+      <span *ngIf="attachedFiles.length > 0">{{ attachedFiles.length }} file(s) selected</span>
     </div>
-    <div class="clr-col-auto" *ngIf="attachedFiles.length > 0" style="font-size: 0.7rem; color: #454545;">
-      {{ attachedFiles.length }} file(s) selected
-    </div>
+
   </div>
 
-  <div class="clr-row" style="margin-top: 8px;">
-    <div class="clr-col-auto">
-      <button type="button" class="btn btn-primary" type="button" (click)="sendEmail()">Send Email</button>
-    </div>
-  </div>
+  <button type="button" class="btn btn-primary" style="margin-top: 12px;" (click)="sendEmail()">Send Email</button>
 
 </form>

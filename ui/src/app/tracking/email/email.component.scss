@@ -1,22 +1,76 @@
 :host {
+  display: block;
 
-  clr-input-container,
-  clr-textarea-container {
-    margin-top: 0 !important;
+  .compose-card {
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
   }
 
-  .clr-form-control {
-    margin-top: 0 !important;
+  .compose-field {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #e8e8e8;
+    padding: 0 12px;
+    min-height: 36px;
+
+    label {
+      width: 72px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #454545;
+      flex-shrink: 0;
+    }
+
+    input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 0.8rem;
+      padding: 6px 4px;
+      background: transparent;
+
+      &::placeholder {
+        color: #aaa;
+        font-style: italic;
+      }
+    }
   }
 
-  textarea.clr-textarea {
-    width: 100%;
-    font-size: 0.75rem;
+  .compose-body {
+    border-bottom: 1px solid #e8e8e8;
+
+    textarea {
+      display: block;
+      width: 100%;
+      border: none;
+      outline: none;
+      resize: vertical;
+      font-size: 0.8rem;
+      font-family: inherit;
+      padding: 10px 12px;
+      background: transparent;
+      box-sizing: border-box;
+    }
   }
 
-  input.clr-input {
-    width: 100%;
-    font-size: 0.75rem;
-  }
+  .compose-attachments {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
 
+    label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #454545;
+      white-space: nowrap;
+    }
+
+    span {
+      font-size: 0.75rem;
+      color: #666;
+    }
+  }
 }
