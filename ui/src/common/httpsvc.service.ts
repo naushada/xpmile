@@ -129,6 +129,13 @@ export class HttpsvcService {
     return this.http.get<Shipment[]>(this.getUri("from_web_shipment"), options)
   }
 
+  getShipmentsForAccount(accountCode: string): Observable<Shipment[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const param = `fromDate=2020-01-01&toDate=${today}&accountCode=${accountCode}`;
+    const options = {params: new HttpParams({fromString: param})};
+    return this.http.get<Shipment[]>(this.getUri("from_web_shipment"), options);
+  }
+
   /**
    * 
    * @param awb 

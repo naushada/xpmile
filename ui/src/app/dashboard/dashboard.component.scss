@@ -20,6 +20,12 @@
         box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.14), 0 7px 10px -5px #027bb1;
       }
 
+      // Icon Teal (Created Today)
+      &__teal {
+        background: linear-gradient(60deg, #26c6da, #00838f);
+        box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.14), 0 7px 10px -5px #00838f;
+      }
+
       //Icon Red
       &__red {
         background: linear-gradient(60deg, #ef5350, #EA2027);

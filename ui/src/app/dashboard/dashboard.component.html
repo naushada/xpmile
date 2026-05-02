@@ -1,113 +1,127 @@
-<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="dashboardForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-4 clr-col-12">
-            <clr-toggle-container>
-                <clr-toggle-wrapper>
-                    <input type="checkbox" required formControlName="isRefreshTriggered" 
-                        value="isRefreshTriggered"
-                        clrToggle 
-                        (change)="onRefresh($event)"/>
-
-                    <label for="isRefreshTriggered">Refresh Dashboard</label>
-                </clr-toggle-wrapper>
-            </clr-toggle-container>
-        </div>
+<!-- Refresh toggle -->
+<form clrForm clrLayout="vertical" [formGroup]="dashboardForm" style="margin-bottom: 8px;">
+  <div class="clr-row">
+    <div class="clr-col-lg-4 clr-col-12">
+      <clr-toggle-container>
+        <clr-toggle-wrapper>
+          <input type="checkbox" clrToggle formControlName="isRefreshTriggered"
+                 (change)="onRefresh($event)"/>
+          <label>Refresh Dashboard</label>
+        </clr-toggle-wrapper>
+      </clr-toggle-container>
     </div>
+    <div class="clr-col" *ngIf="isLoading" style="display:flex; align-items:center;">
+      <span class="spinner spinner-inline"></span>&nbsp;Loading…
+    </div>
+  </div>
 </form>
 
-<!-- Showcase Card Row -->
+<!-- Stats cards row 1: Total / Created Today / Delivered -->
 <div class="clr-row">
-    <div class="clr-col-lg-4 clr-col-12">
-        <!-- Card -->
-        <div class="card clickable" routerLink="/setting">
-            <!-- Card Header-->
-            <div class="card-header">
-                <div class="card-icon card-icon__blue">
-                    <clr-icon shape="dashboard" style="width: 56px; height: 56px;"></clr-icon>
-                </div>
-                <p class="card-header__head">All Result</p>
-                <h3 class="card-header__data">2012469756</h3>
-            </div>
-            <!-- Card Header End-->
-            <!-- Card Footer-->
-            <div class="card-footer">
-                <p class="card-footer__head">
-                    <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
-                </p>
-                <h3 class="card-footer__data">1280</h3>
-            </div>
-            <!-- Card Footer End-->
+
+  <!-- Total Shipments -->
+  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon card-icon__blue">
+          <clr-icon shape="dashboard" style="width:56px;height:56px;"></clr-icon>
         </div>
-        <!-- Card End-->
+        <p class="card-header__head">Total Shipments</p>
+        <h3 class="card-header__data">{{ total }}</h3>
+      </div>
+      <div class="card-footer">
+        <p class="card-footer__head">
+          <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
+          Account
+        </p>
+        <h3 class="card-footer__data">{{ accountCode || '—' }}</h3>
+      </div>
     </div>
-    <div class="clr-col-lg-4 clr-col-12">
-        <!-- Card -->
-        <div class="card clickable" routerLink="/setting">
-            <!-- Card Header-->
-            <div class="card-header">
-                <div class="card-icon card-icon__red">
-                    <clr-icon shape="pop-out" style="width: 56px; height: 56px;"></clr-icon>
-                </div>
-                <p class="card-header__head">Abnormal</p>
-                <h3 class="card-header__data">2012469756</h3>
-            </div>
-            <!-- Card Header End-->
-            <!-- Card Footer-->
-            <div class="card-footer">
-                <p class="card-footer__head">
-                    <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
-                </p>
-                <h3 class="card-footer__data">1280</h3>
-            </div>
-            <!-- Card Footer End-->
+  </div>
+
+  <!-- Created Today -->
+  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon card-icon__teal">
+          <clr-icon shape="calendar" style="width:56px;height:56px;"></clr-icon>
         </div>
-        <!-- Card End-->
+        <p class="card-header__head">Created Today</p>
+        <h3 class="card-header__data">{{ createdToday }}</h3>
+      </div>
+      <div class="card-footer">
+        <p class="card-footer__head">
+          <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
+          New shipments today
+        </p>
+        <h3 class="card-footer__data">{{ createdToday }}</h3>
+      </div>
     </div>
-    <div class="clr-col-lg-4 clr-col-12">
-        <!-- Card -->
-        <div class="card clickable" routerLink="/setting">
-        <!-- Card Header-->
-            <div class="card-header">
-                <div class="card-icon card-icon__yellow">
-                    <clr-icon shape="exclamation-triangle" style="width: 56px; height: 56px;"></clr-icon>
-                </div>
-                <p class="card-header__head">Urgent</p>
-                <h3 class="card-header__data">2012469756</h3>
-            </div>
-            <!-- Card Header End-->
-            <!-- Card Footer-->
-            <div class="card-footer">
-                <p class="card-footer__head">
-                    <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
-                </p>
-                <h3 class="card-footer__data">1280</h3>
-            </div>
-            <!-- Card Footer End-->
+  </div>
+
+  <!-- Delivered -->
+  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon card-icon__green">
+          <clr-icon shape="success-standard" style="width:56px;height:56px;"></clr-icon>
         </div>
-        <!-- Card End-->
+        <p class="card-header__head">Delivered</p>
+        <h3 class="card-header__data">{{ delivered }}</h3>
+      </div>
+      <div class="card-footer">
+        <p class="card-footer__head">
+          <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
+          Proof of delivery
+        </p>
+        <h3 class="card-footer__data">{{ delivered }}</h3>
+      </div>
     </div>
-    <div class="clr-col-lg-4 clr-col-12">
-        <!-- Card -->
-        <div class="card clickable" routerLink="/setting">
-            <!-- Card Header-->
-            <div class="card-header">
-                <div class="card-icon card-icon__green">
-                    <clr-icon shape="eye-hide" style="width: 56px; height: 56px;"></clr-icon>
-                </div>
-                <p class="card-header__head">Unreviewed</p>
-                <h3 class="card-header__data">2012469756</h3>
-            </div>
-            <!-- Card Header End-->
-            <!-- Card Footer-->
-        <div class="card-footer">
-            <p class="card-footer__head">
-                <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>Today's Result
-            </p>
-            <h3 class="card-footer__data">1280</h3>
-        </div>
-        <!-- Card Footer End-->
-    </div>
-    <!-- Card End-->
+  </div>
+
 </div>
 
+<!-- Stats cards row 2: Returned to Sender / Cancelled -->
+<div class="clr-row">
 
+  <!-- Returned to Sender -->
+  <div class="clr-col-lg-6 clr-col-md-6 clr-col-12">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon card-icon__yellow">
+          <clr-icon shape="undo" style="width:56px;height:56px;"></clr-icon>
+        </div>
+        <p class="card-header__head">Returned to Sender</p>
+        <h3 class="card-header__data">{{ returnedToSender }}</h3>
+      </div>
+      <div class="card-footer">
+        <p class="card-footer__head">
+          <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
+          RTS shipments
+        </p>
+        <h3 class="card-footer__data">{{ returnedToSender }}</h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cancelled -->
+  <div class="clr-col-lg-6 clr-col-md-6 clr-col-12">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon card-icon__red">
+          <clr-icon shape="times-circle" style="width:56px;height:56px;"></clr-icon>
+        </div>
+        <p class="card-header__head">Cancelled</p>
+        <h3 class="card-header__data">{{ cancelled }}</h3>
+      </div>
+      <div class="card-footer">
+        <p class="card-footer__head">
+          <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
+          Cancelled shipments
+        </p>
+        <h3 class="card-footer__data">{{ cancelled }}</h3>
+      </div>
+    </div>
+  </div>
+
+</div>
