@@ -1,7 +1,23 @@
-#include <sstream>
 #include <vector>
 
 #include "mongodbc.h"
+
+namespace {
+// Serialise every document in cursor as a JSON array.
+// Returns an empty string (not "[]") when the cursor has no results,
+// preserving the existing contract that callers check for empty.
+std::string cursor_to_json_array(mongocxx::cursor &cursor) {
+    auto it = cursor.begin();
+    if (it == cursor.end())
+        return {};
+
+    std::string out("[");
+    for (; it != cursor.end(); ++it)
+        out += bsoncxx::to_json(*it) + ",";
+    out.back() = ']';
+    return out;
+}
+} // namespace
 
 MongodbClient::MongodbClient(const std::string &uri_str) : m_uri(uri_str) {
   m_instance = std::make_unique<mongocxx::instance>();
@@ -98,8 +114,6 @@ bool MongodbClient::delete_document(const std::string &collectionName,
 std::string MongodbClient::get_document(const std::string &collectionName,
                                         const std::string &query,
                                         const std::string &fieldProjection) {
-  bsoncxx::document::value filter = bsoncxx::from_json(query.c_str());
-
   auto conn = m_pool->acquire();
   if (!conn) {
     ACE_ERROR((LM_ERROR,
@@ -112,16 +126,13 @@ std::string MongodbClient::get_document(const std::string &collectionName,
   auto collection =
       conn->database(m_dbName.c_str()).collection(collectionName.c_str());
 
-  bsoncxx::document::view_or_value projection =
-      bsoncxx::from_json(fieldProjection.c_str());
   mongocxx::options::find opts{};
   opts.max_time(std::chrono::milliseconds(5000))
       .no_cursor_timeout(false)
-      .projection(projection);
+      .projection(bsoncxx::from_json(fieldProjection.c_str()));
 
-  auto cursor = collection.find(filter.view(), opts);
+  auto cursor = collection.find(bsoncxx::from_json(query.c_str()).view(), opts);
   auto iter = cursor.begin();
-
   if (iter == cursor.end())
     return {};
 
@@ -131,8 +142,6 @@ std::string MongodbClient::get_document(const std::string &collectionName,
 std::string MongodbClient::get_documents(const std::string &collectionName,
                                          const std::string &query,
                                          const std::string &fieldProjection) {
-  bsoncxx::document::value filter = bsoncxx::from_json(query.c_str());
-
   auto conn = m_pool->acquire();
   if (!conn) {
     ACE_ERROR((LM_ERROR,
@@ -145,64 +154,18 @@ std::string MongodbClient::get_documents(const std::string &collectionName,
   auto collection =
       conn->database(m_dbName.c_str()).collection(collectionName.c_str());
 
-  bsoncxx::document::view_or_value projection =
-      bsoncxx::from_json(fieldProjection.c_str());
   mongocxx::options::find opts{};
   opts.max_time(std::chrono::milliseconds(5000))
       .no_cursor_timeout(false)
-      .projection(projection);
+      .projection(bsoncxx::from_json(fieldProjection.c_str()));
 
-  auto cursor = collection.find(filter.view(), opts);
-  auto iter = cursor.begin();
-
-  if (iter == cursor.end())
-    return {};
-
-  std::stringstream result;
-  result << "[";
-  for (; iter != cursor.end(); ++iter)
-    result << bsoncxx::to_json(*iter) << ",";
-
-  result.seekp(-1, std::ios_base::end);
-  result << "]";
-  return result.str();
+  auto cursor = collection.find(bsoncxx::from_json(query.c_str()).view(), opts);
+  return cursor_to_json_array(cursor);
 }
 
 std::string MongodbClient::get_documents(const std::string &collectionName,
                                          const std::string &projection) {
-  auto conn = m_pool->acquire();
-  if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection %s\n"),
-               collectionName.c_str()));
-    return {};
-  }
-
-  auto collection =
-      conn->database(m_dbName.c_str()).collection(collectionName.c_str());
-
-  bsoncxx::document::view_or_value outputProjection =
-      bsoncxx::from_json(projection.c_str());
-  mongocxx::options::find opts{};
-  opts.max_time(std::chrono::milliseconds(5000))
-      .no_cursor_timeout(false)
-      .projection(outputProjection);
-
-  auto cursor = collection.find({}, opts);
-  auto iter = cursor.begin();
-
-  if (iter == cursor.end())
-    return {};
-
-  std::stringstream result;
-  result << "[";
-  for (; iter != cursor.end(); ++iter)
-    result << bsoncxx::to_json(*iter) << ",";
-
-  result.seekp(-1, std::ios_base::end);
-  result << "]";
-  return result.str();
+  return get_documents(collectionName, "{}", projection);
 }
 
 std::string MongodbClient::create_document(const std::string &dbName,
