@@ -109,3 +109,43 @@ accountPassword: admin@123
 ```
 
 Change this password through the application UI after first login.
+
+---
+
+## Troubleshooting
+
+### `chown: changing ownership of '/proc/1/fd/*': Permission denied`
+
+Seen on Amazon Linux 2 and other hosts where the Docker daemon does not
+grant container processes access to `/proc/1`.  The mongodb service in
+`docker-compose.yml` sets `user: "999:999"` (the UID/GID of the
+`mongodb` system account inside the `mongo:7` image), which causes the
+entrypoint to skip the `/proc/1/fd/*` chown entirely.  No action is
+needed — this is already the default configuration.
+
+### Build OOM kill (`cc1plus: Killed`) on memory-constrained hosts
+
+`webservice.cc` is a large translation unit. Building it with full
+parallelism (`-j$(nproc)`) can exhaust available memory on machines with
+less than ~4 GB RAM per core.  The Dockerfile caps the uniservice build
+at `-j2` and passes `-DCMAKE_CXX_FLAGS="-fconcepts"` to suppress a
+GCC 9 concepts warning from `emailservice.hpp`.  If builds still OOM,
+reduce Docker's memory limit or set `make -j1` in the Dockerfile.
+
+### `docker compose up` uses a stale image
+
+Always pass `--build` after pulling or changing source files:
+
+```sh
+docker compose up --build
+```
+
+Running `docker compose up` without `--build` reuses the last built
+image and will not pick up code or Dockerfile changes.
+
+### Obsolete `version` field warning
+
+Docker Compose v2 ignores the top-level `version` field and prints a
+warning if it is present.  The field has been removed from
+`docker-compose.yml`; if you see the warning in a fork or older copy,
+delete the `version: "..."` line.
