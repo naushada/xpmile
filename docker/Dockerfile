@@ -38,6 +38,8 @@ WORKDIR /root
 RUN git clone -b r1.19 --depth 1 https://github.com/mongodb/mongo-c-driver.git mongo-c-driver
 WORKDIR /root/mongo-c-driver/build
 RUN cmake .. -DCMAKE_BUILD_TYPE=Release \
+             -DENABLE_TESTS=OFF \
+             -DENABLE_EXAMPLES=OFF \
     && make -j$(nproc) && make install && ldconfig
 
 # Build mongo-cxx-driver
@@ -48,7 +50,8 @@ RUN cmake .. \
     -DBSONCXX_POLY_USE_MNMLSTC=1 \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr/local \
-    && make -j$(nproc) && make install && ldconfig
+    -DBUILD_TESTING=OFF \
+    && make -j2 && make install && ldconfig
 
 # Build googletest
 WORKDIR /root
