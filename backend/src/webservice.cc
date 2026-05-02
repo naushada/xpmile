@@ -9,83 +9,82 @@ using json = nlohmann::json;
 namespace {
 
 struct WorkCtx {
-    ACE_HANDLE    handle;
-    MongodbClient *db;
-    std::string   request;
+  ACE_HANDLE handle;
+  MongodbClient *db;
+  std::string request;
 };
 
 std::string http_build_created() {
-    std::string hdr =
-        "HTTP/1.1 201 Created\r\n"
-        "Connection: keep-alive\r\n"
-        "Access-Control-Allow-Origin: *\r\n"
-        "Content-Length: 0\r\n"
-        "\r\n";
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu response:%s\n"),
-               hdr.length(), hdr.c_str()));
-    return hdr;
+  std::string hdr = "HTTP/1.1 201 Created\r\n"
+                    "Connection: keep-alive\r\n"
+                    "Access-Control-Allow-Origin: *\r\n"
+                    "Content-Length: 0\r\n"
+                    "\r\n";
+  ACE_DEBUG(
+      (LM_DEBUG,
+       ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu response:%s\n"),
+       hdr.length(), hdr.c_str()));
+  return hdr;
 }
 
 std::string http_build_ok(std::string body, const std::string &contentType) {
-    std::string hdr =
-        "HTTP/1.1 200 OK\r\n"
-        "Connection: keep-alive\r\n"
-        "Access-Control-Allow-Origin: *\r\n";
-    if (!body.empty()) {
-        hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
-        hdr += "Content-Type: " + contentType + "\r\n";
-    } else {
-        hdr += "Content-Length: 0\r\n";
-    }
-    hdr += "\r\n";
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
-               hdr.length() + body.length(), hdr.c_str()));
-    return body.empty() ? hdr : hdr + std::move(body);
+  std::string hdr = "HTTP/1.1 200 OK\r\n"
+                    "Connection: keep-alive\r\n"
+                    "Access-Control-Allow-Origin: *\r\n";
+  if (!body.empty()) {
+    hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
+    hdr += "Content-Type: " + contentType + "\r\n";
+  } else {
+    hdr += "Content-Length: 0\r\n";
+  }
+  hdr += "\r\n";
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
+             hdr.length() + body.length(), hdr.c_str()));
+  return body.empty() ? hdr : hdr + std::move(body);
 }
 
 std::string http_build_error(std::string body, const std::string &status) {
-    std::string hdr =
-        "HTTP/1.1 " + status + " \r\n"
-        "Connection: keep-alive\r\n"
-        "Access-Control-Allow-Origin: *\r\n";
-    if (!body.empty()) {
-        hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
-        hdr += "Content-Type: application/json\r\n";
-        hdr += "\r\n";
-        hdr += std::move(body);
-    } else {
-        hdr += "Content-Length: 0\r\n";
-        hdr += "\r\n";
-    }
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
-               hdr.length(), hdr.c_str()));
-    return hdr;
+  std::string hdr = "HTTP/1.1 " + status +
+                    " \r\n"
+                    "Connection: keep-alive\r\n"
+                    "Access-Control-Allow-Origin: *\r\n";
+  if (!body.empty()) {
+    hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
+    hdr += "Content-Type: application/json\r\n";
+    hdr += "\r\n";
+    hdr += std::move(body);
+  } else {
+    hdr += "Content-Length: 0\r\n";
+    hdr += "\r\n";
+  }
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
+             hdr.length(), hdr.c_str()));
+  return hdr;
 }
 
 std::int32_t http_send(ACE_HANDLE handle, const std::string &rsp) {
-    if (rsp.empty())
-        return 0;
-
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu\n"),
-               rsp.length()));
-
-    const std::int32_t total = static_cast<std::int32_t>(rsp.length());
-    std::int32_t offset = 0;
-    while (offset < total) {
-        std::int32_t sent = ::send(handle, rsp.c_str() + offset, total - offset, 0);
-        if (sent < 0) {
-            ACE_DEBUG((LM_DEBUG,
-                       ACE_TEXT("%D [worker:%t] %M %N:%l send failed errno:%d\n"),
-                       errno));
-            return -1;
-        }
-        offset += sent;
-    }
+  if (rsp.empty())
     return 0;
+
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu\n"),
+             rsp.length()));
+
+  const std::int32_t total = static_cast<std::int32_t>(rsp.length());
+  std::int32_t offset = 0;
+  while (offset < total) {
+    std::int32_t sent = ::send(handle, rsp.c_str() + offset, total - offset, 0);
+    if (sent < 0) {
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [worker:%t] %M %N:%l send failed errno:%d\n"),
+                 errno));
+      return -1;
+    }
+    offset += sent;
+  }
+  return 0;
 }
 
 } // namespace
@@ -273,9 +272,13 @@ std::string MicroService::handle_config_POST(std::string &in,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
       std::string ip_address;
-      if (auto v = dbInst.from_json(content, "ip_address"); auto *p = std::get_if<std::string>(&v)) ip_address = *p;
+      if (auto v = dbInst.from_json(content, "ip_address");
+          auto *p = std::get_if<std::string>(&v))
+        ip_address = *p;
       std::string port;
-      if (auto v = dbInst.from_json(content, "port");       auto *p = std::get_if<std::string>(&v)) port = *p;
+      if (auto v = dbInst.from_json(content, "port");
+          auto *p = std::get_if<std::string>(&v))
+        port = *p;
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l dbconfig ip:%s port:%u\n"),
                  ip_address.c_str(), std::stoul(port)));
@@ -292,6 +295,8 @@ std::string MicroService::handle_shipment_POST(std::string &in,
   Http http(in);
   /* Action based on uri in get request */
   std::string uri(http.uri());
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+             http.uri().c_str()));
 
   if (!uri.compare("/api/v1/shipment/shipping")) {
     std::string collectionName("shipping");
@@ -315,7 +320,8 @@ std::string MicroService::handle_shipment_POST(std::string &in,
             awbno = shipment["awbno"].get<std::string>();
           }
         }
-      } catch (...) {}
+      } catch (...) {
+      }
 
       std::string record = dbInst.create_document(dbInst.get_database(),
                                                   collectionName, content);
@@ -343,7 +349,8 @@ std::string MicroService::handle_shipment_POST(std::string &in,
         for (auto &[key, doc] : body.items())
           if (doc.contains("shipment") && doc["shipment"].contains("awbno"))
             awb_numbers.push_back(doc["shipment"]["awbno"].get<std::string>());
-      } catch (...) {}
+      } catch (...) {
+      }
 
       std::int32_t cnt =
           dbInst.create_bulk_document(dbInst.get_database(), coll, content);
@@ -583,6 +590,8 @@ std::string MicroService::handle_account_POST(std::string &in,
   Http http(in);
   /* Action based on uri in get request */
   std::string uri(http.uri());
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+             http.uri().c_str()));
 
   if (!uri.compare("/api/v1/account/account")) {
     std::string collectionName("account");
@@ -616,6 +625,8 @@ std::string MicroService::handle_inventory_POST(std::string &in,
   Http http(in);
   /* Action based on uri in get request */
   std::string uri(http.uri());
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+             http.uri().c_str()));
 
   if (!uri.compare("/api/v1/inventory")) {
     /* Creating sku for inventory */
@@ -646,6 +657,8 @@ std::string MicroService::handle_document_POST(std::string &in,
   /* Action based on uri in get request */
   std::string uri(http.uri());
 
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+             http.uri().c_str()));
   if (!uri.compare("/api/v1/document")) {
     std::string content = http.body();
     std::string coll("attachment");
@@ -654,7 +667,8 @@ std::string MicroService::handle_document_POST(std::string &in,
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
-      if (auto v = dbInst.from_json(content, "corporate"); auto *p = std::get_if<std::string>(&v))
+      if (auto v = dbInst.from_json(content, "corporate");
+          auto *p = std::get_if<std::string>(&v))
         coll = *p + "_attachment";
 
       std::string record =
@@ -684,6 +698,8 @@ std::string MicroService::handle_email_POST(std::string &in,
   /* Action based on uri in get request */
   std::string uri(http.uri());
 
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+             http.uri().c_str()));
   if (!uri.compare("/api/v1/email")) {
     /* Send e-mail with POST request */
     // {"subject": "", "to": [user-id@domain.com, user-id1@domain.com], "body":
@@ -698,12 +714,24 @@ std::string MicroService::handle_email_POST(std::string &in,
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email request:%s\n"),
                json_body.c_str()));
-    if (auto v = dbInst.from_json(json_body, "to");       auto *p = std::get_if<JsonStrVec>(&v))   out_vec  = std::move(*p);
-    if (auto v = dbInst.from_json(json_body, "subject");  auto *p = std::get_if<std::string>(&v))  subj     = *p;
-    if (auto v = dbInst.from_json(json_body, "emailbody");auto *p = std::get_if<std::string>(&v))  body     = *p;
-    if (auto v = dbInst.from_json(json_body, "files");    auto *p = std::get_if<JsonDocList>(&v))  out_list = std::move(*p);
-    if (auto v = dbInst.from_json(json_body, "from");     auto *p = std::get_if<std::string>(&v))  from     = *p;
-    if (auto v = dbInst.from_json(json_body, "passwd");   auto *p = std::get_if<std::string>(&v))  passwd   = *p;
+    if (auto v = dbInst.from_json(json_body, "to");
+        auto *p = std::get_if<JsonStrVec>(&v))
+      out_vec = std::move(*p);
+    if (auto v = dbInst.from_json(json_body, "subject");
+        auto *p = std::get_if<std::string>(&v))
+      subj = *p;
+    if (auto v = dbInst.from_json(json_body, "emailbody");
+        auto *p = std::get_if<std::string>(&v))
+      body = *p;
+    if (auto v = dbInst.from_json(json_body, "files");
+        auto *p = std::get_if<JsonDocList>(&v))
+      out_list = std::move(*p);
+    if (auto v = dbInst.from_json(json_body, "from");
+        auto *p = std::get_if<std::string>(&v))
+      from = *p;
+    if (auto v = dbInst.from_json(json_body, "passwd");
+        auto *p = std::get_if<std::string>(&v))
+      passwd = *p;
 
     for (const auto &elm : out_vec) {
       ACE_DEBUG((LM_DEBUG,
@@ -1283,7 +1311,7 @@ int MicroService::close(u_long flag) {
  */
 int MicroService::svc() {
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l Micro service is spawned\n")));
+             ACE_TEXT("%D [worker:%t] %M %N:%l Worker service is spawned\n")));
 
   webServer().semaphore().release();
 
@@ -1291,16 +1319,16 @@ int MicroService::svc() {
     ACE_Message_Block *mb = nullptr;
 
     if (getq(mb) == -1) {
-      ACE_ERROR((LM_ERROR,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l Micro service is stopped\n")));
+      ACE_ERROR(
+          (LM_ERROR,
+           ACE_TEXT("%D [worker:%t] %M %N:%l Worker service is stopped\n")));
       m_continue = false;
       break;
     }
 
     switch (mb->msg_type()) {
     case ACE_Message_Block::MB_DATA: {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l svc::ACE_Message_Block::MB_DATA\n")));
+      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l MB_DATA\n")));
 
       WorkCtx *ctx = nullptr;
       std::memcpy(&ctx, mb->rd_ptr(), sizeof(ctx));
@@ -1312,8 +1340,7 @@ int MicroService::svc() {
     }
 
     case ACE_Message_Block::MB_PCSIG:
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l Got MB_PCSIG\n")));
+      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l MB_PCSIG\n")));
       mb->release();
       msg_queue()->deactivate();
       webServer().semaphore().release();
@@ -1338,9 +1365,7 @@ MicroService::MicroService(ACE_Thread_Manager *thr_mgr, WebServer *parent)
 }
 
 MicroService::~MicroService() {
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l Microservice dtor is invoked\n")));
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Worker dtor\n")));
   m_parent = nullptr;
 }
 
@@ -1368,7 +1393,8 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
   ACE_INET_Addr peerAddr;
 
   if (m_server.accept(peerStream, &peerAddr) != 0) {
-    ACE_ERROR((LM_ERROR, ACE_TEXT("%D [Master:%t] %M %N:%l accept failed\n")));
+    ACE_ERROR(
+        (LM_ERROR, ACE_TEXT("%D [WebServer:%t] %M %N:%l accept failed\n")));
     return (0);
   }
 
@@ -1381,28 +1407,22 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
   auto it = m_connectionPool.find(fd);
   if (it != std::end(m_connectionPool)) {
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l stale pool entry for "
+               ACE_TEXT("%D [WebServe:%t] %M %N:%l stale pool entry for "
                         "handle %d — removing before reuse\n"),
                fd));
     it->second->handle(ACE_INVALID_HANDLE);
-    ACE_Reactor::instance()->remove_handler(
-        fd, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK |
-                ACE_Event_Handler::DONT_CALL);
+    ACE_Reactor::instance()->remove_handler(it->second.get(),
+                                            ACE_Event_Handler::READ_MASK |
+                                                ACE_Event_Handler::SIGNAL_MASK |
+                                                ACE_Event_Handler::DONT_CALL);
     m_connectionPool.erase(it);
   }
 
-  auto connEnt = std::make_unique<WebConnection>(this);
-  connEnt->handle(fd);
-  connEnt->connAddr(peerAddr);
-
-  ACE_Reactor::instance()->register_handler(connEnt.get(),
-                                            ACE_Event_Handler::READ_MASK |
-                                                ACE_Event_Handler::SIGNAL_MASK);
-
+  auto connEnt = std::make_unique<WebConnection>(this, peerStream, peerAddr);
   m_connectionPool.emplace(fd, std::move(connEnt));
 
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l new connection handle:%d "
+             ACE_TEXT("%D [WebServer:%t] %M %N:%l new connection handle:%d "
                       "peer %s:%d active:%zu\n"),
              fd, peerAddr.get_host_addr(), peerAddr.get_port_number(),
              m_connectionPool.size()));
@@ -1415,7 +1435,7 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t *s, ucontext_t *ctx) {
   ACE_UNUSED_ARG(ctx);
 
   ACE_ERROR((LM_ERROR,
-             ACE_TEXT("%D [Master:%t] %M %N:%l signal %d (%S) received, "
+             ACE_TEXT("%D [WebServer:%t] %M %N:%l signal %d (%S) received, "
                       "initiating shutdown\n"),
              signum, signum));
 
@@ -1445,7 +1465,7 @@ ACE_INT32 WebServer::handle_signal(int signum, siginfo_t *s, ucontext_t *ctx) {
 ACE_INT32 WebServer::handle_close(ACE_HANDLE handle, ACE_Reactor_Mask mask) {
   ACE_UNUSED_ARG(mask);
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l WebServer::handle_close "
+             ACE_TEXT("%D [WebServer:%t] %M %N:%l handle_close "
                       "handle:%d\n"),
              handle));
 
@@ -1513,14 +1533,16 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   /* Start listening for incoming connection */
   int reuse_addr = 1;
   if (m_server.open(m_listen, reuse_addr)) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l Starting of WebServer failed "
-                        "- opening of port %d hostname %s\n"),
-               m_listen.get_port_number(), m_listen.get_host_name()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [WebServer:%t] %M %N:%l Starting of WebServer failed "
+                  "- opening of port %d hostname %s\n"),
+         m_listen.get_port_number(), m_listen.get_host_name()));
   }
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l webserver handle:%d \n"),
-             m_server.get_handle()));
+  ACE_DEBUG(
+      (LM_DEBUG,
+       ACE_TEXT("%D [WebServer:%t] %M %N:%l Running webserver on handle:%d \n"),
+       m_server.get_handle()));
 }
 
 WebServer::~WebServer() {
@@ -1560,16 +1582,19 @@ bool WebServer::start() {
 
 bool WebServer::stop() { return (true); }
 
-WebConnection::WebConnection(WebServer *parent) {
-  m_handle = -1;
-  m_parent = parent;
+// WebConnection .....
+WebConnection::WebConnection(WebServer *parent, ACE_SOCK_Stream strm,
+                             ACE_INET_Addr addr)
+    : m_handle(-1), m_connAddr(addr), m_stream(strm), m_parent(parent) {
+  m_handle = m_stream.get_handle();
+  ACE_Reactor::instance()->register_handler(
+      this, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
 }
 
 WebConnection::~WebConnection() {
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [Master:%t] %M %N:%l handle:%d webconnection closing\n"),
-       m_handle));
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle:%d closing\n"),
+             m_handle));
   if (m_handle != ACE_INVALID_HANDLE)
     ::close(m_handle);
 }
@@ -1578,14 +1603,18 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
   char tmp[65536];
   ssize_t rc = ::recv(handle, tmp, sizeof(tmp), 0);
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l handle_input handle:%d rc:%d\n"),
-             handle, rc));
+  ACE_DEBUG((
+      LM_DEBUG,
+      ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle_input handle:%d rc:%d\n"),
+      handle, rc));
 
   if (rc == 0) {
     // Peer closed the connection cleanly
     parent()->connectionPool().erase(handle);
-    return (-1);
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebConnection:%t] %M %N:%l rc:%d handle:%d\n"), rc,
+               handle));
+    return (0);
   }
 
   if (rc < 0) {
@@ -1594,10 +1623,10 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
       return (0);
     }
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Master:%t] %M %N:%l recv error errno:%d\n"),
+               ACE_TEXT("%D [WebConnection:%t] %M %N:%l recv error errno:%d\n"),
                errno));
     parent()->connectionPool().erase(handle);
-    return (-1);
+    return (0);
   }
 
   m_recvBuf.append(tmp, rc);
@@ -1612,24 +1641,27 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
     if (msgLen == 0 || m_recvBuf.size() < msgLen) {
       // Headers not yet complete, or body not yet fully received — wait
       // for the next handle_input() call to deliver the remaining bytes.
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [Master:%t] %M %N:%l partial message buffered "
-                          "(%zu bytes), waiting for more\n"),
-                 m_recvBuf.size()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebConnection:%t] %M %N:%l partial message buffered "
+                    "(%zu bytes), waiting for more\n"),
+           m_recvBuf.size()));
       break;
     }
 
     std::string request = m_recvBuf.substr(0, msgLen);
     m_recvBuf.erase(0, msgLen);
 
-    ACE_DEBUG(
-        (LM_DEBUG,
-         ACE_TEXT("%D [Master:%t] %M %N:%l complete request (%zu bytes):\n%s"),
-         msgLen, request.c_str()));
+    ACE_DEBUG((
+        LM_DEBUG,
+        ACE_TEXT(
+            "%D [WebConnection:%t] %M %N:%l complete request (%zu bytes):\n%s"),
+        msgLen, request.c_str()));
 
     auto it = parent()->currentWorker();
     if (it != std::end(parent()->workerPool())) {
-      auto *ctx = new WorkCtx{handle, parent()->mongodbcInst(), std::move(request)};
+      auto *ctx =
+          new WorkCtx{handle, parent()->mongodbcInst(), std::move(request)};
       auto *mb = new ACE_Message_Block(sizeof(ctx));
       mb->copy(reinterpret_cast<const char *>(&ctx), sizeof(ctx));
       (*it)->putq(mb);
@@ -1646,10 +1678,11 @@ ACE_INT32 WebConnection::handle_signal(int signum, siginfo_t *s,
                                        ucontext_t *u) {
   ACE_UNUSED_ARG(s);
   ACE_UNUSED_ARG(u);
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l signal %d (%S) received on "
-                      "handle %d\n"),
-             signum, signum, m_handle));
+  ACE_DEBUG(
+      (LM_DEBUG,
+       ACE_TEXT("%D [WebConnection:%t] %M %N:%l signal %d (%S) received on "
+                "handle %d\n"),
+       signum, signum, m_handle));
   return (0);
 }
 
@@ -1657,18 +1690,17 @@ ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle,
                                       ACE_Reactor_Mask mask) {
   ACE_UNUSED_ARG(mask);
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l WebConnection::handle_close "
+             ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle_close "
                       "handle %d\n"),
              handle));
   return (0);
 }
 
 ACE_HANDLE WebConnection::get_handle() const {
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT(
-           "%D [Master:%t] %M %N:%l WebConnection::get_handle - handle %d\n"),
-       m_handle));
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebConnection:%t] %M %N:%l "
+                      "get_handle - handle %d\n"),
+             m_handle));
   return (m_handle);
 }
 
@@ -1819,6 +1851,9 @@ std::string WebServiceEntry::handle_POST(std::string &in,
   Http http(in);
   /* Action based on uri in get request */
   std::string uri(http.uri());
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Request uri:%s\n"),
+             http.uri().c_str()));
 
   if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_POST(in, dbInst));
@@ -1854,16 +1889,22 @@ std::string WebServiceEntry::handle_config_POST(std::string &in,
     std::string content = http.body();
 
     if (content.length()) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
-                 content.length()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l http body length %d \n"),
+           content.length()));
       std::string ip_address;
-      if (auto v = dbInst.from_json(content, "ip_address"); auto *p = std::get_if<std::string>(&v)) ip_address = *p;
+      if (auto v = dbInst.from_json(content, "ip_address");
+          auto *p = std::get_if<std::string>(&v))
+        ip_address = *p;
       std::string port;
-      if (auto v = dbInst.from_json(content, "port");       auto *p = std::get_if<std::string>(&v)) port = *p;
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l dbconfig ip:%s port:%u\n"),
-                 ip_address.c_str(), std::stoul(port)));
+      if (auto v = dbInst.from_json(content, "port");
+          auto *p = std::get_if<std::string>(&v))
+        port = *p;
+      ACE_DEBUG((
+          LM_DEBUG,
+          ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l dbconfig ip:%s port:%u\n"),
+          ip_address.c_str(), std::stoul(port)));
       /* Apply this config if changed */
     }
   }
@@ -1881,10 +1922,11 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
   if (!uri.compare("/api/v1/shipment/shipping")) {
     std::string collectionName("shipping");
     std::string content = http.body();
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l http request body length:%d "
-                        "\n Request http_body:%s\n"),
-               content.length(), content.c_str()));
+    ACE_DEBUG((
+        LM_DEBUG,
+        ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l http request body length:%d "
+                 "\n Request http_body:%s\n"),
+        content.length(), content.c_str()));
 
     if (content.length()) {
       std::string awbno;
@@ -1900,7 +1942,8 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
             awbno = shipment["awbno"].get<std::string>();
           }
         }
-      } catch (...) {}
+      } catch (...) {
+      }
 
       std::string record = dbInst.create_document(dbInst.get_database(),
                                                   collectionName, content);
@@ -1915,9 +1958,10 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
     std::string coll("shipping");
 
     if (content.length()) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length:%d \n"),
-                 content.length()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l http body length:%d \n"),
+           content.length()));
 
       auto awb_numbers = json::array();
       try {
@@ -1925,7 +1969,8 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
         for (auto &[key, doc] : body.items())
           if (doc.contains("shipment") && doc["shipment"].contains("awbno"))
             awb_numbers.push_back(doc["shipment"]["awbno"].get<std::string>());
-      } catch (...) {}
+      } catch (...) {
+      }
 
       std::int32_t cnt =
           dbInst.create_bulk_document(dbInst.get_database(), coll, content);
@@ -1997,7 +2042,7 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
     // header << "\r\n";
 
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l the header is\n%s\n"),
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l the header is\n%s\n"),
                header.str().c_str()));
 
     std::string apiURLAjoul = "https://ajoul.com/remote/api/v1/authorize";
@@ -2008,10 +2053,8 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
 
     if (client.connect(conn, connectAddr, &to) < 0) {
 
-      ACE_ERROR(
-          (LM_ERROR,
-           ACE_TEXT(
-               "%D [worker:%t] %M %N:%l connect to ajoul:443 is failed\n")));
+      ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l connect "
+                                    "to ajoul:443 is failed\n")));
       std::string err("400 Bad Request");
       std::string err_message(
           "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is not "
@@ -2207,9 +2250,10 @@ std::string WebServiceEntry::handle_inventory_POST(std::string &in,
     std::string coll("inventory");
 
     if (content.length()) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length:%d \n"),
-                 content.length()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l http body length:%d \n"),
+           content.length()));
       std::string record =
           dbInst.create_document(dbInst.get_database(), coll, content);
 
@@ -2237,10 +2281,12 @@ std::string WebServiceEntry::handle_document_POST(std::string &in,
     std::string coll("attachment");
 
     if (content.length()) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
-                 content.length()));
-      if (auto v = dbInst.from_json(content, "corporate"); auto *p = std::get_if<std::string>(&v))
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l http body length %d \n"),
+           content.length()));
+      if (auto v = dbInst.from_json(content, "corporate");
+          auto *p = std::get_if<std::string>(&v))
         coll = *p + "_attachment";
 
       std::string record =
@@ -2287,26 +2333,40 @@ std::string WebServiceEntry::handle_email_POST(std::string &in,
     std::string from;
     std::string passwd;
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email request:%s\n"),
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l email request:%s\n"),
                json_body.c_str()));
-    if (auto v = dbInst.from_json(json_body, "to");       auto *p = std::get_if<JsonStrVec>(&v))   out_vec  = std::move(*p);
-    if (auto v = dbInst.from_json(json_body, "subject");  auto *p = std::get_if<std::string>(&v))  subj     = *p;
-    if (auto v = dbInst.from_json(json_body, "emailbody");auto *p = std::get_if<std::string>(&v))  body     = *p;
-    if (auto v = dbInst.from_json(json_body, "files");    auto *p = std::get_if<JsonDocList>(&v))  out_list = std::move(*p);
-    if (auto v = dbInst.from_json(json_body, "from");     auto *p = std::get_if<std::string>(&v))  from     = *p;
-    if (auto v = dbInst.from_json(json_body, "passwd");   auto *p = std::get_if<std::string>(&v))  passwd   = *p;
+    if (auto v = dbInst.from_json(json_body, "to");
+        auto *p = std::get_if<JsonStrVec>(&v))
+      out_vec = std::move(*p);
+    if (auto v = dbInst.from_json(json_body, "subject");
+        auto *p = std::get_if<std::string>(&v))
+      subj = *p;
+    if (auto v = dbInst.from_json(json_body, "emailbody");
+        auto *p = std::get_if<std::string>(&v))
+      body = *p;
+    if (auto v = dbInst.from_json(json_body, "files");
+        auto *p = std::get_if<JsonDocList>(&v))
+      out_list = std::move(*p);
+    if (auto v = dbInst.from_json(json_body, "from");
+        auto *p = std::get_if<std::string>(&v))
+      from = *p;
+    if (auto v = dbInst.from_json(json_body, "passwd");
+        auto *p = std::get_if<std::string>(&v))
+      passwd = *p;
 
     for (const auto &elm : out_vec) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l email to list:%s\n"),
-                 elm.c_str()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l email to list:%s\n"),
+           elm.c_str()));
     }
-    ACE_DEBUG(
-        (LM_DEBUG,
-         ACE_TEXT(
-             "%D [worker:%t] %M %N:%l email subject:%s from:%s passwd:%s\n"),
-         subj.c_str(), from.c_str(), passwd.c_str()));
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email body:%s\n"),
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l email subject:%s "
+                        "from:%s passwd:%s\n"),
+               subj.c_str(), from.c_str(), passwd.c_str()));
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l email body:%s\n"),
                body.c_str()));
 
     SMTP::Account::instance().to_email(out_vec);
@@ -2348,9 +2408,10 @@ std::string WebServiceEntry::handle_GET(std::string &in,
     return (handle_account_GET(in, dbInst));
 
   } else if ((!uri.compare(0, 7, "/webui/"))) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l frontend Request %s\n"),
-               uri.c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l frontend Request %s\n"),
+         uri.c_str()));
     /* build the file name now */
     std::string fileName("");
     std::string ext("");
@@ -2360,19 +2421,21 @@ std::string WebServiceEntry::handle_GET(std::string &in,
       ext = uri.substr((found + 1), (uri.length() - found));
       fileName = uri.substr(6, (uri.length() - 6));
       std::string newFile = "../webgui/webui/" + fileName;
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s The "
-                          "extension is %s\n"),
-                 newFile.c_str(), ext.c_str()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l newFile Name is %s The "
+                    "extension is %s\n"),
+           newFile.c_str(), ext.c_str()));
       /* Open the index.html file and send it to web browser. */
       std::ifstream ifs(newFile.c_str());
       std::stringstream _str("");
 
       if (ifs.is_open()) {
-        ACE_DEBUG((LM_DEBUG,
-                   ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open "
-                            "successfully.\n"),
-                   uri.c_str()));
+        ACE_DEBUG(
+            (LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Request file %s - open "
+                      "successfully.\n"),
+             uri.c_str()));
         std::string cntType("");
         cntType = get_contentType(ext);
 
@@ -2382,19 +2445,21 @@ std::string WebServiceEntry::handle_GET(std::string &in,
       }
     } else {
       std::string newFile = "../webgui/webui/index.html";
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"),
-                 newFile.c_str()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l newFile Name is %s \n"),
+           newFile.c_str()));
       /* Open the index.html file and send it to web browser. */
       std::ifstream ifs(newFile.c_str(), std::ios::binary);
       std::stringstream _str("");
       std::string cntType("");
 
       if (ifs.is_open()) {
-        ACE_DEBUG((LM_DEBUG,
-                   ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open "
-                            "successfully.\n"),
-                   uri.c_str()));
+        ACE_DEBUG(
+            (LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Request file %s - open "
+                      "successfully.\n"),
+             uri.c_str()));
 
         cntType = "text/html";
         _str << ifs.rdbuf();
@@ -2409,17 +2474,19 @@ std::string WebServiceEntry::handle_GET(std::string &in,
     if (found != std::string::npos) {
       ext = uri.substr(found + 1);
       std::string newFile = "../webgui/webui" + uri;
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s The "
-                          "extension is %s\n"),
-                 newFile.c_str(), ext.c_str()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l newFile Name is %s The "
+                    "extension is %s\n"),
+           newFile.c_str(), ext.c_str()));
       std::ifstream ifs(newFile.c_str(), std::ios::binary);
       std::stringstream _str;
       if (ifs.is_open()) {
-        ACE_DEBUG((LM_DEBUG,
-                   ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open "
-                            "successfully.\n"),
-                   uri.c_str()));
+        ACE_DEBUG(
+            (LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Request file %s - open "
+                      "successfully.\n"),
+             uri.c_str()));
         _str << ifs.rdbuf();
         return (build_responseOK(_str.str(), get_contentType(ext)));
       }
@@ -2427,17 +2494,17 @@ std::string WebServiceEntry::handle_GET(std::string &in,
 
   } else if (!uri.compare(0, 1, "/")) {
     std::string newFile = "../webgui/webui/index.html";
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"),
-               newFile.c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l newFile Name is %s \n"),
+         newFile.c_str()));
     std::ifstream ifs(newFile.c_str(), std::ios::binary);
     std::stringstream _str;
     if (ifs.is_open()) {
-      ACE_DEBUG((
-          LM_DEBUG,
-          ACE_TEXT(
-              "%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"),
-          uri.c_str()));
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Request file %s - "
+                          "open successfully.\n"),
+                 uri.c_str()));
       _str << ifs.rdbuf();
       return (build_responseOK(_str.str(), "text/html"));
     }
@@ -2469,7 +2536,8 @@ std::string WebServiceEntry::handle_shipment_GET(std::string &in,
 
   // Query the collection and return the appropriate HTTP response
   auto fetch_and_respond = [&](const json &doc, const std::string &cause) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l query:%s\n"),
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l query:%s\n"),
                doc.dump().c_str()));
     std::string record =
         dbInst.get_documents(collection, doc.dump(), projection.dump());
@@ -2537,7 +2605,8 @@ std::string WebServiceEntry::handle_account_GET(std::string &in,
   // Fetch a single document; return OK on hit, ERROR with given status on miss
   auto fetch_one = [&](const json &doc, const std::string &http_err,
                        const json &err_body) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l query:%s\n"),
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l query:%s\n"),
                doc.dump().c_str()));
     std::string record =
         dbInst.get_document(collection, doc.dump(), projection.dump());
@@ -2569,7 +2638,8 @@ std::string WebServiceEntry::handle_account_GET(std::string &in,
 
   // No filter: return the full account list
   std::string record = dbInst.get_documents(collection, projection.dump());
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l account_list:%s\n"),
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l account_list:%s\n"),
              record.c_str()));
   if (record.empty()) {
     json err = {{"status", "failure"},
@@ -2597,7 +2667,8 @@ std::string WebServiceEntry::handle_inventory_GET(std::string &in,
   if (!sku.empty())
     doc["sku"] = sku;
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Inventory query:%s\n"),
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Inventory query:%s\n"),
              doc.dump().c_str()));
   std::string record =
       dbInst.get_documents("inventory", doc.dump(), projection.dump());
@@ -2605,7 +2676,8 @@ std::string WebServiceEntry::handle_inventory_GET(std::string &in,
   if (!record.empty())
     return build_responseOK(record);
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l No Record found\n")));
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l No Record found\n")));
   json err = {{"status", "failure"},
               {"cause", "There's no Inventory Record"},
               {"error", 404}};
@@ -2637,7 +2709,7 @@ std::string WebServiceEntry::handle_document_GET(std::string &in,
   }
 
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l attachment query:%s\n"),
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l attachment query:%s\n"),
              doc.dump().c_str()));
   std::string record =
       dbInst.get_documents(collection, doc.dump(), projection.dump());
@@ -2710,9 +2782,10 @@ WebServiceEntry::handle_altref_update_shipment_PUT(std::string &in,
     std::vector<std::string> filter;
     std::vector<std::string> value;
 
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l awbno:%s altref:%s\n"),
-               awbno.dump().c_str(), altrefno.dump().c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l awbno:%s altref:%s\n"),
+         awbno.dump().c_str(), altrefno.dump().c_str()));
 
     for (auto it = awbno.begin(); it != awbno.end(); ++it) {
       json elm = json::object();
@@ -2770,7 +2843,8 @@ std::string WebServiceEntry::handle_shipment_PUT(std::string &in,
 
   // Execute update and return success or error response
   auto do_update = [&](const json &query, const json &doc) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l doc:%s query:%s\n"),
                doc.dump().c_str(), query.dump().c_str()));
     if (dbInst.update_collection(coll, query.dump(), doc.dump()))
       return build_responseOK(json{{"status", "success"}}.dump());
@@ -2831,7 +2905,8 @@ std::string WebServiceEntry::handle_inventory_PUT(std::string &in,
   const int delta = isUpdate.empty() ? -std::stoi(qty) : std::stoi(qty);
   json doc = {{"$inc", {{"qty", delta}}}};
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("inventory", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
@@ -2857,7 +2932,8 @@ std::string WebServiceEntry::handle_account_PUT(std::string &in,
 
   json doc = {{"$set", json::parse(content)}};
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("account", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());

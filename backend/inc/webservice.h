@@ -1,69 +1,67 @@
 #ifndef WEBSERVICE_H
 #define WEBSERVICE_H
 
-#include <vector>
+#include <algorithm>
+#include <fstream>
+#include <iostream>
 #include <memory>
 #include <unordered_map>
-#include <algorithm>
-#include <iostream>
-#include <fstream>
+#include <vector>
 
-#include "ace/Reactor.h"
 #include "ace/Basic_Types.h"
 #include "ace/Event_Handler.h"
-#include "ace/Task.h"
-#include "ace/INET_Addr.h"
-#include "ace/SOCK_Stream.h"
-#include "ace/SOCK_Acceptor.h"
-#include "ace/Task_T.h"
-#include "ace/Timer_Queue_T.h"
-#include "ace/OS_Memory.h"
-#include "ace/Thread_Manager.h"
 #include "ace/Get_Opt.h"
-#include "ace/Signal.h"
+#include "ace/INET_Addr.h"
+#include "ace/OS_Memory.h"
+#include "ace/Reactor.h"
+#include "ace/SOCK_Acceptor.h"
+#include "ace/SOCK_Stream.h"
 #include "ace/SSL/SSL_SOCK.h"
-#include "ace/SSL/SSL_SOCK_Stream.h"
 #include "ace/SSL/SSL_SOCK_Connector.h"
+#include "ace/SSL/SSL_SOCK_Stream.h"
 #include "ace/Semaphore.h"
-
+#include "ace/Signal.h"
+#include "ace/Task.h"
+#include "ace/Task_T.h"
+#include "ace/Thread_Manager.h"
+#include "ace/Timer_Queue_T.h"
 
 #include "mongodbc.h"
-
 
 /* Forward declaration */
 class WebServer;
 
 /// HTTP method category used for routing decisions.
 enum class MicroServiceType : ACE_UINT16 {
-    CREATE,
-    UPDATE,
-    READ,
-    DELETE,
-    UNKNOWN
+  CREATE,
+  UPDATE,
+  READ,
+  DELETE,
+  UNKNOWN
 };
 
 /// Named buffer sizes for readable capacity constants.
 enum class MemorySize : std::uint32_t {
-    SIZE_1KB = 1024,
-    SIZE_5KB = (5 * SIZE_1KB),
-    SIZE_10KB = (10 * SIZE_1KB),
-    SIZE_1MB = (SIZE_1KB * SIZE_1KB),
-    SIZE_10MB = (10 * SIZE_1MB),
-    SIZE_50MB = (50 * SIZE_1MB)
+  SIZE_1KB = 1024,
+  SIZE_5KB = (5 * SIZE_1KB),
+  SIZE_10KB = (10 * SIZE_1KB),
+  SIZE_1MB = (SIZE_1KB * SIZE_1KB),
+  SIZE_10MB = (10 * SIZE_1MB),
+  SIZE_50MB = (50 * SIZE_1MB)
 };
 
 /// Index names for the command-line argument array.
 enum class CommandArgumentName : std::uint32_t {
-    SERVER_IP = 0,
-    SERVER_PORT,
-    SERVER_WORKER_NODE,
-    DB_URI,
-    DB_CONN_POOL,
-    DB_NAME,
-    EMAIL_FROM_NAME,
-    EMAIL_FROM_ID,
-    EMAIL_FROM_PASSWORD,
-    MAX_CMD_ARG
+  SERVER_IP = 0,
+  SERVER_PORT,
+  SERVER_WORKER_NODE,
+  DB_URI,
+  DB_CONN_POOL,
+  DB_NAME,
+  EMAIL_FROM_NAME,
+  EMAIL_FROM_ID,
+  EMAIL_FROM_PASSWORD,
+  MAX_CMD_ARG
 };
 
 /**
@@ -82,107 +80,103 @@ enum class CommandArgumentName : std::uint32_t {
  * @endcode
  */
 class MicroService : public ACE_Task<ACE_MT_SYNCH> {
-    public:
+public:
+  int svc(void) override;
+  int open(void *args = 0) override;
+  int close(u_long flags = 0) override;
 
-        int svc(void) override;
-        int open(void *args=0) override;
-        int close (u_long flags=0) override;
+  ACE_INT32 handle_signal(int signum, siginfo_t *s, ucontext_t *u) override;
 
-        ACE_INT32 handle_signal(int signum, siginfo_t *s, ucontext_t *u) override;
+  /**
+   * @brief Construct a worker thread.
+   * @param thrMgr ACE thread manager that owns this task.
+   * @param parent Back-pointer to the owning @c WebServer.
+   */
+  MicroService(ACE_Thread_Manager *thrMgr, WebServer *parent);
+  virtual ~MicroService();
 
-        /**
-         * @brief Construct a worker thread.
-         * @param thrMgr ACE thread manager that owns this task.
-         * @param parent Back-pointer to the owning @c WebServer.
-         */
-        MicroService(ACE_Thread_Manager *thrMgr, WebServer *parent);
-        virtual ~MicroService();
+  /// Return the ACE thread ID assigned to this worker.
+  ACE_thread_t myThreadId() { return (m_threadId); }
 
-        /// Return the ACE thread ID assigned to this worker.
-        ACE_thread_t myThreadId() {
-          return(m_threadId);
-        }
+  /// Return @c true while the worker thread is in the running state.
+  bool isTaskRunning() const {
+    std::uint32_t st = ACE_Thread_Manager::ACE_THR_RUNNING;
+    ACE_Thread_Manager::instance()->thr_state(m_threadId, st);
+    return (ACE_Thread_Manager::ACE_THR_RUNNING == st);
+  }
 
-        /// Return @c true while the worker thread is in the running state.
-        bool isTaskRunning() const {
-          std::uint32_t st = ACE_Thread_Manager::ACE_THR_RUNNING;
-          ACE_Thread_Manager::instance()->thr_state(m_threadId, st);
-          return(ACE_Thread_Manager::ACE_THR_RUNNING == st);
-        }
+  /// Return a reference to the owning @c WebServer.
+  WebServer &webServer() const { return (*m_parent); }
 
-        /// Return a reference to the owning @c WebServer.
-        WebServer& webServer() const {
-            return(*m_parent);
-        }
+  /**
+   * @brief Process a raw HTTP request string and send the response.
+   * @param handle  Socket descriptor for the client connection.
+   * @param req     Raw HTTP request string.
+   * @param dbInst  MongoDB client to use for database operations.
+   * @return 0 on success, -1 on error.
+   */
+  std::int32_t process_request(ACE_HANDLE handle, std::string &req,
+                               MongodbClient &dbInst);
 
-        /**
-         * @brief Process a raw HTTP request string and send the response.
-         * @param handle  Socket descriptor for the client connection.
-         * @param req     Raw HTTP request string.
-         * @param dbInst  MongoDB client to use for database operations.
-         * @return 0 on success, -1 on error.
-         */
-        std::int32_t process_request(ACE_HANDLE handle, std::string& req, MongodbClient& dbInst);
+  /** @name HTTP method dispatchers */
+  ///@{
+  std::string handle_OPTIONS(std::string &in);
+  std::string handle_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_shipment_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_account_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_inventory_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_email_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_document_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_config_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_shipment_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_account_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_inventory_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_email_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_document_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_config_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_shipment_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_inventory_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_account_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_DELETE(std::string &in, MongodbClient &dbInst);
+  ///@}
 
-        /** @name HTTP method dispatchers */
-        ///@{
-        std::string handle_OPTIONS(std::string& in);
-        std::string handle_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_shipment_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_account_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_inventory_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_email_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_document_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_config_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_shipment_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_account_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_inventory_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_email_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_document_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_config_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_shipment_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_inventory_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_account_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_DELETE(std::string& in, MongodbClient& dbInst);
-        ///@}
+  /** @name HTTP response builders */
+  ///@{
+  /**
+   * @brief Build a @c 200 OK response.
+   * @param http_body    Response body (may be empty).
+   * @param content_type MIME type for the @c Content-Type header.
+   * @return Fully-formed HTTP response string.
+   */
+  std::string build_responseOK(std::string http_body,
+                               std::string content_type = "application/json");
 
-        /** @name HTTP response builders */
-        ///@{
-        /**
-         * @brief Build a @c 200 OK response.
-         * @param http_body    Response body (may be empty).
-         * @param content_type MIME type for the @c Content-Type header.
-         * @return Fully-formed HTTP response string.
-         */
-        std::string build_responseOK(std::string http_body, std::string content_type="application/json");
+  /// Build a @c 201 Created response with no body.
+  std::string build_responseCreated();
 
-        /// Build a @c 201 Created response with no body.
-        std::string build_responseCreated();
+  /**
+   * @brief Map a file extension to its MIME content-type string.
+   * @param _ext Lowercase extension without a leading dot, e.g. @c "js".
+   * @return Corresponding MIME type, or @c "text/html" as a fallback.
+   */
+  std::string get_contentType(std::string _ext);
 
-        /**
-         * @brief Map a file extension to its MIME content-type string.
-         * @param _ext Lowercase extension without a leading dot, e.g. @c "js".
-         * @return Corresponding MIME type, or @c "text/html" as a fallback.
-         */
-        std::string get_contentType(std::string _ext);
+  /**
+   * @brief Build an HTTP error response.
+   * @param httpBody Error body (may be empty JSON or plain text).
+   * @param error    Status line suffix, e.g. @c "404 Not Found".
+   * @return Fully-formed HTTP response string.
+   */
+  std::string build_responseERROR(std::string httpBody, std::string error);
+  ///@}
 
-        /**
-         * @brief Build an HTTP error response.
-         * @param httpBody Error body (may be empty JSON or plain text).
-         * @param error    Status line suffix, e.g. @c "404 Not Found".
-         * @return Fully-formed HTTP response string.
-         */
-        std::string build_responseERROR(std::string httpBody, std::string error);
-        ///@}
-
-    private:
-        bool m_continue;
-        ACE_thread_t m_threadId;
-        bool m_iAmDone;
-        WebServer *m_parent;
-
+private:
+  bool m_continue;
+  ACE_thread_t m_threadId;
+  bool m_iAmDone;
+  WebServer *m_parent;
 };
 
 /**
@@ -194,44 +188,39 @@ class MicroService : public ACE_Task<ACE_MT_SYNCH> {
  * is closed as soon as the peer disconnects or a socket error occurs.
  */
 class WebConnection : public ACE_Event_Handler {
-    public:
-        ACE_INT32 handle_input(ACE_HANDLE handle) override;
-        ACE_INT32 handle_signal(int signum, siginfo_t *s = 0, ucontext_t *u = 0) override;
-        ACE_INT32 handle_close (ACE_HANDLE = ACE_INVALID_HANDLE, ACE_Reactor_Mask = 0) override;
-        ACE_HANDLE get_handle() const override;
+public:
+  ACE_INT32 handle_input(ACE_HANDLE handle) override;
+  ACE_INT32 handle_signal(int signum, siginfo_t *s = 0,
+                          ucontext_t *u = 0) override;
+  ACE_INT32 handle_close(ACE_HANDLE = ACE_INVALID_HANDLE,
+                         ACE_Reactor_Mask = 0) override;
+  ACE_HANDLE get_handle() const override;
 
-        /**
-         * @brief Construct a connection handler.
-         * @param parent Owning @c WebServer instance.
-         */
-        WebConnection(WebServer* parent);
-        virtual ~WebConnection();
+  /**
+   * @brief Construct a connection handler.
+   * @param parent Owning @c WebServer instance.
+   */
+  WebConnection(WebServer *parent, ACE_SOCK_Stream strm, ACE_INET_Addr addr);
+  virtual ~WebConnection();
 
-        /// Return the underlying socket descriptor.
-        ACE_HANDLE handle() const {
-            return(m_handle);
-        }
+  /// Return the underlying socket descriptor.
+  ACE_HANDLE handle() const { return (m_handle); }
 
-        /// Set the socket descriptor.
-        void handle(ACE_HANDLE fd) {
-            m_handle = fd;
-        }
+  /// Set the socket descriptor.
+  void handle(ACE_HANDLE fd) { m_handle = fd; }
 
-        /// Record the remote address of this connection.
-        void connAddr(ACE_INET_Addr addr) {
-          m_connAddr = addr;
-        }
+  /// Record the remote address of this connection.
+  void connAddr(ACE_INET_Addr addr) { m_connAddr = addr; }
 
-        /// Return a pointer to the owning @c WebServer.
-        WebServer* parent() {
-            return(m_parent);
-        }
+  /// Return a pointer to the owning @c WebServer.
+  WebServer *parent() { return (m_parent); }
 
-    private:
-        ACE_HANDLE m_handle;
-        ACE_INET_Addr m_connAddr;
-        WebServer* m_parent;
-        std::string m_recvBuf;
+private:
+  ACE_HANDLE m_handle;
+  ACE_INET_Addr m_connAddr;
+  ACE_SOCK_Stream m_stream;
+  WebServer *m_parent;
+  std::string m_recvBuf;
 };
 
 /**
@@ -249,77 +238,79 @@ class WebConnection : public ACE_Event_Handler {
  * @endcode
  */
 class WebServer : public ACE_Event_Handler {
-    public:
-        ACE_INT32 handle_timeout(const ACE_Time_Value &tv, const void *act=0) override;
-        ACE_INT32 handle_input(ACE_HANDLE handle) override;
-        ACE_INT32 handle_signal(int signum, siginfo_t *s = 0, ucontext_t *u = 0) override;
-        ACE_INT32 handle_close (ACE_HANDLE = ACE_INVALID_HANDLE, ACE_Reactor_Mask = 0) override;
-        ACE_HANDLE get_handle() const override;
+public:
+  ACE_INT32 handle_timeout(const ACE_Time_Value &tv,
+                           const void *act = 0) override;
+  ACE_INT32 handle_input(ACE_HANDLE handle) override;
+  ACE_INT32 handle_signal(int signum, siginfo_t *s = 0,
+                          ucontext_t *u = 0) override;
+  ACE_INT32 handle_close(ACE_HANDLE = ACE_INVALID_HANDLE,
+                         ACE_Reactor_Mask = 0) override;
+  ACE_HANDLE get_handle() const override;
 
-        /**
-         * @brief Construct the server.
-         * @param _ip        Bind address (empty string → all interfaces).
-         * @param _port      TCP port to listen on.
-         * @param workerPool Number of @c MicroService worker threads.
-         * @param dbUri      MongoDB connection URI.
-         * @param dbConnPool MongoDB connection pool size (as a string).
-         * @param dbName     MongoDB database name.
-         */
-        WebServer(std::string _ip, ACE_UINT16 _port, ACE_UINT32 workerPool, std::string dbUri, std::string dbConnPool, std::string dbName);
-        virtual ~WebServer();
+  /**
+   * @brief Construct the server.
+   * @param _ip        Bind address (empty string → all interfaces).
+   * @param _port      TCP port to listen on.
+   * @param workerPool Number of @c MicroService worker threads.
+   * @param dbUri      MongoDB connection URI.
+   * @param dbConnPool MongoDB connection pool size (as a string).
+   * @param dbName     MongoDB database name.
+   */
+  WebServer(std::string _ip, ACE_UINT16 _port, ACE_UINT32 workerPool,
+            std::string dbUri, std::string dbConnPool, std::string dbName);
+  virtual ~WebServer();
 
-        /// Start the reactor event loop; returns when the server stops.
-        bool start();
-        /// Request a graceful shutdown.
-        bool stop();
+  /// Start the reactor event loop; returns when the server stops.
+  bool start();
+  /// Request a graceful shutdown.
+  bool stop();
 
-        /// Return the live connection pool (socket → handler map).
-        std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>>& connectionPool() {
-          return(m_connectionPool);
-        }
+  /// Return the live connection pool (socket → handler map).
+  std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>> &
+  connectionPool() {
+    return (m_connectionPool);
+  }
 
-        /// Return the worker thread pool.
-        std::vector<std::unique_ptr<MicroService>>& workerPool() {
-            return m_workerPool;
-        }
+  /// Return the worker thread pool.
+  std::vector<std::unique_ptr<MicroService>> &workerPool() {
+    return m_workerPool;
+  }
 
-        /**
-         * @brief Return an iterator to the next worker in round-robin order.
-         *
-         * Wraps around to the beginning of the pool when the end is reached.
-         */
-        std::vector<std::unique_ptr<MicroService>>::iterator currentWorker()
-        {
-            if (m_currentWorker == std::end(m_workerPool))
-                m_currentWorker = std::begin(m_workerPool);
-            return m_currentWorker++;
-        }
+  /**
+   * @brief Return an iterator to the next worker in round-robin order.
+   *
+   * Wraps around to the beginning of the pool when the end is reached.
+   */
+  std::vector<std::unique_ptr<MicroService>>::iterator currentWorker() {
+    if (m_currentWorker == std::end(m_workerPool))
+      m_currentWorker = std::begin(m_workerPool);
+    return ++m_currentWorker;
+  }
 
-        /// Return a raw pointer to the shared MongoDB client (never null after start()).
-        MongodbClient* mongodbcInst() {
-            return(mMongodbc.get());
-        }
+  /// Return a raw pointer to the shared MongoDB client (never null after
+  /// start()).
+  MongodbClient *mongodbcInst() { return (mMongodbc.get()); }
 
-        /// Return the semaphore used to gate concurrent database access.
-        ACE_Semaphore& semaphore() const {
-            return(*m_semaphore.get());
-        }
+  /// Return the semaphore used to gate concurrent database access.
+  ACE_Semaphore &semaphore() const { return (*m_semaphore.get()); }
 
-    private:
-        ACE_SOCK_Stream m_stream;
-        ACE_INET_Addr m_listen;
-        ACE_SOCK_Acceptor m_server;
-        bool m_stopMe;
-        std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>> m_connectionPool;
-        std::vector<std::unique_ptr<MicroService>> m_workerPool;
-        std::vector<std::unique_ptr<MicroService>>::iterator m_currentWorker;
-        std::unique_ptr<MongodbClient> mMongodbc;
-        std::unique_ptr<ACE_Semaphore> m_semaphore;
-
+private:
+  ACE_SOCK_Stream m_stream;
+  ACE_INET_Addr m_listen;
+  ACE_SOCK_Acceptor m_server;
+  bool m_stopMe;
+  std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>>
+      m_connectionPool;
+  std::vector<std::unique_ptr<MicroService>> m_workerPool;
+  std::vector<std::unique_ptr<MicroService>>::iterator m_currentWorker;
+  std::unique_ptr<MongodbClient> mMongodbc;
+  std::unique_ptr<ACE_Semaphore> m_semaphore;
 };
 
 /**
- * @brief Stateless request-processing facade used by each @c MicroService worker.
+ * @brief Stateless request-processing facade used by each @c MicroService
+ * worker.
  *
  * Contains the same routing and response-building logic as @c MicroService but
  * without any ACE threading machinery, making it straightforward to unit-test
@@ -335,76 +326,78 @@ class WebServer : public ACE_Event_Handler {
  *   - handle_OPTIONS()
  */
 class WebServiceEntry {
-    public:
-        WebServiceEntry() = default;
-        ~WebServiceEntry() = default;
+public:
+  WebServiceEntry() = default;
+  ~WebServiceEntry() = default;
 
-        /**
-         * @brief Route and dispatch an HTTP request, writing the response to the socket.
-         * @param handle  Client socket descriptor.
-         * @param req     Raw HTTP request string.
-         * @param dbInst  MongoDB client.
-         * @return 0 on success, -1 on error.
-         */
-        std::int32_t process_request(ACE_HANDLE handle, std::string& req, MongodbClient& dbInst);
+  /**
+   * @brief Route and dispatch an HTTP request, writing the response to the
+   * socket.
+   * @param handle  Client socket descriptor.
+   * @param req     Raw HTTP request string.
+   * @param dbInst  MongoDB client.
+   * @return 0 on success, -1 on error.
+   */
+  std::int32_t process_request(ACE_HANDLE handle, std::string &req,
+                               MongodbClient &dbInst);
 
-        /** @name HTTP method dispatchers */
-        ///@{
-        std::string handle_OPTIONS(std::string& in);
-        std::string handle_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_shipment_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_account_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_inventory_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_email_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_document_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_config_GET(std::string& in, MongodbClient& dbInst);
-        std::string handle_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_shipment_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_account_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_inventory_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_email_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_document_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_config_POST(std::string& in, MongodbClient& dbInst);
-        std::string handle_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_shipment_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_inventory_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_account_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_altref_update_shipment_PUT(std::string& in, MongodbClient& dbInst);
-        std::string handle_DELETE(std::string& in, MongodbClient& dbInst);
-        ///@}
+  /** @name HTTP method dispatchers */
+  ///@{
+  std::string handle_OPTIONS(std::string &in);
+  std::string handle_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_shipment_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_account_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_inventory_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_email_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_document_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_config_GET(std::string &in, MongodbClient &dbInst);
+  std::string handle_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_shipment_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_account_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_inventory_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_email_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_document_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_config_POST(std::string &in, MongodbClient &dbInst);
+  std::string handle_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_shipment_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_inventory_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_account_PUT(std::string &in, MongodbClient &dbInst);
+  std::string handle_altref_update_shipment_PUT(std::string &in,
+                                                MongodbClient &dbInst);
+  std::string handle_DELETE(std::string &in, MongodbClient &dbInst);
+  ///@}
 
-        /** @name HTTP response builders */
-        ///@{
-        /**
-         * @brief Build a @c 200 OK response.
-         * @param http_body    Response body (may be empty).
-         * @param content_type MIME type for the @c Content-Type header.
-         * @return Fully-formed HTTP response string.
-         */
-        std::string build_responseOK(std::string http_body, std::string content_type="application/json");
+  /** @name HTTP response builders */
+  ///@{
+  /**
+   * @brief Build a @c 200 OK response.
+   * @param http_body    Response body (may be empty).
+   * @param content_type MIME type for the @c Content-Type header.
+   * @return Fully-formed HTTP response string.
+   */
+  std::string build_responseOK(std::string http_body,
+                               std::string content_type = "application/json");
 
-        /// Build a @c 201 Created response with no body.
-        std::string build_responseCreated();
+  /// Build a @c 201 Created response with no body.
+  std::string build_responseCreated();
 
-        /**
-         * @brief Map a file extension to its MIME content-type string.
-         * @param _ext Lowercase extension without a leading dot, e.g. @c "js".
-         * @return Corresponding MIME type, or @c "text/html" as a fallback.
-         */
-        std::string get_contentType(std::string _ext);
+  /**
+   * @brief Map a file extension to its MIME content-type string.
+   * @param _ext Lowercase extension without a leading dot, e.g. @c "js".
+   * @return Corresponding MIME type, or @c "text/html" as a fallback.
+   */
+  std::string get_contentType(std::string _ext);
 
-        /**
-         * @brief Build an HTTP error response.
-         * @param httpBody Error body (may be empty JSON or plain text).
-         * @param error    Status line suffix, e.g. @c "404 Not Found".
-         * @return Fully-formed HTTP response string.
-         */
-        std::string build_responseERROR(std::string httpBody, std::string error);
-        ///@}
+  /**
+   * @brief Build an HTTP error response.
+   * @param httpBody Error body (may be empty JSON or plain text).
+   * @param error    Status line suffix, e.g. @c "404 Not Found".
+   * @return Fully-formed HTTP response string.
+   */
+  std::string build_responseERROR(std::string httpBody, std::string error);
+  ///@}
 
-    private:
-
+private:
 };
-
 
 #endif // WEBSERVICE_H
