@@ -13,7 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libboost-all-dev \
     libssl-dev \
     libzstd-dev \
-    libbson-dev \
     libsasl2-dev \
     zlib1g-dev \
     wget \
@@ -35,9 +34,10 @@ RUN make install ssl=1 INSTALL_PREFIX=${ACE_PREFIX} ACE_ROOT=${ACE_SRC} SSL_ROOT
 
 # Build mongo-c-driver
 WORKDIR /root
-RUN git clone -b r1.19 --depth 1 https://github.com/mongodb/mongo-c-driver.git mongo-c-driver
+RUN git clone -b 1.19.1 --depth 1 https://github.com/mongodb/mongo-c-driver.git mongo-c-driver
 WORKDIR /root/mongo-c-driver/build
 RUN cmake .. -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_INSTALL_PREFIX=/usr/local \
              -DENABLE_TESTS=OFF \
              -DENABLE_EXAMPLES=OFF \
     && make -j$(nproc) && make install && ldconfig
