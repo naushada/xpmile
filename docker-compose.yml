@@ -17,6 +17,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-changeme}
       MONGO_APP_USER: ${MONGO_APP_USER:-xpmile}
       MONGO_APP_PASS: ${MONGO_APP_PASS:-xpmile_pass}
+    command: ["mongod", "--setParameter", "logComponentVerbosity={accessControl:{verbosity:0}}"]
     volumes:
       - mongo-data:/data/db
     ports:
