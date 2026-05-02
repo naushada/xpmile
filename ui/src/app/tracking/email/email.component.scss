@@ -1,0 +1,22 @@
+:host {
+
+  clr-input-container,
+  clr-textarea-container {
+    margin-top: 0 !important;
+  }
+
+  .clr-form-control {
+    margin-top: 0 !important;
+  }
+
+  textarea.clr-textarea {
+    width: 100%;
+    font-size: 0.75rem;
+  }
+
+  input.clr-input {
+    width: 100%;
+    font-size: 0.75rem;
+  }
+
+}
