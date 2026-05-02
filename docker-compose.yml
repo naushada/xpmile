@@ -6,12 +6,14 @@ services:
   # MongoDB — persistent store for shipments, accounts, and GridFS files
   # ------------------------------------------------------------------
   mongodb:
-    image: mongo:7
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.mongo
+    image: xpmile-mongo:latest
     container_name: xpmile-mongo
     restart: unless-stopped
     volumes:
       - mongo-data:/data/db
-      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     ports:
       - "27017:27017"   # remove this line if you don't need direct host access
     networks:
