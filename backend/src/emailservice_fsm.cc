@@ -16,7 +16,7 @@
 #include <sstream>
 #include <regex>
 
-std::uint32_t SMTP::parseSmtpCommand(const std::string in, std::unordered_map<Response, std::string, hFn>& out)
+std::uint32_t SMTP::parseSmtpCommand(const std::string& in, std::unordered_map<Response, std::string, hFn>& out)
 {
     std::stringstream input(in);
     std::int32_t c;
@@ -88,7 +88,7 @@ std::uint32_t SMTP::parseSmtpCommand(const std::string in, std::unordered_map<Re
     return(0);
 }
 
-SMTP::Response SMTP::getSmtpStatusCode(const std::string in)
+SMTP::Response SMTP::getSmtpStatusCode(const std::string& in)
 {
     std::unordered_map<Response, std::string, hFn> out;
     out.clear();
@@ -97,7 +97,7 @@ SMTP::Response SMTP::getSmtpStatusCode(const std::string in)
     return(it->first);
 }
 
-auto SMTP::find(const std::string in, std::string what)
+auto SMTP::find(const std::string& in, const std::string& what)
 {
     std::unordered_map<Response, std::string, hFn> out;
     out.clear();
@@ -114,21 +114,16 @@ auto SMTP::find(const std::string in, std::string what)
     return(it);
 }
 
-std::uint32_t SMTP::getBase64(const std::string in, std::string& b64Out)
+std::uint32_t SMTP::getBase64(const std::string& in, std::string& b64Out)
 {
     size_t out_len = 0;
-    const ACE_Byte* data = (ACE_Byte *)in.data();
-    
-    ACE_Byte* encName = ACE_Base64::encode(data, in.length(), &out_len);
-    std::string b64_((char *)encName, out_len);
-    std::stringstream ss("");
-    ss << b64_;
-    b64Out = ss.str();
-    free(encName);
+    ACE_Byte* enc = ACE_Base64::encode((const ACE_Byte*)in.data(), in.length(), &out_len);
+    b64Out.assign((char*)enc, out_len);
+    free(enc);
     return(0);
 }
 
-void SMTP::display(std::string in)
+void SMTP::display(const std::string& in)
 {
     std::unordered_map<Response, std::string, hFn> commandList;
     parseSmtpCommand(in, commandList);
@@ -138,7 +133,7 @@ void SMTP::display(std::string in)
     }
 }
 
-std::string SMTP::getContentType(std::string ext)
+std::string SMTP::getContentType(const std::string& ext)
 {
     if(!ext.compare("pdf")) {
         return("application/pdf");
@@ -158,10 +153,11 @@ std::string SMTP::getContentType(std::string ext)
         return("video/mpeg");
     } else if(!ext.compare("gif")) {
         return("image/gif");
-    } else if(!ext.compare("asc") || !ext.compare("diff") || !ext.compare("c") || !ext.compare("log") || 
+    } else if(!ext.compare("asc") || !ext.compare("diff") || !ext.compare("c") || !ext.compare("log") ||
               !ext.compare("patch") || !ext.compare("pot") || !ext.compare("text") || !ext.compare("txt")) {
         return("text/plain");
     }
+    return("application/octet-stream");
 }
 
 void SMTP::GREETING::onEntry()
@@ -174,7 +170,7 @@ void SMTP::GREETING::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::GREETING function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::GREETING::onResponse(std::string in)
+std::uint32_t SMTP::GREETING::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::GREETING receive length:%d response:%s\n"), in.length(), in.c_str()));
     return(0);
@@ -185,7 +181,7 @@ std::uint32_t SMTP::GREETING::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::GREETING::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::GREETING::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = getSmtpStatusCode(in);
     auto retStatus = 0;
@@ -216,7 +212,7 @@ std::uint32_t SMTP::GREETING::onResponse(std::string in, std::string& out, State
  * @param out response message to be sent to smtp server
  * @param new_state new state for processing of Extention cabalities 
  */
-std::uint32_t SMTP::GREETING::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::GREETING::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     std::stringstream ss("");
     ss << "EHLO gmail.com" << "\r\n";
@@ -237,7 +233,7 @@ void SMTP::HELO::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::HELO function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::HELO::onResponse(std::string in)
+std::uint32_t SMTP::HELO::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::HELO receive length:%d response:%s\n"), 
                in.length(), in.c_str()));
@@ -249,7 +245,7 @@ std::uint32_t SMTP::HELO::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::HELO::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::HELO::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = getSmtpStatusCode(in);
     auto retStatus = 0;
@@ -276,7 +272,7 @@ std::uint32_t SMTP::HELO::onResponse(std::string in, std::string& out, States& n
  * @param out response message to be sent to smtp server
  * @param new_state new state for processing of Extention cabalities 
  */
-std::uint32_t SMTP::HELO::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::HELO::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     std::unordered_map<SMTP::Response, std::string, SMTP::hFn> elm;
     elm.clear();
@@ -308,7 +304,7 @@ void SMTP::MAIL::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::MAIL::onResponse(std::string in)
+std::uint32_t SMTP::MAIL::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL receive length:%d response:%s\n"),
                in.length(), in.c_str()));
@@ -321,7 +317,7 @@ std::uint32_t SMTP::MAIL::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::MAIL::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::MAIL::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = getSmtpStatusCode(in);
     auto retStatus = 0;
@@ -350,7 +346,7 @@ std::uint32_t SMTP::MAIL::onResponse(std::string in, std::string& out, States& n
     return(retStatus);
 }
 
-std::uint32_t SMTP::MAIL::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::MAIL::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     std::stringstream ss("");
 
@@ -392,7 +388,7 @@ std::uint32_t SMTP::MAIL::onCommand(std::string in, std::string& out, States& ne
     return(SMTP::status_code::ERROR_END);
 }
 
-std::uint32_t SMTP::MAIL::onUsername(const std::string in, std::string& base64Username)
+std::uint32_t SMTP::MAIL::onUsername(const std::string& in, std::string& base64Username)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL function:%s\n"),__PRETTY_FUNCTION__));
     size_t out_len = 0;
@@ -421,7 +417,7 @@ std::uint32_t SMTP::MAIL::onUsername(const std::string in, std::string& base64Us
     return(SMTP::status_code::BASE64_DECODING_FAILED);
 }
 
-std::uint32_t SMTP::MAIL::onPassword(const std::string in, std::string& base64Username)
+std::uint32_t SMTP::MAIL::onPassword(const std::string& in, std::string& base64Username)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL function:%s\n"),__PRETTY_FUNCTION__));
     size_t out_len = 0;
@@ -449,7 +445,7 @@ std::uint32_t SMTP::MAIL::onPassword(const std::string in, std::string& base64Us
     return(SMTP::status_code::BASE64_DECODING_FAILED);
 }
 
-bool SMTP::MAIL::onLoginSuccess(const std::string in, std::string& out)
+bool SMTP::MAIL::onLoginSuccess(const std::string& in, std::string& out)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL function:%s\n"),__PRETTY_FUNCTION__));
 
@@ -477,7 +473,7 @@ void SMTP::DATA::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::DATA function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::DATA::onResponse(std::string in)
+std::uint32_t SMTP::DATA::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::DATA receive length:%d response:%s\n"), in.length(), in.c_str()));
     return(0);
@@ -488,7 +484,7 @@ std::uint32_t SMTP::DATA::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::DATA::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::DATA::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = getSmtpStatusCode(in);
     auto retStatus = 0;
@@ -515,7 +511,7 @@ std::uint32_t SMTP::DATA::onResponse(std::string in, std::string& out, States& n
     }
     return(retStatus);
 }
-std::uint32_t SMTP::DATA::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::DATA::onCommand(const std::string& in, std::string& out, States& new_state)
 {
 
     std::stringstream ss("");
@@ -537,7 +533,7 @@ void SMTP::BODY::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::BODY function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::BODY::onResponse(std::string in)
+std::uint32_t SMTP::BODY::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::BODY receive length:%d response:%s\n"), in.length(), in.c_str()));
     return(0);
@@ -547,7 +543,7 @@ std::uint32_t SMTP::BODY::onResponse()
 {
     return(0);
 }
-std::uint32_t SMTP::BODY::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::BODY::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = getSmtpStatusCode(in);
     auto retStatus = 0;
@@ -574,101 +570,78 @@ std::uint32_t SMTP::BODY::onResponse(std::string in, std::string& out, States& n
     return(retStatus);
 }
 
-/**
- * @brief 
- * 
- * @param in 
- * @param out 
- * @param new_state 
- * @return std::uint32_t 
- */
-std::uint32_t SMTP::BODY::onCommand(std::string in, std::string& out, States& new_state)
+namespace {
+
+std::string build_mime_message()
 {
-    std::stringstream ss("");
-    std::time_t result = std::time(nullptr);
-    /// MIME Header
-    ss << "MIME-Version: 1.0" << "\r\n"
-       //<< "Content-type: text/plain; charset=us-ascii" << "\r\n"
-       << "From: "<<  Account::instance().from_name() << " <" << Account::instance().from_email() << ">\r\n";
+    auto& acc = SMTP::Account::instance();
+    std::time_t now = std::time(nullptr);
+    std::stringstream ss;
 
-    auto to = Account::instance().to_email();
-    ss << "To: ";
-    for(auto &it : to) {
-        ss << it << ";";
-    }
-    //ss << "To: Naushad Ahmed <naushad.dln@gmail.com>" << "\r\n"
-    ss << "\r\n";
-    ss << "Subject: " << Account::instance().email_subject() <<"\r\n"
-       //asctime is appending the \n line character, so don't need to add explicitly.
-       << "Date: " << std::asctime(std::localtime(&result));
+    ss << "MIME-Version: 1.0\r\n"
+       << "From: " << acc.from_name() << " <" << acc.from_email() << ">\r\n"
+       << "To: ";
+    for (const auto& addr : acc.to_email())
+        ss << addr << ";";
+    ss << "\r\n"
+       << "Subject: " << acc.email_subject() << "\r\n"
+       << "Date: " << std::asctime(std::localtime(&now));
 
-    auto list = Account::instance().attachment();
-    if(list.empty()) {
-        ss << "Content-type: text/plain; charset=us-ascii" << "\r\n\r\n"
-           << Account::instance().email_body() << "\r\n";
+    const auto& list = acc.attachment();
+    if (list.empty()) {
+        ss << "Content-type: text/plain; charset=us-ascii\r\n\r\n"
+           << acc.email_body() << "\r\n";
     } else {
-        ss << "Content-Type: multipart/mixed; boundary=cordoba" << "\r\n"
+        ss << "Content-Type: multipart/mixed; boundary=cordoba\r\n"
            << "--cordoba\r\n"
-           << "Content-type: text/plain; charset=us-ascii" << "\r\n\r\n"
-           << Account::instance().email_body() << "\r\n";
-    }
+           << "Content-type: text/plain; charset=us-ascii\r\n\r\n"
+           << acc.email_body() << "\r\n";
 
-    for(auto it = list.begin(); it != list.end(); ++it) {
-        auto fname = std::get<0>(*it);
-        do {
-            if(fname.empty()) {
+        for (const auto& [fname, fcontent] : list) {
+            if (fname.empty()) {
                 ACE_ERROR((LM_ERROR, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::BODY file_name:empty\n")));
-                break;
+                continue;
             }
+            std::size_t dot = fname.find('.');
+            std::string type = SMTP::getContentType(dot != std::string::npos ? fname.substr(dot + 1) : "");
 
-            std::size_t pos = fname.find(".");
-            /* open the file*/
             std::ifstream ifs(fname);
-            if(!ifs.is_open()) {
-                /* Fileopen failed */
-                ACE_ERROR((LM_ERROR, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::BODY file_name:%s is not known to server\n"), fname.c_str()));
-                std::string file_content("");
-
-                file_content = std::get<1>(*it);
-                if(!file_content.empty()) {
-                    auto type = SMTP::getContentType(fname.substr(pos + 1 /* to skip dot itself */));
-
+            if (!ifs.is_open()) {
+                ACE_ERROR((LM_ERROR, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::BODY file_name:%s not found, using inline content\n"), fname.c_str()));
+                if (!fcontent.empty()) {
                     ss << "--cordoba\r\n"
                        << "Content-Transfer-Encoding: base64\r\n"
                        << "Content-Type: " << type << "\r\n"
-                       << "Content-Disposition: attachment; filename=" << fname << " ;size-parm=" << file_content.length() << "\r\n\r\n"
-                       << file_content << "\r\n";    
+                       << "Content-Disposition: attachment; filename=" << fname
+                       << " ;size-parm=" << fcontent.length() << "\r\n\r\n"
+                       << fcontent << "\r\n";
                 }
-                break;
             } else {
                 std::stringstream contents;
-                std::string b64_;
-
                 contents << ifs.rdbuf();
-                auto len = SMTP::getBase64(contents.str(),b64_);
-                auto type = SMTP::getContentType(fname.substr(pos + 1 /* to skip dot itself */));
-
+                std::string b64;
+                SMTP::getBase64(contents.str(), b64);
                 ss << "--cordoba\r\n"
                    << "Content-Transfer-Encoding: base64\r\n"
                    << "Content-Type: " << type << "\r\n"
-                   << "Content-Disposition: attachment; filename=" << fname << " ;size-parm=" << contents.str().length() << "\r\n\r\n"
-                   << b64_ << "\r\n";
-                ifs.close();
+                   << "Content-Disposition: attachment; filename=" << fname
+                   << " ;size-parm=" << contents.str().length() << "\r\n\r\n"
+                   << b64 << "\r\n";
             }
-        } while(0);
-    }
-
-    if(!list.empty()) {
+        }
         ss << "--cordoba--\r\n";
     }
-    /// email body ends with dot
-    ss <<"\r\n"<< "." <<"\r\n";
-    /// @brief modifiying out with response message to be sent to smtp server 
-    out = ss.str();
- 
+    ss << "\r\n.\r\n";
+    return ss.str();
+}
+
+} // namespace
+
+std::uint32_t SMTP::BODY::onCommand(const std::string& in, std::string& out, States& new_state)
+{
+    out = build_mime_message();
     new_state = QUIT{};
     return(SMTP::status_code::GOTO_NEXT_STATE);
-
 }
 
 void SMTP::RCPT::onEntry()
@@ -681,7 +654,7 @@ void SMTP::RCPT::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::RCPT function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::RCPT::onResponse(std::string in)
+std::uint32_t SMTP::RCPT::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::RCPT receive length:%d response:%s\n"), in.length(), in.c_str()));
     return(0);
@@ -692,7 +665,7 @@ std::uint32_t SMTP::RCPT::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::RCPT::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::RCPT::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = getSmtpStatusCode(in);
     auto retStatus = 0;
@@ -723,7 +696,7 @@ std::uint32_t SMTP::RCPT::onResponse(std::string in, std::string& out, States& n
     return(retStatus);
 }
 
-std::uint32_t SMTP::RCPT::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::RCPT::onCommand(const std::string& in, std::string& out, States& new_state)
 {
 
     std::stringstream ss("");
@@ -746,7 +719,7 @@ void SMTP::QUIT::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::QUIT function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::QUIT::onResponse(std::string in)
+std::uint32_t SMTP::QUIT::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST:MAIL receive length:%d response:%s\n"), in.length(), in.c_str()));
     
@@ -758,7 +731,7 @@ std::uint32_t SMTP::QUIT::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::QUIT::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::QUIT::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = getSmtpStatusCode(in);
     auto retStatus = 0;
@@ -791,7 +764,7 @@ std::uint32_t SMTP::QUIT::onResponse(std::string in, std::string& out, States& n
     return(retStatus);
 }
 
-std::uint32_t SMTP::QUIT::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::QUIT::onCommand(const std::string& in, std::string& out, States& new_state)
 {
 
     std::stringstream ss("");
@@ -813,7 +786,7 @@ void SMTP::RESET::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::RESET function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::RESET::onResponse(std::string in)
+std::uint32_t SMTP::RESET::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST:MAIL receive length:%d response:%s\n"), in.length(), in.c_str()));
     
@@ -825,12 +798,12 @@ std::uint32_t SMTP::RESET::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::RESET::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::RESET::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
 
 }
 
-std::uint32_t SMTP::RESET::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::RESET::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     //new_state = INIT{};
 
@@ -846,7 +819,7 @@ void SMTP::VRFY::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::VRFY function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::VRFY::onResponse(std::string in)
+std::uint32_t SMTP::VRFY::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL receive length:%d response:%s\n"), in.length(), in.c_str()));
     
@@ -858,12 +831,12 @@ std::uint32_t SMTP::VRFY::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::VRFY::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::VRFY::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
 
 }
 
-std::uint32_t SMTP::VRFY::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::VRFY::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     //new_state = INIT{};
 
@@ -880,7 +853,7 @@ void SMTP::NOOP::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::NOOP function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::NOOP::onResponse(std::string in)
+std::uint32_t SMTP::NOOP::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL receive length:%d response:%s\n"), in.length(), in.c_str()));
     
@@ -892,11 +865,11 @@ std::uint32_t SMTP::NOOP::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::NOOP::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::NOOP::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
 
 }
-std::uint32_t SMTP::NOOP::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::NOOP::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     //new_state = INIT{};
 
@@ -912,7 +885,7 @@ void SMTP::EXPN::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::EXPN function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::EXPN::onResponse(std::string in)
+std::uint32_t SMTP::EXPN::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL receive length:%d response:%s\n"), in.length(), in.c_str()));
     
@@ -924,11 +897,11 @@ std::uint32_t SMTP::EXPN::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::EXPN::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::EXPN::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
 
 }
-std::uint32_t SMTP::EXPN::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::EXPN::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     //new_state = INIT{};
 
@@ -944,7 +917,7 @@ void SMTP::HELP::onExit()
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::HELP function:%s\n"), __PRETTY_FUNCTION__));
 }
 
-std::uint32_t SMTP::HELP::onResponse(std::string in)
+std::uint32_t SMTP::HELP::onResponse(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l ST::MAIL receive length:%d response:%s\n"), in.length(), in.c_str()));
     
@@ -956,7 +929,7 @@ std::uint32_t SMTP::HELP::onResponse()
     return(0);
 }
 
-std::uint32_t SMTP::HELP::onResponse(std::string in, std::string& out, States& new_state, User& parent)
+std::uint32_t SMTP::HELP::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
     auto ent = SMTP::getSmtpStatusCode(in);
     switch(ent.m_reply) {
@@ -967,7 +940,7 @@ std::uint32_t SMTP::HELP::onResponse(std::string in, std::string& out, States& n
     }
 }
 
-std::uint32_t SMTP::HELP::onCommand(std::string in, std::string& out, States& new_state)
+std::uint32_t SMTP::HELP::onCommand(const std::string& in, std::string& out, States& new_state)
 {
     std::stringstream ss("");
     ss << "AUTH LOGIN" << "\r\n";

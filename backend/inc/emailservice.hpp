@@ -67,12 +67,12 @@ namespace SMTP {
     }
   };
 
-  std::uint32_t parseSmtpCommand(const std::string in, std::unordered_map<Response, std::string, hFn>& out);
-  SMTP::Response getSmtpStatusCode(const std::string in);
-  std::uint32_t getBase64(const std::string in, std::string& b64Out);
-  auto find(const std::string in, std::string what);
-  void display(std::string in);
-  std::string getContentType(std::string ext);
+  std::uint32_t parseSmtpCommand(const std::string& in, std::unordered_map<Response, std::string, hFn>& out);
+  SMTP::Response getSmtpStatusCode(const std::string& in);
+  std::uint32_t getBase64(const std::string& in, std::string& b64Out);
+  auto find(const std::string& in, const std::string& what);
+  void display(const std::string& in);
+  std::string getContentType(const std::string& ext);
 
   enum reply_code: std::uint32_t {
     REPLY_CODE_214_Response_to_HELP = 214,
@@ -164,7 +164,7 @@ namespace SMTP {
           void init();
           std::int32_t start(std::int32_t handle);
           std::int32_t read(std::string& plain_buffer);
-          std::int32_t write(std::string plain_buffer);
+          std::int32_t write(const std::string& plain_buffer);
           std::int32_t peek(std::string& plain_buffer);
           void close();
 
@@ -204,7 +204,7 @@ namespace SMTP {
       void stop();
       void main();
 
-      std::int32_t tx(const std::string in);
+      std::int32_t tx(const std::string& in);
       std::int32_t rx(std::string &out);
       User& user() {
         return(*m_user);
@@ -261,7 +261,7 @@ namespace SMTP {
           }, m_state);
       }
 #endif
-      std::uint32_t onRx(std::string in, std::string& out, ST& new_state, User& parent) 
+      std::uint32_t onRx(const std::string& in, std::string& out, ST& new_state, User& parent)
       {
           std::int32_t ret_status;
           std::visit([&](auto&& active_st) -> void {
@@ -281,10 +281,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
 
   };
 
@@ -308,13 +308,13 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onUsername(const std::string in, std::string& base64Username);
-      std::uint32_t onPassword(const std::string in, std::string& base64Password);
-      bool onLoginSuccess(const std::string in, std::string& base64Username);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onUsername(const std::string& in, std::string& base64Username);
+      std::uint32_t onPassword(const std::string& in, std::string& base64Password);
+      bool onLoginSuccess(const std::string& in, std::string& base64Username);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class RCPT {
@@ -324,10 +324,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class DATA {
@@ -337,10 +337,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class BODY {
@@ -350,10 +350,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
   class HELO {
     public:
@@ -362,10 +362,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class QUIT {
@@ -375,10 +375,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class RESET {
@@ -388,10 +388,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class VRFY {
@@ -401,10 +401,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class NOOP {
@@ -414,10 +414,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class EXPN {
@@ -427,10 +427,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
   class HELP {
@@ -440,10 +440,10 @@ namespace SMTP {
 
       void onEntry();
       void onExit();
-      std::uint32_t onResponse(std::string in);
+      std::uint32_t onResponse(const std::string& in);
       std::uint32_t onResponse();
-      std::uint32_t onResponse(std::string in, std::string& out, States& new_state, User& parent);
-      std::uint32_t onCommand(std::string in, std::string& out, States& new_state);
+      std::uint32_t onResponse(const std::string& in, std::string& out, States& new_state, User& parent);
+      std::uint32_t onCommand(const std::string& in, std::string& out, States& new_state);
   };
 
 
@@ -458,7 +458,7 @@ namespace SMTP {
       Account(const Account& acc) = delete;
       const Account& operator=(const Account&) = delete;
 
-      Account& from_name(std::string in) {
+      Account& from_name(const std::string& in) {
         m_from_name = in;
         return(*this);
       }
@@ -467,7 +467,7 @@ namespace SMTP {
         return(m_from_name);
       }
 
-      Account& from_email(std::string in) {
+      Account& from_email(const std::string& in) {
         m_from_email = in;
         return(*this);
       }
@@ -476,7 +476,7 @@ namespace SMTP {
         return(m_from_email);
       }
 
-      Account& from_password(std::string in) {
+      Account& from_password(const std::string& in) {
         m_from_password = in;
         return(*this);
       }
@@ -485,7 +485,7 @@ namespace SMTP {
         return(m_from_password);
       }
 
-      Account& to_email(std::vector<std::string> to_list) {
+      Account& to_email(const std::vector<std::string>& to_list) {
         m_to_email = to_list;
         return(*this);
       }
@@ -494,7 +494,7 @@ namespace SMTP {
         return(m_to_email);
       }
 
-      Account& email_body(std::string in) {
+      Account& email_body(const std::string& in) {
         m_email_body = in;
         return(*this);
       }
@@ -503,7 +503,7 @@ namespace SMTP {
         return(m_email_body);
       }
 
-      Account& email_subject(std::string in) {
+      Account& email_subject(const std::string& in) {
         m_email_subject = in;
         return(*this);
       }
@@ -512,7 +512,7 @@ namespace SMTP {
         return(m_email_subject);
       }
 
-      Account& attachment(std::vector<std::tuple<std::string, std::string>> in) {
+      Account& attachment(const std::vector<std::tuple<std::string, std::string>>& in) {
         m_attachment = in;
         return(*this);
       }
@@ -556,7 +556,7 @@ namespace SMTP {
       
       void client(std::unique_ptr<SMTP::Client> smtpClient);
       const std::unique_ptr<SMTP::Client>& client() const;
-      std::int32_t rx(const std::string out);
+      std::int32_t rx(const std::string& in);
 
       ACE_INT32 handle_timeout(const ACE_Time_Value& tv, const void* act) override;
       User& start_response_timeout_timer(ACE_Time_Value& tv);

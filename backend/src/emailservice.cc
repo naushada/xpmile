@@ -81,11 +81,11 @@ std::int32_t SMTP::Tls::read(std::string& plain_buffer)
     return(rc);
 }
 
-std::int32_t SMTP::Tls::write(std::string plain_buffer)
+std::int32_t SMTP::Tls::write(const std::string& plain_buffer)
 {
     std::int32_t rc = -1;
     std::int32_t offset = 0;
-    std::int32_t len = plain_buffer.length();
+    std::int32_t len = static_cast<std::int32_t>(plain_buffer.length());
     
     do {
         rc = SSL_write(m_ssl, (plain_buffer.data() + offset), (len - offset));
@@ -194,7 +194,7 @@ ACE_INT32 SMTP::Client::handle_signal(int signum, siginfo_t *s, ucontext_t *u)
 
 }
 
-std::int32_t SMTP::Client::tx(const std::string in)
+std::int32_t SMTP::Client::tx(const std::string& in)
 {
   std::int32_t txLen = -1;
 
@@ -282,7 +282,7 @@ void SMTP::Client::main()
     while(m_mailServiceAvailable) ACE_Reactor::instance()->handle_events(to);
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l active object cease to exists\n")));
-    m_semaphore.release();
+    m_semaphore->release();
 }
 
 void SMTP::Client::stop()
@@ -341,93 +341,47 @@ std::int32_t SMTP::User::endEmailTransaction()
  * @param out response string from SMTP server
  * @return std::int32_t returns > 0 upon success else less than 0
  */
-std::int32_t SMTP::User::rx(const std::string in)
+std::int32_t SMTP::User::rx(const std::string& in)
 {
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l entry_fn:%s \n"), __PRETTY_FUNCTION__));
-    std::string cmd("");
-    SMTP::States new_state;
-  
+
     auto ent = SMTP::getSmtpStatusCode(in);
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l m_status:%u \n"), ent.m_reply));
-    switch(ent.m_reply) {
 
-        case SMTP::REPLY_CODE_220_Service_ready:
-        {
-            if(!ent.m_statusCode.compare("2.0.0")) {
-                /* Reply to STARTTLS command - switch to TLS now */
-                m_tls->start(client()->get_handle());
-            }
-
-            auto result = fsm().onRx(in, cmd, new_state, *this);
-            /// @brief  send the response for received request.
-            if(cmd.length()) {
-                size_t len = -1;
-                if(tls()->isTlsUP()) {
-                    len = m_tls->write(cmd);
-                    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l sent over tls length:%d command:%s\n"), len, cmd.c_str()));
-                } else {
-                    len = client()->tx(cmd);
-                    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l sent tover plain tcp length:%d command:%s\n"), len, cmd.c_str()));
-                }
-            }
-
-            /// @brief  move to new state for processing of next Request.
-            switch(result) {
-                case SMTP::status_code::GOTO_NEXT_STATE:
-                    /// @brief  move to new state for processing of next Request.
-                    fsm().set_state(new_state);
-                break;
-              
-                case SMTP::status_code::REMAIN_IN_SAME_STATE:
-                    /// @brief  stay in same state as authentication is in progress.
-                break;
-                case SMTP::status_code::END_EMAIL_TRANSACTION:
-                case SMTP::status_code::CHALLENGE_FOR_USERNAME_FAILED:
-                case SMTP::status_code::CHALLENGE_FOR_PASSWORD_FAILED:
-                case SMTP::status_code::BASE64_DECODING_FAILED:
-                default:
-                    endEmailTransaction();
-                break;
-
+    // Dispatch FSM event, send the resulting command, and transition state.
+    // end_on_error: call endEmailTransaction() when FSM returns an error code.
+    auto dispatch = [&](bool end_on_error) {
+        std::string cmd;
+        SMTP::States new_state;
+        auto result = fsm().onRx(in, cmd, new_state, *this);
+        if (cmd.length()) {
+            size_t len = -1;
+            if (tls()->isTlsUP()) {
+                len = m_tls->write(cmd);
+                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l sent over tls length:%d command:%s\n"), len, cmd.c_str()));
+            } else {
+                len = client()->tx(cmd);
+                ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l sent over plain tcp length:%d command:%s\n"), len, cmd.c_str()));
             }
         }
-        break;
-
-        default:
-        {
-            auto result = fsm().onRx(in, cmd, new_state, *this);
-            /// @brief  send the response for received request.
-            if(cmd.length()) {
-                size_t len = -1;
-                if(tls()->isTlsUP()) {
-                    len = m_tls->write(cmd);
-                    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l sent over tls length:%d command:%s\n"), len, cmd.c_str()));
-                } else {
-                    len = client()->tx(cmd);
-                    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [mailservice:%t] %M %N:%l sen tover plain tcp length:%d command:%s\n"), len, cmd.c_str()));
-                }
-            }
-
-            switch(result) {
-                case SMTP::status_code::GOTO_NEXT_STATE:
-                    /// @brief  move to new state for processing of next Request.
-                    fsm().set_state(new_state);
+        switch (result) {
+            case SMTP::status_code::GOTO_NEXT_STATE:
+                fsm().set_state(new_state);
                 break;
-              
-                case SMTP::status_code::REMAIN_IN_SAME_STATE:
-                    /// @brief  stay in same state as authentication is in progress.
+            case SMTP::status_code::REMAIN_IN_SAME_STATE:
                 break;
-                case SMTP::status_code::END_EMAIL_TRANSACTION:
-                case SMTP::status_code::CHALLENGE_FOR_USERNAME_FAILED:
-                case SMTP::status_code::CHALLENGE_FOR_PASSWORD_FAILED:
-                case SMTP::status_code::BASE64_DECODING_FAILED:
-                default:
-                    //endEmailTransaction();
+            default:
+                if (end_on_error) endEmailTransaction();
                 break;
-
-            }
         }
-        break;
+    };
+
+    if (ent.m_reply == SMTP::REPLY_CODE_220_Service_ready) {
+        if (!ent.m_statusCode.compare("2.0.0"))
+            m_tls->start(client()->get_handle());
+        dispatch(true);
+    } else {
+        dispatch(false);
     }
 
     return(0);
