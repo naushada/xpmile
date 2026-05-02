@@ -31,7 +31,6 @@ MongodbClient::MongodbClient(const std::string &uri_str) : m_uri(uri_str) {
   m_dbName = uri.database();
 }
 
-MongodbClient::~MongodbClient() = default;
 
 bool MongodbClient::update_collection(const std::string &collectionName,
                                       const std::string &match,
@@ -363,7 +362,7 @@ std::string MongodbClient::next_awbno(const std::string &prefix) {
         filter.view(), update.view(), opts);
 
     if (result) {
-      auto seq_elm = (*result)["seq"];
+      auto seq_elm = result->view()["seq"];
       std::int64_t seq = (seq_elm.type() == bsoncxx::type::k_int64)
                              ? seq_elm.get_int64().value
                              : static_cast<std::int64_t>(seq_elm.get_int32().value);
@@ -436,9 +435,23 @@ std::vector<std::uint8_t> MongodbClient::fetch_file(const std::string &filename)
   }
 
   try {
-    auto db         = conn->database(m_dbName.c_str());
-    auto bucket     = db.gridfs_bucket();
-    auto downloader = bucket.open_download_stream_by_name(filename);
+    auto db     = conn->database(m_dbName.c_str());
+    auto bucket = db.gridfs_bucket();
+
+    // mongocxx v3.6 has no open_download_stream_by_name; find the file
+    // metadata first to obtain its _id, then open by id.
+    auto name_filter = bsoncxx::builder::stream::document{}
+                       << "filename" << filename
+                       << bsoncxx::builder::stream::finalize;
+    mongocxx::options::gridfs::find find_opts;
+    find_opts.limit(1);
+    auto cursor = bucket.find(name_filter.view(), find_opts);
+    auto it = cursor.begin();
+    if (it == cursor.end())
+      throw std::runtime_error("file not found: " + filename);
+
+    bsoncxx::types::bson_value::view id_view = (*it)["_id"].get_value();
+    auto downloader = bucket.open_download_stream(id_view);
 
     auto file_len = static_cast<std::size_t>(downloader.file_length());
     std::vector<std::uint8_t> buf(file_len);
