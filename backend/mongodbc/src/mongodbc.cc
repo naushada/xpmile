@@ -7,15 +7,15 @@ namespace {
 // Returns an empty string (not "[]") when the cursor has no results,
 // preserving the existing contract that callers check for empty.
 std::string cursor_to_json_array(mongocxx::cursor &cursor) {
-    auto it = cursor.begin();
-    if (it == cursor.end())
-        return {};
+  auto it = cursor.begin();
+  if (it == cursor.end())
+    return {};
 
-    std::string out("[");
-    for (; it != cursor.end(); ++it)
-        out += bsoncxx::to_json(*it) + ",";
-    out.back() = ']';
-    return out;
+  std::string out("[");
+  for (; it != cursor.end(); ++it)
+    out += bsoncxx::to_json(*it) + ",";
+  out.back() = ']';
+  return out;
 }
 } // namespace
 
@@ -24,13 +24,12 @@ MongodbClient::MongodbClient(const std::string &uri_str) : m_uri(uri_str) {
 
   mongocxx::uri uri(m_uri.c_str());
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [Master:%t] %M %N:%l database from URI: %s\n"),
+             ACE_TEXT("%D [MongodbClient:%t] %M %N:%l database from URI: %s\n"),
              uri.database().c_str()));
 
   m_pool = std::make_unique<mongocxx::pool>(uri);
   m_dbName = uri.database();
 }
-
 
 bool MongodbClient::update_collection(const std::string &collectionName,
                                       const std::string &match,
@@ -40,10 +39,11 @@ bool MongodbClient::update_collection(const std::string &collectionName,
 
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection %s\n"),
-               collectionName.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for collection %s\n"),
+         collectionName.c_str()));
     return false;
   }
 
@@ -62,14 +62,16 @@ bool MongodbClient::update_collection(const std::string &collectionName,
 
   auto result = bulk.execute();
   if (result && result->matched_count() > 0) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l bulk document updated: %d\n"),
-               result->matched_count()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l bulk document updated: %d\n"),
+         result->matched_count()));
     return true;
   }
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l update matched 0 documents\n")));
+  ACE_DEBUG((
+      LM_DEBUG,
+      ACE_TEXT("%D [MongodbClient:%t] %M %N:%l update matched 0 documents\n")));
   return false;
 }
 
@@ -79,10 +81,11 @@ bool MongodbClient::delete_document(const std::string &collectionName,
 
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection %s\n"),
-               collectionName.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for collection %s\n"),
+         collectionName.c_str()));
     return false;
   }
 
@@ -101,9 +104,10 @@ bool MongodbClient::delete_document(const std::string &collectionName,
 
   auto result = bulk.execute();
   if (result) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l bulk documents deleted: %d\n"),
-               result->deleted_count()));
+    ACE_DEBUG((
+        LM_DEBUG,
+        ACE_TEXT("%D [MongodbClient:%t] %M %N:%l bulk documents deleted: %d\n"),
+        result->deleted_count()));
     return true;
   }
 
@@ -115,10 +119,11 @@ std::string MongodbClient::get_document(const std::string &collectionName,
                                         const std::string &fieldProjection) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection %s\n"),
-               collectionName.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for collection %s\n"),
+         collectionName.c_str()));
     return {};
   }
 
@@ -143,10 +148,11 @@ std::string MongodbClient::get_documents(const std::string &collectionName,
                                          const std::string &fieldProjection) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection %s\n"),
-               collectionName.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for collection %s\n"),
+         collectionName.c_str()));
     return {};
   }
 
@@ -174,10 +180,11 @@ std::string MongodbClient::create_document(const std::string &dbName,
 
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection: %s\n"),
-               collectionName.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for collection: %s\n"),
+         collectionName.c_str()));
     return {};
   }
 
@@ -187,7 +194,8 @@ std::string MongodbClient::create_document(const std::string &dbName,
 
   if (result) {
     std::string oid = result->inserted_id().get_oid().value.to_string();
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l inserted OID: %s\n"),
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [MongodbClient:%t] %M %N:%l inserted OID: %s\n"),
                oid.c_str()));
     return oid;
   }
@@ -203,10 +211,11 @@ MongodbClient::create_bulk_document(const std::string &dbName,
 
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection: %s\n"),
-               collectionName.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for collection: %s\n"),
+         collectionName.c_str()));
     return 0;
   }
 
@@ -230,9 +239,10 @@ MongodbClient::create_bulk_document(const std::string &dbName,
     return 0;
 
   std::int32_t cnt = result->inserted_count();
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l bulk documents created: %d\n"),
-             cnt));
+  ACE_DEBUG(
+      (LM_DEBUG,
+       ACE_TEXT("%D [MongodbClient:%t] %M %N:%l bulk documents created: %d\n"),
+       cnt));
   return cnt;
 }
 
@@ -242,10 +252,11 @@ MongodbClient::update_bulk_document(const std::string &collectionName,
                                     const std::vector<std::string> &value) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for collection: %s\n"),
-               collectionName.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for collection: %s\n"),
+         collectionName.c_str()));
     return 0;
   }
 
@@ -262,9 +273,10 @@ MongodbClient::update_bulk_document(const std::string &collectionName,
   for (std::size_t i = 0; i < filter.size(); ++i) {
     bsoncxx::document::value filter_doc = bsoncxx::from_json(filter[i].c_str());
     bsoncxx::document::value value_doc = bsoncxx::from_json(value[i].c_str());
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l filter: %s value: %s\n"),
-               filter[i].c_str(), value[i].c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l filter: %s value: %s\n"),
+         filter[i].c_str(), value[i].c_str()));
     mongocxx::model::update_one upd(filter_doc.view(), value_doc.view());
     bulk.append(upd);
   }
@@ -274,9 +286,10 @@ MongodbClient::update_bulk_document(const std::string &collectionName,
     return 0;
 
   std::int32_t cnt = result->modified_count();
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l bulk documents updated: %d\n"),
-             cnt));
+  ACE_DEBUG(
+      (LM_DEBUG,
+       ACE_TEXT("%D [MongodbClient:%t] %M %N:%l bulk documents updated: %d\n"),
+       cnt));
   return cnt;
 }
 
@@ -287,9 +300,8 @@ MongodbClient::get_access_token_for_ajoul(const std::string &json_obj) {
 
   auto it = doc.find("access_token");
   if (it == doc.end()) {
-    ACE_ERROR(
-        (LM_ERROR,
-         ACE_TEXT("%D [Worker:%t] %M %N:%l element access_token not found\n")));
+    ACE_ERROR((LM_ERROR, ACE_TEXT("%D [MongodbClient:%t] %M %N:%l element "
+                                  "access_token not found\n")));
     return {};
   }
 
@@ -311,7 +323,8 @@ MongodbClient::get_tracking_no_for_ajoul(const std::string &json_obj,
   if (it == doc.end()) {
     ACE_ERROR(
         (LM_ERROR,
-         ACE_TEXT("%D [Worker:%t] %M %N:%l Shipment object not found\n")));
+         ACE_TEXT(
+             "%D [MongodbClient:%t] %M %N:%l Shipment object not found\n")));
     return {};
   }
 
@@ -331,52 +344,51 @@ MongodbClient::get_tracking_no_for_ajoul(const std::string &json_obj,
 std::string MongodbClient::next_awbno(const std::string &prefix) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for next_awbno\n")));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for next_awbno\n")));
     return {};
   }
 
   try {
-    auto collection =
-        conn->database(m_dbName.c_str()).collection("counters");
+    auto collection = conn->database(m_dbName.c_str()).collection("counters");
 
     // Atomically increment the counter; upsert creates the document with
     // seq=1 on the very first call.
     auto filter = bsoncxx::builder::stream::document{}
-                  << "_id" << "awbno"
-                  << bsoncxx::builder::stream::finalize;
+                  << "_id" << "awbno" << bsoncxx::builder::stream::finalize;
 
     auto update = bsoncxx::builder::stream::document{}
-                  << "$inc"
-                  << bsoncxx::builder::stream::open_document
-                      << "seq" << std::int64_t(1)
-                  << bsoncxx::builder::stream::close_document
+                  << "$inc" << bsoncxx::builder::stream::open_document << "seq"
+                  << std::int64_t(1) << bsoncxx::builder::stream::close_document
                   << bsoncxx::builder::stream::finalize;
 
     mongocxx::options::find_one_and_update opts;
     opts.upsert(true);
     opts.return_document(mongocxx::options::return_document::k_after);
 
-    auto result = collection.find_one_and_update(
-        filter.view(), update.view(), opts);
+    auto result =
+        collection.find_one_and_update(filter.view(), update.view(), opts);
 
     if (result) {
       auto seq_elm = result->view()["seq"];
-      std::int64_t seq = (seq_elm.type() == bsoncxx::type::k_int64)
-                             ? seq_elm.get_int64().value
-                             : static_cast<std::int64_t>(seq_elm.get_int32().value);
+      std::int64_t seq =
+          (seq_elm.type() == bsoncxx::type::k_int64)
+              ? seq_elm.get_int64().value
+              : static_cast<std::int64_t>(seq_elm.get_int32().value);
       std::ostringstream oss;
       oss << prefix << std::setfill('0') << std::setw(9) << seq;
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [Worker:%t] %M %N:%l next_awbno: %s\n"),
+                 ACE_TEXT("%D [MongodbClient:%t] %M %N:%l next_awbno: %s\n"),
                  oss.str().c_str()));
       return oss.str();
     }
   } catch (const std::exception &e) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l next_awbno failed: %s\n"),
-               e.what()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l next_awbno failed: %s\n"),
+         e.what()));
   }
   return {};
 }
@@ -386,14 +398,15 @@ std::string MongodbClient::store_file(const std::string &filename,
                                       const std::vector<std::uint8_t> &data) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for GridFS store_file\n")));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for GridFS store_file\n")));
     return {};
   }
 
   try {
-    auto db     = conn->database(m_dbName.c_str());
+    auto db = conn->database(m_dbName.c_str());
     auto bucket = db.gridfs_bucket();
 
     // Generate the file OID upfront so we can return it without parsing
@@ -412,30 +425,34 @@ std::string MongodbClient::store_file(const std::string &filename,
     uploader.write(data.data(), data.size());
     uploader.close();
 
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l stored file '%s' (%zu bytes) "
-                        "OID: %s\n"),
-               filename.c_str(), data.size(), id.to_string().c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l stored file '%s' (%zu bytes) "
+                  "OID: %s\n"),
+         filename.c_str(), data.size(), id.to_string().c_str()));
     return id.to_string();
   } catch (const std::exception &e) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l store_file failed: %s\n"),
-               e.what()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l store_file failed: %s\n"),
+         e.what()));
     return {};
   }
 }
 
-std::vector<std::uint8_t> MongodbClient::fetch_file(const std::string &filename) {
+std::vector<std::uint8_t>
+MongodbClient::fetch_file(const std::string &filename) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for GridFS fetch_file\n")));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for GridFS fetch_file\n")));
     return {};
   }
 
   try {
-    auto db     = conn->database(m_dbName.c_str());
+    auto db = conn->database(m_dbName.c_str());
     auto bucket = db.gridfs_bucket();
 
     // mongocxx v3.6 has no open_download_stream_by_name; find the file
@@ -457,29 +474,34 @@ std::vector<std::uint8_t> MongodbClient::fetch_file(const std::string &filename)
     std::vector<std::uint8_t> buf(file_len);
     downloader.read(buf.data(), file_len);
 
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l fetched file '%s' (%zu bytes)\n"),
-               filename.c_str(), buf.size()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT(
+             "%D [MongodbClient:%t] %M %N:%l fetched file '%s' (%zu bytes)\n"),
+         filename.c_str(), buf.size()));
     return buf;
   } catch (const std::exception &e) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l fetch_file '%s' failed: %s\n"),
-               filename.c_str(), e.what()));
+    ACE_ERROR((
+        LM_ERROR,
+        ACE_TEXT("%D [MongodbClient:%t] %M %N:%l fetch_file '%s' failed: %s\n"),
+        filename.c_str(), e.what()));
     return {};
   }
 }
 
-std::vector<std::uint8_t> MongodbClient::fetch_file_by_id(const std::string &oid_str) {
+std::vector<std::uint8_t>
+MongodbClient::fetch_file_by_id(const std::string &oid_str) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for GridFS fetch_file_by_id\n")));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for GridFS fetch_file_by_id\n")));
     return {};
   }
 
   try {
-    auto db     = conn->database(m_dbName.c_str());
+    auto db = conn->database(m_dbName.c_str());
     auto bucket = db.gridfs_bucket();
 
     bsoncxx::oid id(oid_str);
@@ -491,12 +513,14 @@ std::vector<std::uint8_t> MongodbClient::fetch_file_by_id(const std::string &oid
     downloader.read(buf.data(), file_len);
 
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l fetched file OID '%s' (%zu bytes)\n"),
+               ACE_TEXT("%D [MongodbClient:%t] %M %N:%l fetched file OID '%s' "
+                        "(%zu bytes)\n"),
                oid_str.c_str(), buf.size()));
     return buf;
   } catch (const std::exception &e) {
     ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l fetch_file_by_id '%s' failed: %s\n"),
+               ACE_TEXT("%D [MongodbClient:%t] %M %N:%l fetch_file_by_id '%s' "
+                        "failed: %s\n"),
                oid_str.c_str(), e.what()));
     return {};
   }
@@ -505,28 +529,33 @@ std::vector<std::uint8_t> MongodbClient::fetch_file_by_id(const std::string &oid
 bool MongodbClient::delete_file(const std::string &oid_str) {
   auto conn = m_pool->acquire();
   if (!conn) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l acquiring DB client failed "
-                        "for GridFS delete_file\n")));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l acquiring DB client failed "
+                  "for GridFS delete_file\n")));
     return false;
   }
 
   try {
-    auto db     = conn->database(m_dbName.c_str());
+    auto db = conn->database(m_dbName.c_str());
     auto bucket = db.gridfs_bucket();
 
     bsoncxx::oid id(oid_str);
     bsoncxx::types::bson_value::view id_view{bsoncxx::types::b_oid{id}};
     bucket.delete_file(id_view);
 
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l deleted GridFS file OID '%s'\n"),
-               oid_str.c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT(
+             "%D [MongodbClient:%t] %M %N:%l deleted GridFS file OID '%s'\n"),
+         oid_str.c_str()));
     return true;
   } catch (const std::exception &e) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l delete_file '%s' failed: %s\n"),
-               oid_str.c_str(), e.what()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT(
+             "%D [MongodbClient:%t] %M %N:%l delete_file '%s' failed: %s\n"),
+         oid_str.c_str(), e.what()));
     return false;
   }
 }
@@ -534,13 +563,14 @@ bool MongodbClient::delete_file(const std::string &oid_str) {
 JsonExtract MongodbClient::from_json(const std::string &json_obj,
                                      const std::string &key) const {
   bsoncxx::document::value doc_val = bsoncxx::from_json(json_obj.c_str());
-  bsoncxx::document::view  doc     = doc_val.view();
+  bsoncxx::document::view doc = doc_val.view();
 
   auto it = doc.find(key);
   if (it == doc.end()) {
-    ACE_ERROR((LM_ERROR,
-               ACE_TEXT("%D [Worker:%t] %M %N:%l element '%s' not found\n"),
-               key.c_str()));
+    ACE_ERROR(
+        (LM_ERROR,
+         ACE_TEXT("%D [MongodbClient:%t] %M %N:%l element '%s' not found\n"),
+         key.c_str()));
     return std::monostate{};
   }
 
@@ -583,7 +613,8 @@ JsonExtract MongodbClient::from_json(const std::string &json_obj,
   }
 
   ACE_ERROR((LM_ERROR,
-             ACE_TEXT("%D [Worker:%t] %M %N:%l element '%s' has unsupported BSON type\n"),
+             ACE_TEXT("%D [MongodbClient:%t] %M %N:%l element '%s' has "
+                      "unsupported BSON type\n"),
              key.c_str()));
   return std::monostate{};
 }

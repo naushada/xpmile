@@ -4,8 +4,8 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 #include "ace/Basic_Types.h"
@@ -92,11 +92,11 @@ public:
    * @param thrMgr ACE thread manager that owns this task.
    * @param parent Back-pointer to the owning @c WebServer.
    */
-  MicroService(ACE_Thread_Manager *thrMgr, WebServer *parent);
+  MicroService(ACE_Thread_Manager *thrMgr, WebServer &parent);
   virtual ~MicroService();
 
   /// Return the ACE thread ID assigned to this worker.
-  ACE_thread_t myThreadId() { return (m_threadId); }
+  ACE_thread_t selfThreadId() { return (m_threadId); }
 
   /// Return @c true while the worker thread is in the running state.
   bool isTaskRunning() const {
@@ -106,7 +106,7 @@ public:
   }
 
   /// Return a reference to the owning @c WebServer.
-  WebServer &webServer() const { return (*m_parent); }
+  WebServer &webServer() const { return (m_parent); }
 
   /**
    * @brief Process a raw HTTP request string and send the response.
@@ -176,7 +176,7 @@ private:
   bool m_continue;
   ACE_thread_t m_threadId;
   bool m_iAmDone;
-  WebServer *m_parent;
+  WebServer &m_parent;
 };
 
 /**
@@ -267,8 +267,7 @@ public:
   bool stop();
 
   /// Return the live connection pool (socket → handler map).
-  std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>> &
-  connectionPool() {
+  std::map<ACE_HANDLE, std::unique_ptr<WebConnection>> &connectionPool() {
     return (m_connectionPool);
   }
 
@@ -282,9 +281,10 @@ public:
    *
    * Wraps around to the beginning of the pool when the end is reached.
    */
-  std::vector<std::unique_ptr<MicroService>>::iterator currentWorker() {
-    if (m_currentWorker == std::end(m_workerPool))
+  std::vector<std::unique_ptr<MicroService>>::const_iterator currentWorker() {
+    if (m_currentWorker == std::end(m_workerPool)) {
       m_currentWorker = std::begin(m_workerPool);
+    }
     return ++m_currentWorker;
   }
 
@@ -300,8 +300,7 @@ private:
   ACE_INET_Addr m_listen;
   ACE_SOCK_Acceptor m_server;
   bool m_stopMe;
-  std::unordered_map<ACE_HANDLE, std::unique_ptr<WebConnection>>
-      m_connectionPool;
+  std::map<ACE_HANDLE, std::unique_ptr<WebConnection>> m_connectionPool;
   std::vector<std::unique_ptr<MicroService>> m_workerPool;
   std::vector<std::unique_ptr<MicroService>>::iterator m_currentWorker;
   std::unique_ptr<MongodbClient> mMongodbc;

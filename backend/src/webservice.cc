@@ -22,7 +22,7 @@ std::string http_build_created() {
                     "\r\n";
   ACE_DEBUG(
       (LM_DEBUG,
-       ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu response:%s\n"),
+       ACE_TEXT("%D [Worker:%t] %M %N:%l response length:%zu response:%s\n"),
        hdr.length(), hdr.c_str()));
   return hdr;
 }
@@ -39,7 +39,7 @@ std::string http_build_ok(std::string body, const std::string &contentType) {
   }
   hdr += "\r\n";
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
+             ACE_TEXT("%D [Worker:%t] %M %N:%l response length:%zu header:%s"),
              hdr.length() + body.length(), hdr.c_str()));
   return body.empty() ? hdr : hdr + std::move(body);
 }
@@ -59,7 +59,7 @@ std::string http_build_error(std::string body, const std::string &status) {
     hdr += "\r\n";
   }
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu header:%s"),
+             ACE_TEXT("%D [Worker:%t] %M %N:%l response length:%zu header:%s"),
              hdr.length(), hdr.c_str()));
   return hdr;
 }
@@ -69,7 +69,7 @@ std::int32_t http_send(ACE_HANDLE handle, const std::string &rsp) {
     return 0;
 
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l response length:%zu\n"),
+             ACE_TEXT("%D [Worker:%t] %M %N:%l response length:%zu\n"),
              rsp.length()));
 
   const std::int32_t total = static_cast<std::int32_t>(rsp.length());
@@ -78,7 +78,7 @@ std::int32_t http_send(ACE_HANDLE handle, const std::string &rsp) {
     std::int32_t sent = ::send(handle, rsp.c_str() + offset, total - offset, 0);
     if (sent < 0) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l send failed errno:%d\n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l send failed errno:%d\n"),
                  errno));
       return -1;
     }
@@ -89,6 +89,15 @@ std::int32_t http_send(ACE_HANDLE handle, const std::string &rsp) {
 
 } // namespace
 
+/*
+
+/  \    /  \___________   |  | __ ___________
+\   \/\/   /  _ \_  __ \  |  |/ // __ \_  __ \
+ \        (  <_> )  | \/  |    <\  ___/|  | \/
+  \__/\  / \____/|__|     |__|_ \\___  >__|
+       \/                      \/    \/
+
+*/
 /**
  * @brief This member function processes the DELETE for a given uri.
  *
@@ -157,26 +166,26 @@ std::string MicroService::handle_DELETE(std::string &in,
 std::int32_t MicroService::process_request(ACE_HANDLE handle, std::string &req,
                                            MongodbClient &dbInst) {
   Http http(req);
-  const std::string &method = http.method();
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l %s %s\n"),
-             method.c_str(), http.uri().c_str()));
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l METHOD:%s URI:%s\n"),
+             http.method().c_str(), http.uri().c_str()));
 
   std::string rsp;
-  if (method == "OPTIONS")
+  if (http.method() == "OPTIONS")
     rsp = handle_OPTIONS(req);
-  else if (method == "GET")
+  else if (http.method() == "GET")
     rsp = handle_GET(req, dbInst);
-  else if (method == "POST")
+  else if (http.method() == "POST")
     rsp = handle_POST(req, dbInst);
-  else if (method == "PUT")
+  else if (http.method() == "PUT")
     rsp = handle_PUT(req, dbInst);
-  else if (method == "DELETE")
+  else if (http.method() == "DELETE")
     rsp = handle_DELETE(req, dbInst);
   else {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l unsupported method: %s\n"),
-               method.c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [Worker:%t] %M %N:%l unsupported METHOD:%s URI:%s\n"),
+         http.method().c_str(), http.uri().c_str()));
     return 0;
   }
 
@@ -234,6 +243,9 @@ std::string MicroService::handle_POST(std::string &in, MongodbClient &dbInst) {
   /* Action based on uri in get request */
   std::string uri(http.uri());
 
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l METHOD:%s URI:%s\n"),
+             http.method().c_str(), http.uri().c_str()));
+
   if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_POST(in, dbInst));
 
@@ -269,7 +281,7 @@ std::string MicroService::handle_config_POST(std::string &in,
 
     if (content.length()) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
       std::string ip_address;
       if (auto v = dbInst.from_json(content, "ip_address");
@@ -280,7 +292,7 @@ std::string MicroService::handle_config_POST(std::string &in,
           auto *p = std::get_if<std::string>(&v))
         port = *p;
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l dbconfig ip:%s port:%u\n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l dbconfig ip:%s port:%u\n"),
                  ip_address.c_str(), std::stoul(port)));
       /* Apply this config if changed */
     }
@@ -295,14 +307,14 @@ std::string MicroService::handle_shipment_POST(std::string &in,
   Http http(in);
   /* Action based on uri in get request */
   std::string uri(http.uri());
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
 
   if (!uri.compare("/api/v1/shipment/shipping")) {
     std::string collectionName("shipping");
     std::string content = http.body();
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l http request body length:%d "
+               ACE_TEXT("%D [Worker:%t] %M %N:%l http request body length:%d "
                         "\n Request http_body:%s\n"),
                content.length(), content.c_str()));
 
@@ -337,7 +349,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
 
     if (content.length()) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length:%d \n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l http body length:%d \n"),
                  content.length()));
 
       // Collect AWB numbers from the input before insert so they can be
@@ -422,7 +434,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
     // header << "\r\n";
 
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l the header is\n%s\n"),
+               ACE_TEXT("%D [Worker:%t] %M %N:%l the header is\n%s\n"),
                header.str().c_str()));
 
     std::string apiURLAjoul = "https://ajoul.com/remote/api/v1/authorize";
@@ -436,7 +448,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
       ACE_ERROR(
           (LM_ERROR,
            ACE_TEXT(
-               "%D [worker:%t] %M %N:%l connect to ajoul:443 is failed\n")));
+               "%D [Worker:%t] %M %N:%l connect to ajoul:443 is failed\n")));
       std::string err("400 Bad Request");
       std::string err_message(
           "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is not "
@@ -446,7 +458,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
     } else {
 
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l Connect to "
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l Connect to "
                           "https://ajoul.com (%u) - %s is success\n"),
                  connectAddr.get_ip_address(), connectAddr.get_host_addr()));
 
@@ -461,14 +473,14 @@ std::string MicroService::handle_shipment_POST(std::string &in,
       //<< apiAuthorizeAjoul.str();
 
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l the request is\n%s\n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l the request is\n%s\n"),
                  postReq.str().c_str()));
 
       if (conn.send_n(postReq.str().c_str(), postReq.str().length()) < 0) {
 
         ACE_ERROR((
             LM_ERROR,
-            ACE_TEXT("%D [worker:%t] %M %N:%l send to ajoul:443 is failed\n")));
+            ACE_TEXT("%D [Worker:%t] %M %N:%l send to ajoul:443 is failed\n")));
         std::string err("400 Bad Request");
         std::string err_message(
             "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is not "
@@ -488,7 +500,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
           ACE_ERROR(
               (LM_ERROR,
                ACE_TEXT(
-                   "%D [worker:%t] %M %N:%l recv from ajoul:443 is failed\n")));
+                   "%D [Worker:%t] %M %N:%l recv from ajoul:443 is failed\n")));
           std::string err("400 Bad Request");
           std::string err_message(
               "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is "
@@ -498,7 +510,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
         } else {
           std::string rsp((char *)authRsp.data(), len);
           ACE_DEBUG((LM_DEBUG,
-                     ACE_TEXT("%D [worker:%t] %M %N:%l Response is - %s\n"),
+                     ACE_TEXT("%D [Worker:%t] %M %N:%l Response is - %s\n"),
                      rsp.c_str()));
           Http http(rsp);
           std::string access_token =
@@ -549,7 +561,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
             ACE_ERROR(
                 (LM_ERROR,
                  ACE_TEXT(
-                     "%D [worker:%t] %M %N:%l send to ajoul:443 is failed\n")));
+                     "%D [Worker:%t] %M %N:%l send to ajoul:443 is failed\n")));
             std::string err("400 Bad Request");
             std::string err_message(
                 "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is "
@@ -557,7 +569,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
             return (build_responseERROR(err_message, err));
 
           } else {
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Sent to "
+            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Sent to "
                                           "https://ajoul.com is success\n")));
 
             std::array<std::uint8_t, 3048> authRsp;
@@ -565,14 +577,14 @@ std::string MicroService::handle_shipment_POST(std::string &in,
             ssize_t len = conn.recv((void *)authRsp.data(), 3048, 0);
             std::string rsp((char *)authRsp.data(), len);
             ACE_DEBUG((LM_DEBUG,
-                       ACE_TEXT("%D [worker:%t] %M %N:%l Response is - %s\n"),
+                       ACE_TEXT("%D [Worker:%t] %M %N:%l Response is - %s\n"),
                        rsp.c_str()));
             Http http(rsp);
             std::string ref("");
             std::string awbNo =
                 dbInst.get_tracking_no_for_ajoul(http.body(), ref);
             ACE_DEBUG((LM_DEBUG,
-                       ACE_TEXT("%D [worker:%t] %M %N:%l The Tracking Number "
+                       ACE_TEXT("%D [Worker:%t] %M %N:%l The Tracking Number "
                                 "is - %s refNumber %s\n"),
                        awbNo.c_str(), ref.c_str()));
           }
@@ -590,7 +602,7 @@ std::string MicroService::handle_account_POST(std::string &in,
   Http http(in);
   /* Action based on uri in get request */
   std::string uri(http.uri());
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
 
   if (!uri.compare("/api/v1/account/account")) {
@@ -599,7 +611,7 @@ std::string MicroService::handle_account_POST(std::string &in,
     std::string projection("{\"_id\" : false, \"accountCode\" : true}");
     std::string content = http.body();
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l http request body length:%d "
+               ACE_TEXT("%D [Worker:%t] %M %N:%l http request body length:%d "
                         "\n Request http_body:%s\n"),
                content.length(), content.c_str()));
 
@@ -625,7 +637,7 @@ std::string MicroService::handle_inventory_POST(std::string &in,
   Http http(in);
   /* Action based on uri in get request */
   std::string uri(http.uri());
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
 
   if (!uri.compare("/api/v1/inventory")) {
@@ -635,7 +647,7 @@ std::string MicroService::handle_inventory_POST(std::string &in,
 
     if (content.length()) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length:%d \n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l http body length:%d \n"),
                  content.length()));
       std::string record =
           dbInst.create_document(dbInst.get_database(), coll, content);
@@ -657,7 +669,7 @@ std::string MicroService::handle_document_POST(std::string &in,
   /* Action based on uri in get request */
   std::string uri(http.uri());
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
   if (!uri.compare("/api/v1/document")) {
     std::string content = http.body();
@@ -665,7 +677,7 @@ std::string MicroService::handle_document_POST(std::string &in,
 
     if (content.length()) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l http body length %d \n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
       if (auto v = dbInst.from_json(content, "corporate");
           auto *p = std::get_if<std::string>(&v))
@@ -698,7 +710,7 @@ std::string MicroService::handle_email_POST(std::string &in,
   /* Action based on uri in get request */
   std::string uri(http.uri());
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
   if (!uri.compare("/api/v1/email")) {
     /* Send e-mail with POST request */
@@ -712,7 +724,7 @@ std::string MicroService::handle_email_POST(std::string &in,
     std::string from;
     std::string passwd;
 
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email request:%s\n"),
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l email request:%s\n"),
                json_body.c_str()));
     if (auto v = dbInst.from_json(json_body, "to");
         auto *p = std::get_if<JsonStrVec>(&v))
@@ -735,7 +747,7 @@ std::string MicroService::handle_email_POST(std::string &in,
 
     for (const auto &elm : out_vec) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l email to list:%s\n"),
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l email to list:%s\n"),
                  elm.c_str()));
     }
     ACE_DEBUG(
@@ -743,7 +755,7 @@ std::string MicroService::handle_email_POST(std::string &in,
          ACE_TEXT(
              "%D [worker:%t] %M %N:%l email subject:%s from:%s passwd:%s\n"),
          subj.c_str(), from.c_str(), passwd.c_str()));
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l email body:%s\n"),
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l email body:%s\n"),
                body.c_str()));
 
     SMTP::Account::instance().to_email(out_vec);
@@ -773,20 +785,16 @@ std::string MicroService::handle_GET(std::string &in, MongodbClient &dbInst) {
   std::string uri(http.uri());
   if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_GET(in, dbInst));
-
   } else if (!uri.compare(0, 17, "/api/v1/inventory")) {
     return (handle_inventory_GET(in, dbInst));
-
   } else if (!uri.compare(0, 16, "/api/v1/document")) {
     return (handle_document_GET(in, dbInst));
-
   } else if (!uri.compare(0, 15, "/api/v1/account")) {
     return (handle_account_GET(in, dbInst));
-
   } else if ((!uri.compare(0, 7, "/webui/"))) {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l frontend Request %s\n"),
-               uri.c_str()));
+    // ACE_DEBUG((LM_DEBUG,
+    //            ACE_TEXT("%D [worker:%t] %M %N:%l frontend Request %s\n"),
+    //            uri.c_str()));
     /* build the file name now */
     std::string fileName("");
     std::string ext("");
@@ -796,48 +804,49 @@ std::string MicroService::handle_GET(std::string &in, MongodbClient &dbInst) {
       ext = uri.substr((found + 1), (uri.length() - found));
       fileName = uri.substr(6, (uri.length() - 6));
       std::string newFile = "../webgui/webui/" + fileName;
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s The "
-                          "extension is %s\n"),
-                 newFile.c_str(), ext.c_str()));
+      // ACE_DEBUG((LM_DEBUG,
+      //            ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s The "
+      //                     "extension is %s\n"),
+      //            newFile.c_str(), ext.c_str()));
       /* Open the index.html file and send it to web browser. */
       std::ifstream ifs(newFile.c_str());
       std::stringstream _str("");
 
-      if (ifs.is_open()) {
-        ACE_DEBUG((LM_DEBUG,
-                   ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open "
-                            "successfully.\n"),
-                   uri.c_str()));
-        std::string cntType("");
-        cntType = get_contentType(ext);
-
-        _str << ifs.rdbuf();
-        ifs.close();
-        return (build_responseOK(_str.str(), cntType));
+      if (!ifs.is_open()) {
+        ACE_ERROR((LM_CRITICAL,
+                   ACE_TEXT("%D [Worker:%t] %M %N:%l Unable to open file:%s\n"),
+                   newFile.c_str()));
+        json err = {{"status", "failure"}, {"cause", newFile}, {"error", 400}};
+        return build_responseERROR(err.dump(), "400 Bad Request");
       }
+      std::string cntType("");
+      cntType = get_contentType(ext);
+
+      _str << ifs.rdbuf();
+      ifs.close();
+      return (build_responseOK(_str.str(), cntType));
     } else {
       std::string newFile = "../webgui/webui/index.html";
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"),
-                 newFile.c_str()));
+      // ACE_DEBUG((LM_DEBUG,
+      //            ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"),
+      //            newFile.c_str()));
       /* Open the index.html file and send it to web browser. */
       std::ifstream ifs(newFile.c_str(), std::ios::binary);
       std::stringstream _str("");
       std::string cntType("");
 
-      if (ifs.is_open()) {
-        ACE_DEBUG((LM_DEBUG,
-                   ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open "
-                            "successfully.\n"),
-                   uri.c_str()));
-
-        cntType = "text/html";
-        _str << ifs.rdbuf();
-        ifs.close();
-
-        return (build_responseOK(_str.str(), cntType));
+      if (!ifs.is_open()) {
+        ACE_ERROR((LM_CRITICAL,
+                   ACE_TEXT("%D [Worker:%t] %M %N:%l Unable to open fiel:%s\n"),
+                   newFile.c_str()));
+        json err = {{"status", "failure"}, {"cause", newFile}, {"error", 400}};
+        return build_responseERROR(err.dump(), "400 Bad Request");
       }
+      cntType = "text/html";
+      _str << ifs.rdbuf();
+      ifs.close();
+
+      return (build_responseOK(_str.str(), cntType));
     }
   } else if (!uri.compare(0, 8, "/assets/")) {
     std::string ext;
@@ -846,37 +855,37 @@ std::string MicroService::handle_GET(std::string &in, MongodbClient &dbInst) {
       ext = uri.substr(found + 1);
       std::string newFile = "../webgui/webui" + uri;
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s The "
+                 ACE_TEXT("%D [Worker:%t] %M %N:%l newFile Name is %s The "
                           "extension is %s\n"),
                  newFile.c_str(), ext.c_str()));
       std::ifstream ifs(newFile.c_str(), std::ios::binary);
       std::stringstream _str;
       if (ifs.is_open()) {
         ACE_DEBUG((LM_DEBUG,
-                   ACE_TEXT("%D [worker:%t] %M %N:%l Request file %s - open "
+                   ACE_TEXT("%D [Worker:%t] %M %N:%l Request file %s - open "
                             "successfully.\n"),
                    uri.c_str()));
         _str << ifs.rdbuf();
         return (build_responseOK(_str.str(), get_contentType(ext)));
       }
     }
-
   } else if (!uri.compare(0, 1, "/")) {
     std::string newFile = "../webgui/webui/index.html";
     ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l newFile Name is %s \n"),
+               ACE_TEXT("%D [Worker:%t] %M %N:%l newFile Name is %s \n"),
                newFile.c_str()));
     std::ifstream ifs(newFile.c_str(), std::ios::binary);
     std::stringstream _str;
-    if (ifs.is_open()) {
-      ACE_DEBUG((
-          LM_DEBUG,
-          ACE_TEXT(
-              "%D [worker:%t] %M %N:%l Request file %s - open successfully.\n"),
-          uri.c_str()));
-      _str << ifs.rdbuf();
-      return (build_responseOK(_str.str(), "text/html"));
+    if (!ifs.is_open()) {
+      ACE_ERROR(
+          (LM_CRITICAL,
+           ACE_TEXT("%D [Worker:%t] %M %N:%l Unable to open the file:%s\n"),
+           newFile.c_str()));
+      json err = {{"status", "failure"}, {"cause", newFile}, {"error", 400}};
+      return build_responseERROR(err.dump(), "400 Bad Request");
     }
+    _str << ifs.rdbuf();
+    return (build_responseOK(_str.str(), "text/html"));
   }
 
   return (build_responseOK(std::string()));
@@ -905,7 +914,7 @@ std::string MicroService::handle_shipment_GET(std::string &in,
 
   // Query the collection and return the appropriate HTTP response
   auto fetch_and_respond = [&](const json &doc, const std::string &cause) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l query:%s\n"),
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l query:%s\n"),
                doc.dump().c_str()));
     std::string record =
         dbInst.get_documents(collection, doc.dump(), projection.dump());
@@ -961,7 +970,7 @@ std::string MicroService::handle_shipment_GET(std::string &in,
 std::string MicroService::handle_account_GET(std::string &in,
                                              MongodbClient &dbInst) {
   Http http(in);
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Request uri:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
 
   if (http.uri() != "/api/v1/account/account")
@@ -973,7 +982,7 @@ std::string MicroService::handle_account_GET(std::string &in,
   // Fetch a single document; return OK on hit, ERROR with given status on miss
   auto fetch_one = [&](const json &doc, const std::string &http_err,
                        const json &err_body) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l query:%s\n"),
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l query:%s\n"),
                doc.dump().c_str()));
     std::string record =
         dbInst.get_document(collection, doc.dump(), projection.dump());
@@ -1005,7 +1014,7 @@ std::string MicroService::handle_account_GET(std::string &in,
 
   // No filter: return the full account list
   std::string record = dbInst.get_documents(collection, projection.dump());
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l account_list:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l account_list:%s\n"),
              record.c_str()));
   if (record.empty()) {
     json err = {{"status", "failure"},
@@ -1033,7 +1042,7 @@ std::string MicroService::handle_inventory_GET(std::string &in,
   if (!sku.empty())
     doc["sku"] = sku;
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Inventory query:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Inventory query:%s\n"),
              doc.dump().c_str()));
   std::string record =
       dbInst.get_documents("inventory", doc.dump(), projection.dump());
@@ -1041,7 +1050,7 @@ std::string MicroService::handle_inventory_GET(std::string &in,
   if (!record.empty())
     return build_responseOK(record);
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l No Record found\n")));
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l No Record found\n")));
   json err = {{"status", "failure"},
               {"cause", "There's no Inventory Record"},
               {"error", 404}};
@@ -1073,7 +1082,7 @@ std::string MicroService::handle_document_GET(std::string &in,
   }
 
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l attachment query:%s\n"),
+             ACE_TEXT("%D [Worker:%t] %M %N:%l attachment query:%s\n"),
              doc.dump().c_str()));
   std::string record =
       dbInst.get_documents(collection, doc.dump(), projection.dump());
@@ -1139,7 +1148,7 @@ std::string MicroService::handle_shipment_PUT(std::string &in,
 
   // Execute update and return success or error response
   auto do_update = [&](const json &query, const json &doc) {
-    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l doc:%s query:%s\n"),
                doc.dump().c_str(), query.dump().c_str()));
     if (dbInst.update_collection(coll, query.dump(), doc.dump()))
       return build_responseOK(json{{"status", "success"}}.dump());
@@ -1200,7 +1209,7 @@ std::string MicroService::handle_inventory_PUT(std::string &in,
   const int delta = isUpdate.empty() ? -std::stoi(qty) : std::stoi(qty);
   json doc = {{"$inc", {{"qty", delta}}}};
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("inventory", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
@@ -1226,7 +1235,7 @@ std::string MicroService::handle_account_PUT(std::string &in,
 
   json doc = {{"$set", json::parse(content)}};
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l doc:%s query:%s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));
   if (dbInst.update_collection("account", query.dump(), doc.dump()))
     return build_responseOK(json{{"status", "success"}}.dump());
@@ -1281,7 +1290,7 @@ ACE_INT32 MicroService::handle_signal(int signum, siginfo_t *s, ucontext_t *u) {
   ACE_UNUSED_ARG(s);
   ACE_UNUSED_ARG(u);
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l Micro service gets signal %d\n"),
+             ACE_TEXT("%D [Worker:%t] %M %N:%l Micro service gets signal %d\n"),
              signum));
   m_continue = false;
 
@@ -1298,7 +1307,7 @@ int MicroService::open(void *arg) {
 int MicroService::close(u_long flag) {
   ACE_UNUSED_ARG(flag);
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l Micro service is closing\n")));
+             ACE_TEXT("%D [Worker:%t] %M %N:%l Micro service is closing\n")));
   return (0);
 }
 
@@ -1311,7 +1320,7 @@ int MicroService::close(u_long flag) {
  */
 int MicroService::svc() {
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l Worker service is spawned\n")));
+             ACE_TEXT("%D [Worker:%t] %M %N:%l Worker service is spawned\n")));
 
   webServer().semaphore().release();
 
@@ -1321,14 +1330,14 @@ int MicroService::svc() {
     if (getq(mb) == -1) {
       ACE_ERROR(
           (LM_ERROR,
-           ACE_TEXT("%D [worker:%t] %M %N:%l Worker service is stopped\n")));
+           ACE_TEXT("%D [Worker:%t] %M %N:%l Worker service is stopped\n")));
       m_continue = false;
       break;
     }
 
     switch (mb->msg_type()) {
     case ACE_Message_Block::MB_DATA: {
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l MB_DATA\n")));
+      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l MB_DATA\n")));
 
       WorkCtx *ctx = nullptr;
       std::memcpy(&ctx, mb->rd_ptr(), sizeof(ctx));
@@ -1340,15 +1349,11 @@ int MicroService::svc() {
     }
 
     case ACE_Message_Block::MB_PCSIG:
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l MB_PCSIG\n")));
+    default:
+      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l MB_PCSIG\n")));
       mb->release();
       msg_queue()->deactivate();
       webServer().semaphore().release();
-      m_continue = false;
-      break;
-
-    default:
-      mb->release();
       m_continue = false;
       break;
     }
@@ -1357,16 +1362,12 @@ int MicroService::svc() {
   return 0;
 }
 
-MicroService::MicroService(ACE_Thread_Manager *thr_mgr, WebServer *parent)
-    : ACE_Task<ACE_MT_SYNCH>(thr_mgr) {
-  m_continue = true;
-  m_threadId = thr_mgr->thr_self();
-  m_parent = parent;
-}
+MicroService::MicroService(ACE_Thread_Manager *thr_mgr, WebServer &parent)
+    : ACE_Task<ACE_MT_SYNCH>(thr_mgr), m_continue(true),
+      m_threadId(thr_mgr->thr_self()), m_parent(parent) {}
 
 MicroService::~MicroService() {
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Worker dtor\n")));
-  m_parent = nullptr;
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Worker dtor\n")));
 }
 
 /*
@@ -1398,7 +1399,7 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
     return (0);
   }
 
-  const ACE_HANDLE fd = peerStream.get_handle();
+  const ACE_HANDLE &fd = peerStream.get_handle();
 
   // The OS occasionally recycles a file descriptor whose pool entry was not
   // cleaned up (e.g. due to an earlier error path).  Nullify the stale
@@ -1410,7 +1411,6 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
                ACE_TEXT("%D [WebServe:%t] %M %N:%l stale pool entry for "
                         "handle %d — removing before reuse\n"),
                fd));
-    it->second->handle(ACE_INVALID_HANDLE);
     ACE_Reactor::instance()->remove_handler(it->second.get(),
                                             ACE_Event_Handler::READ_MASK |
                                                 ACE_Event_Handler::SIGNAL_MASK |
@@ -1418,8 +1418,9 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
     m_connectionPool.erase(it);
   }
 
-  auto connEnt = std::make_unique<WebConnection>(this, peerStream, peerAddr);
-  m_connectionPool.emplace(fd, std::move(connEnt));
+  // auto connEnt = std::make_unique<WebConnection>(this, peerStream, peerAddr);
+  m_connectionPool.emplace(
+      fd, std::make_unique<WebConnection>(this, peerStream, peerAddr));
 
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [WebServer:%t] %M %N:%l new connection handle:%d "
@@ -1524,7 +1525,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
 
   m_workerPool.clear();
   for (ACE_UINT32 cnt = 0; cnt < workerPool; ++cnt) {
-    auto *worker = new MicroService(ACE_Thread_Manager::instance(), this);
+    auto *worker = new MicroService(ACE_Thread_Manager::instance(), *this);
     worker->open();
     semaphore().acquire();
     m_workerPool.push_back(std::unique_ptr<MicroService>(worker));
@@ -1533,16 +1534,19 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   /* Start listening for incoming connection */
   int reuse_addr = 1;
   if (m_server.open(m_listen, reuse_addr)) {
+    ACE_ERROR(
+        (LM_CRITICAL,
+         ACE_TEXT("%D [WebServer:%t] %M %N:%l Starting of WebServer failed "
+                  "- opening of port:%d hostname:%s exiting...\n"),
+         m_listen.get_port_number(), m_listen.get_host_name()));
+    ::exit(-1);
+  } else {
     ACE_DEBUG(
         (LM_DEBUG,
-         ACE_TEXT("%D [WebServer:%t] %M %N:%l Starting of WebServer failed "
-                  "- opening of port %d hostname %s\n"),
-         m_listen.get_port_number(), m_listen.get_host_name()));
+         ACE_TEXT(
+             "%D [WebServer:%t] %M %N:%l Running webserver on handle:%d \n"),
+         m_server.get_handle()));
   }
-  ACE_DEBUG(
-      (LM_DEBUG,
-       ACE_TEXT("%D [WebServer:%t] %M %N:%l Running webserver on handle:%d \n"),
-       m_server.get_handle()));
 }
 
 WebServer::~WebServer() {
@@ -1592,9 +1596,10 @@ WebConnection::WebConnection(WebServer *parent, ACE_SOCK_Stream strm,
 }
 
 WebConnection::~WebConnection() {
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle:%d closing\n"),
-             m_handle));
+  ACE_DEBUG(
+      (LM_DEBUG,
+       ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle:%d closing dtor\n"),
+       m_handle));
   if (m_handle != ACE_INVALID_HANDLE)
     ::close(m_handle);
 }
@@ -1614,7 +1619,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WebConnection:%t] %M %N:%l rc:%d handle:%d\n"), rc,
                handle));
-    return (0);
+    return (-1);
   }
 
   if (rc < 0) {
@@ -1626,7 +1631,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
                ACE_TEXT("%D [WebConnection:%t] %M %N:%l recv error errno:%d\n"),
                errno));
     parent()->connectionPool().erase(handle);
-    return (0);
+    return (-1);
   }
 
   m_recvBuf.append(tmp, rc);
@@ -1658,7 +1663,7 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
             "%D [WebConnection:%t] %M %N:%l complete request (%zu bytes):\n%s"),
         msgLen, request.c_str()));
 
-    auto it = parent()->currentWorker();
+    const auto it = parent()->currentWorker();
     if (it != std::end(parent()->workerPool())) {
       auto *ctx =
           new WorkCtx{handle, parent()->mongodbcInst(), std::move(request)};
@@ -1666,8 +1671,13 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
       mb->copy(reinterpret_cast<const char *>(&ctx), sizeof(ctx));
       (*it)->putq(mb);
     } else {
-      WebServiceEntry wentry;
-      wentry.process_request(handle, request, *(parent()->mongodbcInst()));
+      // WebServiceEntry wentry;
+      // wentry.process_request(handle, request, *(parent()->mongodbcInst()));
+      ACE_ERROR((LM_CRITICAL,
+                 ACE_TEXT("%D [WebConnection:%t] %M %N:%l Ubanle to allocate "
+                          "Worker for this "
+                          "request on handle:%d\n"),
+                 handle));
     }
   }
 
@@ -1776,7 +1786,7 @@ std::int32_t WebServiceEntry::process_request(ACE_HANDLE handle,
   Http http(req);
   const std::string &method = http.method();
 
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l %s %s\n"),
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l %s %s\n"),
              method.c_str(), http.uri().c_str()));
 
   std::string rsp;
@@ -1791,9 +1801,10 @@ std::int32_t WebServiceEntry::process_request(ACE_HANDLE handle,
   else if (method == "DELETE")
     rsp = handle_DELETE(req, dbInst);
   else {
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l unsupported method: %s\n"),
-               method.c_str()));
+    ACE_DEBUG(
+        (LM_DEBUG,
+         ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l unsupported method: %s\n"),
+         method.c_str()));
     return 0;
   }
 
@@ -2064,7 +2075,7 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
     } else {
 
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l Connect to "
+                 ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Connect to "
                           "https://ajoul.com (%u) - %s is success\n"),
                  connectAddr.get_ip_address(), connectAddr.get_host_addr()));
 
@@ -2078,15 +2089,15 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
           << header.str() << "\r\n";
       //<< apiAuthorizeAjoul.str();
 
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [worker:%t] %M %N:%l the request is\n%s\n"),
-                 postReq.str().c_str()));
+      ACE_DEBUG(
+          (LM_DEBUG,
+           ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l the request is\n%s\n"),
+           postReq.str().c_str()));
 
       if (conn.send_n(postReq.str().c_str(), postReq.str().length()) < 0) {
 
-        ACE_ERROR((
-            LM_ERROR,
-            ACE_TEXT("%D [worker:%t] %M %N:%l send to ajoul:443 is failed\n")));
+        ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l send "
+                                      "to ajoul:443 is failed\n")));
         std::string err("400 Bad Request");
         std::string err_message(
             "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is not "
@@ -2095,18 +2106,17 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
 
       } else {
 
-        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Sent to "
-                                      "https://ajoul.com is success\n")));
+        ACE_DEBUG(
+            (LM_DEBUG, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Sent to "
+                                "https://ajoul.com is success\n")));
 
         std::array<std::uint8_t, 3048> authRsp;
         authRsp.fill(0);
         ssize_t len = conn.recv((void *)authRsp.data(), 3048, 0);
 
         if (len < 0) {
-          ACE_ERROR(
-              (LM_ERROR,
-               ACE_TEXT(
-                   "%D [worker:%t] %M %N:%l recv from ajoul:443 is failed\n")));
+          ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l recv "
+                                        "from ajoul:443 is failed\n")));
           std::string err("400 Bad Request");
           std::string err_message(
               "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is "
@@ -2115,16 +2125,17 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
 
         } else {
           std::string rsp((char *)authRsp.data(), len);
-          ACE_DEBUG((LM_DEBUG,
-                     ACE_TEXT("%D [worker:%t] %M %N:%l Response is - %s\n"),
-                     rsp.c_str()));
+          ACE_DEBUG(
+              (LM_DEBUG,
+               ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Response is - %s\n"),
+               rsp.c_str()));
           Http http(rsp);
           std::string access_token =
               dbInst.get_access_token_for_ajoul(http.body());
-          ACE_DEBUG(
-              (LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l The access_token is - %s\n"),
-               access_token.c_str()));
+          ACE_DEBUG((LM_DEBUG,
+                     ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l The "
+                              "access_token is - %s\n"),
+                     access_token.c_str()));
 
           /* Now building request for creating shipment */
           std::stringstream shipmentCreate("");
@@ -2164,10 +2175,8 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
                   << hdr.str();
           if (conn.send_n(postReq.str().c_str(), postReq.str().length()) < 0) {
 
-            ACE_ERROR(
-                (LM_ERROR,
-                 ACE_TEXT(
-                     "%D [worker:%t] %M %N:%l send to ajoul:443 is failed\n")));
+            ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l "
+                                          "send to ajoul:443 is failed\n")));
             std::string err("400 Bad Request");
             std::string err_message(
                 "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is "
@@ -2175,24 +2184,27 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
             return (build_responseERROR(err_message, err));
 
           } else {
-            ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l Sent to "
-                                          "https://ajoul.com is success\n")));
+            ACE_DEBUG(
+                (LM_DEBUG, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Sent to "
+                                    "https://ajoul.com is success\n")));
 
             std::array<std::uint8_t, 3048> authRsp;
             authRsp.fill(0);
             ssize_t len = conn.recv((void *)authRsp.data(), 3048, 0);
             std::string rsp((char *)authRsp.data(), len);
-            ACE_DEBUG((LM_DEBUG,
-                       ACE_TEXT("%D [worker:%t] %M %N:%l Response is - %s\n"),
-                       rsp.c_str()));
+            ACE_DEBUG((
+                LM_DEBUG,
+                ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l Response is - %s\n"),
+                rsp.c_str()));
             Http http(rsp);
             std::string ref("");
             std::string awbNo =
                 dbInst.get_tracking_no_for_ajoul(http.body(), ref);
-            ACE_DEBUG((LM_DEBUG,
-                       ACE_TEXT("%D [worker:%t] %M %N:%l The Tracking Number "
-                                "is - %s refNumber %s\n"),
-                       awbNo.c_str(), ref.c_str()));
+            ACE_DEBUG((
+                LM_DEBUG,
+                ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l The Tracking Number "
+                         "is - %s refNumber %s\n"),
+                awbNo.c_str(), ref.c_str()));
           }
           return (build_responseOK(http.body()));
         }
@@ -2214,10 +2226,11 @@ std::string WebServiceEntry::handle_account_POST(std::string &in,
     /*We need newly created account Code */
     std::string projection("{\"_id\" : false, \"accountCode\" : true}");
     std::string content = http.body();
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [worker:%t] %M %N:%l http request body length:%d "
-                        "\n Request http_body:%s\n"),
-               content.length(), content.c_str()));
+    ACE_DEBUG((
+        LM_DEBUG,
+        ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l http request body length:%d "
+                 "\n Request http_body:%s\n"),
+        content.length(), content.c_str()));
 
     if (content.length()) {
       std::string oid = dbInst.create_document(dbInst.get_database(),

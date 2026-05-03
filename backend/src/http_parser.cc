@@ -61,7 +61,8 @@ static std::string decode_chunked(const std::string &in) {
 
 // Extract the boundary token from a Content-Type header value.
 // e.g. "multipart/form-data; boundary=----Boundary123" → "----Boundary123"
-// Returns empty string if the type is not multipart/form-data or boundary is absent.
+// Returns empty string if the type is not multipart/form-data or boundary is
+// absent.
 static std::string multipart_boundary(const std::string &ct) {
   if (ct.find("multipart/form-data") == std::string::npos)
     return {};
@@ -72,7 +73,8 @@ static std::string multipart_boundary(const std::string &ct) {
   auto semi = b.find(';');
   if (semi != std::string::npos)
     b.resize(semi);
-  while (!b.empty() && (b.back() == ' ' || b.back() == '\r' || b.back() == '\n'))
+  while (!b.empty() &&
+         (b.back() == ' ' || b.back() == '\r' || b.back() == '\n'))
     b.pop_back();
   return b;
 }
@@ -136,9 +138,9 @@ void Http::parse_uri(const std::string &in) {
   auto crlf = in.find("\r\n");
   const std::string req = (crlf != std::string::npos) ? in.substr(0, crlf) : in;
 
-  ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [worker:%t] %M %N:%l The uri string is %s\n"),
-             req.c_str()));
+  // ACE_DEBUG((LM_DEBUG,
+  //            ACE_TEXT("%D [worker:%t] %M %N:%l The uri string is %s\n"),
+  //            req.c_str()));
 
   // Split: METHOD<SP>path[?qs]<SP>HTTP/x.x
   auto first_sp = req.find(' ');
