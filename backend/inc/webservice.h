@@ -200,7 +200,7 @@ public:
    * @brief Construct a connection handler.
    * @param parent Owning @c WebServer instance.
    */
-  WebConnection(WebServer *parent, ACE_SOCK_Stream strm, ACE_INET_Addr addr);
+  WebConnection(WebServer &parent, ACE_SOCK_Stream strm, ACE_INET_Addr addr);
   virtual ~WebConnection();
 
   /// Return the underlying socket descriptor.
@@ -213,13 +213,13 @@ public:
   void connAddr(ACE_INET_Addr addr) { m_connAddr = addr; }
 
   /// Return a pointer to the owning @c WebServer.
-  WebServer *parent() { return (m_parent); }
+  WebServer &parent() { return (m_parent); }
 
 private:
   ACE_HANDLE m_handle;
   ACE_INET_Addr m_connAddr;
   ACE_SOCK_Stream m_stream;
-  WebServer *m_parent;
+  WebServer &m_parent;
   std::string m_recvBuf;
 };
 

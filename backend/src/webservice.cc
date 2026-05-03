@@ -1358,7 +1358,6 @@ int MicroService::svc() {
       break;
     }
   }
-
   return 0;
 }
 
@@ -1372,13 +1371,11 @@ MicroService::~MicroService() {
 
 /*
  * +--------------------------------------------------------------------------+
- * |                                                                          |
- * |  W   W  EEEEE  BBBBB   SSSSS  EEEEE  RRRR   V   V  EEEEE  RRRR         |
- * |  W   W  E      B    B  S      E      R   R   V   V  E      R   R        |
- * |  W W W  EEEE   BBBBB    SSS   EEEE   RRRR    V   V  EEEE   RRRR         |
- * |  W W W  E      B    B      S  E      R  R     V V   E      R  R          |
- * |   W W   EEEEE  BBBBB   SSSSS  EEEEE  R   R    V    EEEEE  R   R         |
- * |                                                                          |
+ * | | |  W   W  EEEEE  BBBBB   SSSSS  EEEEE  RRRR   V   V  EEEEE  RRRR | |  W
+ * W  E      B    B  S      E      R   R   V   V  E      R   R        | |  W W
+ * W  EEEE   BBBBB    SSS   EEEE   RRRR    V   V  EEEE   RRRR         | |  W W
+ * W  E      B    B      S  E      R  R     V V   E      R  R          | |   W
+ * W   EEEEE  BBBBB   SSSSS  EEEEE  R   R    V    EEEEE  R   R         | | |
  * +--------------------------------------------------------------------------+
  */
 
@@ -1409,22 +1406,22 @@ ACE_INT32 WebServer::handle_input(ACE_HANDLE handle) {
   if (it != std::end(m_connectionPool)) {
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WebServe:%t] %M %N:%l stale pool entry for "
-                        "handle %d — removing before reuse\n"),
+                        "handle:%d — removing before reuse\n"),
                fd));
-    ACE_Reactor::instance()->remove_handler(it->second.get(),
-                                            ACE_Event_Handler::READ_MASK |
-                                                ACE_Event_Handler::SIGNAL_MASK |
-                                                ACE_Event_Handler::DONT_CALL);
+    // ACE_Reactor::instance()->remove_handler(it->second.get(),
+    //                                         ACE_Event_Handler::READ_MASK |
+    //                                             ACE_Event_Handler::SIGNAL_MASK);
     m_connectionPool.erase(it);
   }
 
-  // auto connEnt = std::make_unique<WebConnection>(this, peerStream, peerAddr);
+  // auto connEnt = std::make_unique<WebConnection>(this, peerStream,
+  // peerAddr);
   m_connectionPool.emplace(
-      fd, std::make_unique<WebConnection>(this, peerStream, peerAddr));
+      fd, std::make_unique<WebConnection>(*this, peerStream, peerAddr));
 
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [WebServer:%t] %M %N:%l new connection handle:%d "
-                      "peer %s:%d active:%zu\n"),
+                      "peer:%s:%d active:%zu\n"),
              fd, peerAddr.get_host_addr(), peerAddr.get_port_number(),
              m_connectionPool.size()));
 
@@ -1587,10 +1584,10 @@ bool WebServer::start() {
 bool WebServer::stop() { return (true); }
 
 // WebConnection .....
-WebConnection::WebConnection(WebServer *parent, ACE_SOCK_Stream strm,
+WebConnection::WebConnection(WebServer &parent, ACE_SOCK_Stream strm,
                              ACE_INET_Addr addr)
-    : m_handle(-1), m_connAddr(addr), m_stream(strm), m_parent(parent) {
-  m_handle = m_stream.get_handle();
+    : m_handle(strm.get_handle()), m_connAddr(addr), m_stream(strm),
+      m_parent(parent) {
   ACE_Reactor::instance()->register_handler(
       this, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
 }
@@ -1600,8 +1597,9 @@ WebConnection::~WebConnection() {
       (LM_DEBUG,
        ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle:%d closing dtor\n"),
        m_handle));
-  if (m_handle != ACE_INVALID_HANDLE)
-    ::close(m_handle);
+
+  ACE_Reactor::instance()->remove_handler(
+      this, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
 }
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
@@ -1615,23 +1613,26 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
 
   if (rc == 0) {
     // Peer closed the connection cleanly
-    parent()->connectionPool().erase(handle);
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [WebConnection:%t] %M %N:%l rc:%d handle:%d\n"), rc,
-               handle));
-    return (-1);
+    /*
+     * WebConnection instance will go out of scope which causes the invocation
+     * od dtor where evet is removed from reactor and this cause to invoke
+     * get_handle so that reactor can get the fd and in this fd it invokes
+     * handle_close where fd is closed.*/
+    parent().connectionPool().erase(handle);
+    return (0);
   }
 
   if (rc < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) {
-      // Spurious reactor wakeup — data not ready yet, keep the connection open
+      // Spurious reactor wakeup — data not ready yet, keep the connection
+      // open
       return (0);
     }
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WebConnection:%t] %M %N:%l recv error errno:%d\n"),
                errno));
-    parent()->connectionPool().erase(handle);
-    return (-1);
+    parent().connectionPool().erase(handle);
+    return (0);
   }
 
   m_recvBuf.append(tmp, rc);
@@ -1657,16 +1658,15 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
     std::string request = m_recvBuf.substr(0, msgLen);
     m_recvBuf.erase(0, msgLen);
 
-    ACE_DEBUG((
-        LM_DEBUG,
-        ACE_TEXT(
-            "%D [WebConnection:%t] %M %N:%l complete request (%zu bytes):\n%s"),
-        msgLen, request.c_str()));
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebConnection:%t] %M %N:%l complete request "
+                        "(%zu bytes):\n%s"),
+               msgLen, request.c_str()));
 
-    const auto it = parent()->currentWorker();
-    if (it != std::end(parent()->workerPool())) {
+    const auto it = parent().currentWorker();
+    if (it != std::end(parent().workerPool())) {
       auto *ctx =
-          new WorkCtx{handle, parent()->mongodbcInst(), std::move(request)};
+          new WorkCtx{handle, parent().mongodbcInst(), std::move(request)};
       auto *mb = new ACE_Message_Block(sizeof(ctx));
       mb->copy(reinterpret_cast<const char *>(&ctx), sizeof(ctx));
       (*it)->putq(mb);
@@ -1690,8 +1690,8 @@ ACE_INT32 WebConnection::handle_signal(int signum, siginfo_t *s,
   ACE_UNUSED_ARG(u);
   ACE_DEBUG(
       (LM_DEBUG,
-       ACE_TEXT("%D [WebConnection:%t] %M %N:%l signal %d (%S) received on "
-                "handle %d\n"),
+       ACE_TEXT("%D [WebConnection:%t] %M %N:%l signal:%d (%S) received on "
+                "handle:%d\n"),
        signum, signum, m_handle));
   return (0);
 }
@@ -1700,16 +1700,17 @@ ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle,
                                       ACE_Reactor_Mask mask) {
   ACE_UNUSED_ARG(mask);
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle_close "
-                      "handle %d\n"),
+             ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle_close for "
+                      "handle:%d\n"),
              handle));
+  ::close(handle);
   return (0);
 }
 
 ACE_HANDLE WebConnection::get_handle() const {
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [WebConnection:%t] %M %N:%l "
-                      "get_handle - handle %d\n"),
+                      "get_handle - handle:%d\n"),
              m_handle));
   return (m_handle);
 }
@@ -1849,8 +1850,8 @@ std::string WebServiceEntry::get_contentType(std::string ext) {
 }
 
 /**
- * @brief This member function is used to create document in a collection for a
- * given uri.
+ * @brief This member function is used to create document in a collection for
+ * a given uri.
  *
  * @param in
  * @param dbInst
@@ -2007,7 +2008,8 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
     // Malki,
     // Damascuss\",\"zip_code\":\"1234\",\"phone\":\"0941951819\",\"phone2\":\"09419518549\",\"email\":\"info@quadratechsoft.com\"}},\"TrackingNumber\":\"AR222188000614391\",\"printLable\":\"https:\/\/ajoul.com\/printlabelone\/AR222188000614391\"}");
     // std::string awbNo = dbInst.get_value(req, "TrackingNumber");
-    // ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l TrackingNumber %s
+    // ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [worker:%t] %M %N:%l TrackingNumber
+    // %s
     // \n"), awbNo.c_str()));
     std::stringstream header("");
     // header = "Connection: close\r\n"
@@ -2080,13 +2082,13 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
                  connectAddr.get_ip_address(), connectAddr.get_host_addr()));
 
       std::stringstream postReq("");
-      postReq
-          << "POST "
-             "/remote/api/v1/"
-             "authorize?client_secret=uCo9GJv4BATqU0C8491tTBooqY4CMttyg8kQyu1o&"
-             "client_id=34&username=AKjHYuCAco&password="
-             "uCo9GJv4BATqU0C8491tTBooqY4CMttyg8kQyu1o HTTP/1.1\r\n"
-          << header.str() << "\r\n";
+      postReq << "POST "
+                 "/remote/api/v1/"
+                 "authorize?client_secret="
+                 "uCo9GJv4BATqU0C8491tTBooqY4CMttyg8kQyu1o&"
+                 "client_id=34&username=AKjHYuCAco&password="
+                 "uCo9GJv4BATqU0C8491tTBooqY4CMttyg8kQyu1o HTTP/1.1\r\n"
+              << header.str() << "\r\n";
       //<< apiAuthorizeAjoul.str();
 
       ACE_DEBUG(
@@ -2099,9 +2101,9 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
         ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l send "
                                       "to ajoul:443 is failed\n")));
         std::string err("400 Bad Request");
-        std::string err_message(
-            "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is not "
-            "responding\", \"errorCode\" : 400}");
+        std::string err_message("{\"status\" : \"faiure\", \"cause\" : "
+                                "\"https://ajoul.com is not "
+                                "responding\", \"errorCode\" : 400}");
         return (build_responseERROR(err_message, err));
 
       } else {
@@ -2153,7 +2155,8 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
               << "\"address\": \"Al Haram street, Giza\","
               << "\"phone\": \"01063396459\","
               << "\"email\": \"admin@quadratechsoft.com\"" << "},"
-              << "\"reference\": \"AB100\"," << "\"pick_date\": \"2018-08-06\","
+              << "\"reference\": \"AB100\","
+              << "\"pick_date\": \"2018-08-06\","
               << "\"pickup_time\": \"12:49\"," << "\"product_type\": \"104\","
               << "\"payment_mode\": \"COD\"," << "\"parcel_quantity\": \"2\","
               << "\"parcel_weight\": \"4\"," << "\"service_id\": \"2\","
@@ -2178,9 +2181,9 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
             ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WebServiceEntry:%t] %M %N:%l "
                                           "send to ajoul:443 is failed\n")));
             std::string err("400 Bad Request");
-            std::string err_message(
-                "{\"status\" : \"faiure\", \"cause\" : \"https://ajoul.com is "
-                "not responding\", \"errorCode\" : 400}");
+            std::string err_message("{\"status\" : \"faiure\", \"cause\" : "
+                                    "\"https://ajoul.com is "
+                                    "not responding\", \"errorCode\" : 400}");
             return (build_responseERROR(err_message, err));
 
           } else {
@@ -2237,8 +2240,8 @@ std::string WebServiceEntry::handle_account_POST(std::string &in,
                                                collectionName, content);
 
       if (oid.length()) {
-        // std::string rsp = dbInst.get_byOID(collectionName, projection, oid);
-        // std::string rsp("");
+        // std::string rsp = dbInst.get_byOID(collectionName, projection,
+        // oid); std::string rsp("");
         json rsp = json::object();
         rsp = {{"oid", oid}};
         // rsp = "{\"oid\" : \"" + oid + "\"}";
@@ -2336,7 +2339,8 @@ std::string WebServiceEntry::handle_email_POST(std::string &in,
 
   if (!uri.compare("/api/v1/email")) {
     /* Send e-mail with POST request */
-    // {"subject": "", "to": [user-id@domain.com, user-id1@domain.com], "body":
+    // {"subject": "", "to": [user-id@domain.com, user-id1@domain.com],
+    // "body":
     // ""}
     std::string json_body = http.body();
     std::vector<std::string> out_vec;
@@ -2615,7 +2619,8 @@ std::string WebServiceEntry::handle_account_GET(std::string &in,
   const std::string collection("account");
   const json projection = {{"_id", false}};
 
-  // Fetch a single document; return OK on hit, ERROR with given status on miss
+  // Fetch a single document; return OK on hit, ERROR with given status on
+  // miss
   auto fetch_one = [&](const json &doc, const std::string &http_err,
                        const json &err_body) {
     ACE_DEBUG((LM_DEBUG,
@@ -2742,7 +2747,8 @@ std::string WebServiceEntry::handle_config_GET(std::string &in,
 }
 
 /**
- * @brief this member function is used to Update the collection for a given uri.
+ * @brief this member function is used to Update the collection for a given
+ * uri.
  *
  * @param in
  * @param dbInst
@@ -2770,8 +2776,8 @@ std::string WebServiceEntry::handle_PUT(std::string &in,
 
   } else {
     std::string err("400 Bad Request");
-    // std::string err_message("{\"status\" : \"faiure\", \"cause\" : \"Shipment
-    // Updated Failed\", \"error\" : 400}");
+    // std::string err_message("{\"status\" : \"faiure\", \"cause\" :
+    // \"Shipment Updated Failed\", \"error\" : 400}");
     json err_message = json::object();
     err_message = {{"status", "failure"},
                    {"cuase", "URI is not supported"},
