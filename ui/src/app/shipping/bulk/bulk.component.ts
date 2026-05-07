@@ -9,6 +9,9 @@ import { PubsubsvcService } from 'src/common/pubsubsvc.service';
 import { formatDate } from '@angular/common';
 import { SubSink } from 'subsink';
 import * as XLSX from 'xlsx';
+import pdfMake from 'pdfmake/build/pdfmake';
+import pdfFonts from 'pdfmake/build/vfs_fonts';
+pdfMake.vfs = (pdfFonts as any).pdfMake.vfs;
 
 @Component({
   selector: 'app-bulk',
@@ -21,6 +24,9 @@ export class BulkComponent implements OnInit, OnDestroy {
   bulkShipmentForm: FormGroup;
   isButtonEnabled = true;
   selectedFileName = '';
+
+  createdResults: { sNo: number; awbno: string; altRef: string; receiver: string; city: string }[] = [];
+  copiedIndex = -1;
 
   private accountInfoList = new Map<string, Account>();
   private shipmentExcelRows: ShipmentExcelRow[] = [];
@@ -133,15 +139,82 @@ export class BulkComponent implements OnInit, OnDestroy {
     });
 
     if (this.accountInfoList.size) {
+      const rowSnapshot = [...this.shipmentExcelRows];
       this.subsink.add(
         this.http.createBulkShipment(JSON.stringify(bulkShipment)).subscribe({
-          next: (rsp: any) => alert(`Shipments created: ${rsp.createdShipments}`)
+          next: (rsp: any) => {
+            const awbs: string[] = rsp.awbNumbers ?? [];
+            this.createdResults = awbs.map((awbno, i) => ({
+              sNo:      i + 1,
+              awbno,
+              altRef:   rowSnapshot[i]?.AlternateReferenceNo ?? '',
+              receiver: rowSnapshot[i]?.ReceiverName ?? '',
+              city:     rowSnapshot[i]?.ReceiverCity ?? ''
+            }));
+            this.downloadPdf();
+          }
         })
       );
     }
 
     this.accountInfoList.clear();
     this.shipmentExcelRows = [];
+  }
+
+  downloadPdf(): void {
+    const today = formatDate(new Date(), 'dd/MM/yyyy', 'en-GB');
+    const header = [
+      { text: 'S. No.',        bold: true, fillColor: '#1b4d8e', color: '#fff' },
+      { text: 'AWB Number',    bold: true, fillColor: '#1b4d8e', color: '#fff' },
+      { text: 'Alt. Ref. No.', bold: true, fillColor: '#1b4d8e', color: '#fff' },
+      { text: 'Receiver',      bold: true, fillColor: '#1b4d8e', color: '#fff' },
+      { text: 'City',          bold: true, fillColor: '#1b4d8e', color: '#fff' },
+      { text: 'Status',        bold: true, fillColor: '#1b4d8e', color: '#fff' }
+    ];
+    const rows = this.createdResults.map(r => [
+      { text: r.sNo },
+      { text: r.awbno, font: 'Courier' },
+      { text: r.altRef },
+      { text: r.receiver },
+      { text: r.city },
+      { text: 'Created', color: '#15803d', bold: true }
+    ]);
+
+    const docDef: any = {
+      pageSize: 'A4',
+      pageOrientation: 'portrait',
+      pageMargins: [20, 30, 20, 30],
+      content: [
+        { text: 'Bulk Shipment Report', style: 'title' },
+        { text: `Date: ${today}   Total: ${this.createdResults.length} shipment(s)`, style: 'sub' },
+        {
+          table: {
+            headerRows: 1,
+            widths: [30, 110, 90, '*', 70, 50],
+            body: [header, ...rows]
+          },
+          layout: {
+            hLineColor: () => '#e2e8f0',
+            vLineColor: () => '#e2e8f0',
+            fillColor: (row: number) => (row > 0 && row % 2 === 0) ? '#f8fafc' : null
+          }
+        }
+      ],
+      styles: {
+        title: { fontSize: 14, bold: true, color: '#1b4d8e', marginBottom: 4 },
+        sub:   { fontSize: 9,  color: '#64748b', marginBottom: 10 }
+      },
+      defaultStyle: { fontSize: 9 }
+    };
+
+    pdfMake.createPdf(docDef).download(`BulkShipment-${today.replace(/\//g, '-')}.pdf`);
+  }
+
+  copyToClipboard(awbno: string, index: number): void {
+    navigator.clipboard.writeText(awbno).then(() => {
+      this.copiedIndex = index;
+      setTimeout(() => { this.copiedIndex = -1; }, 1500);
+    });
   }
 
   private deduplicate(data: string[]): string[] {

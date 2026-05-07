@@ -1,5 +1,6 @@
 #include <vector>
 
+#include "json.hpp"
 #include "mongodbc.hpp"
 
 namespace {
@@ -207,8 +208,6 @@ std::int32_t
 MongodbClient::create_bulk_document(const std::string &dbName,
                                     const std::string &collectionName,
                                     const std::string &doc) {
-  bsoncxx::document::value new_shipment = bsoncxx::from_json(doc.c_str());
-
   auto conn = m_pool->acquire();
   if (!conn) {
     ACE_ERROR(
@@ -222,23 +221,34 @@ MongodbClient::create_bulk_document(const std::string &dbName,
   auto collection =
       conn->database(dbName.c_str()).collection(collectionName.c_str());
 
-  mongocxx::options::bulk_write bulk_opt;
-  mongocxx::write_concern wc;
-  bulk_opt.ordered(false);
-  wc.acknowledge_level(mongocxx::write_concern::level::k_default);
-  bulk_opt.write_concern(wc);
-  auto bulk = collection.create_bulk_write(bulk_opt);
-
-  for (auto &elm : new_shipment.view()) {
-    mongocxx::model::insert_one insert_op(elm.get_document().value);
-    bulk.append(insert_op);
+  // Parse the JSON array and convert each element to a BSON document.
+  std::vector<bsoncxx::document::value> docs;
+  try {
+    auto arr = nlohmann::json::parse(doc);
+    for (auto &elem : arr) {
+      if (!elem.is_object()) continue;
+      docs.push_back(bsoncxx::from_json(elem.dump()));
+    }
+  } catch (const std::exception &ex) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [MongodbClient:%t] %M %N:%l JSON parse failed: %s\n"),
+               ex.what()));
+    return 0;
   }
 
-  auto result = bulk.execute();
-  if (!result)
-    return 0;
+  if (docs.empty()) return 0;
 
-  std::int32_t cnt = result->inserted_count();
+  std::vector<bsoncxx::document::view> views;
+  views.reserve(docs.size());
+  for (auto &d : docs) views.push_back(d.view());
+
+  mongocxx::options::insert insert_opt;
+  insert_opt.ordered(false);
+
+  auto result = collection.insert_many(views, insert_opt);
+  if (!result) return 0;
+
+  std::int32_t cnt = static_cast<std::int32_t>(result->inserted_count());
   ACE_DEBUG(
       (LM_DEBUG,
        ACE_TEXT("%D [MongodbClient:%t] %M %N:%l bulk documents created: %d\n"),

@@ -69,6 +69,66 @@
   }
 }
 
+// ── Results section ───────────────────────────────────
+.results-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 900px;
+
+  .results-header {
+    display: flex;
+    align-items: center;
+
+    .results-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #15803d;
+
+      .success-icon {
+        color: #16a34a;
+      }
+    }
+  }
+
+  .results-grid {
+    margin: 0;
+
+    .awb-number {
+      font-family: monospace;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1b4d8e;
+      margin-right: 4px;
+    }
+
+    .copy-btn {
+      padding: 0 4px;
+      min-width: unset;
+      height: 1.4rem;
+      border: none;
+      background: transparent;
+      color: #64748b;
+      vertical-align: middle;
+
+      &:hover { color: #1b4d8e; }
+    }
+
+    .status-badge {
+      display: inline-block;
+      background: #dcfce7;
+      color: #15803d;
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+  }
+}
+
 // ── Action row ────────────────────────────────────────
 .action-row {
   display: flex;

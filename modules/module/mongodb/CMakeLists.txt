@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16.3)
 
 include_directories(inc)
+include_directories(../thirdparty)
 include_directories(/usr/local/include/mongocxx/v_noabi)
 include_directories(/usr/local/include/bsoncxx/v_noabi)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)

@@ -37,4 +37,48 @@
     </button>
   </div>
 
+  <!-- Results table -->
+  <div class="results-section" *ngIf="createdResults.length">
+    <div class="results-header">
+      <span class="results-title">
+        <cds-icon shape="check-circle" class="success-icon"></cds-icon>
+        {{ createdResults.length }} shipment{{ createdResults.length !== 1 ? 's' : '' }} created
+      </span>
+    </div>
+
+    <clr-datagrid class="results-grid">
+      <clr-dg-column [style.width.px]="50">S. No.</clr-dg-column>
+      <clr-dg-column>AWB Number</clr-dg-column>
+      <clr-dg-column>Alt. Ref. No.</clr-dg-column>
+      <clr-dg-column>Receiver</clr-dg-column>
+      <clr-dg-column>City</clr-dg-column>
+      <clr-dg-column [style.width.px]="80">Status</clr-dg-column>
+
+      <clr-dg-row *ngFor="let row of createdResults">
+        <clr-dg-cell>{{ row.sNo }}</clr-dg-cell>
+        <clr-dg-cell>
+          <span class="awb-number">{{ row.awbno }}</span>
+          <button class="btn btn-icon btn-sm copy-btn"
+                  (click)="copyToClipboard(row.awbno, row.sNo)"
+                  [title]="copiedIndex === row.sNo ? 'Copied!' : 'Copy AWB'">
+            <cds-icon [shape]="copiedIndex === row.sNo ? 'check' : 'copy'"></cds-icon>
+          </button>
+        </clr-dg-cell>
+        <clr-dg-cell>{{ row.altRef }}</clr-dg-cell>
+        <clr-dg-cell>{{ row.receiver }}</clr-dg-cell>
+        <clr-dg-cell>{{ row.city }}</clr-dg-cell>
+        <clr-dg-cell>
+          <span class="status-badge">Created</span>
+        </clr-dg-cell>
+      </clr-dg-row>
+
+      <clr-dg-footer>
+        <clr-dg-pagination [clrDgPageSize]="10">
+          <clr-dg-page-size [clrPageSizeOptions]="[10, 25, 50]">Per page</clr-dg-page-size>
+          {{ createdResults.length }} shipments
+        </clr-dg-pagination>
+      </clr-dg-footer>
+    </clr-datagrid>
+  </div>
+
 </div>

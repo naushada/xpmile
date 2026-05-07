@@ -370,15 +370,44 @@ std::string MicroService::handle_shipment_POST(std::string &in,
                  ACE_TEXT("%D [Worker:%t] %M %N:%l http body length:%d \n"),
                  content.length()));
 
-      // Collect AWB numbers from the input before insert so they can be
-      // returned to the caller.  The bulk body is an object whose values are
-      // shipment documents; each document carries awbno inside "shipment".
+      // Generate AWBs for entries with isAutoGenerate, then collect all AWB
+      // numbers so they can be returned to the caller.
       auto awb_numbers = json::array();
       try {
         auto body = json::parse(content);
-        for (auto &[key, doc] : body.items())
-          if (doc.contains("shipment") && doc["shipment"].contains("awbno"))
-            awb_numbers.push_back(doc["shipment"]["awbno"].get<std::string>());
+        bool modified = false;
+        for (auto &[key, doc] : body.items()) {
+          if (!doc.contains("shipment")) continue;
+          auto &shipment = doc["shipment"];
+          std::string awbno;
+          if (shipment.value("isAutoGenerate", false)) {
+            std::string prefix = "AWB";
+            try {
+              if (shipment.contains("senderInformation")) {
+                auto accNo = shipment["senderInformation"].value("accountNo", std::string{});
+                if (!accNo.empty()) {
+                  json af = {{"loginCredentials.accountCode", accNo}};
+                  json ap = {{"_id", false}, {"awbPrefix", true}};
+                  std::string ad = dbInst.get_document("account", af.dump(), ap.dump());
+                  if (!ad.empty()) {
+                    auto ja = json::parse(ad);
+                    if (ja.contains("awbPrefix") && ja["awbPrefix"].is_string()) {
+                      std::string p = ja["awbPrefix"].get<std::string>();
+                      if (!p.empty()) prefix = p;
+                    }
+                  }
+                }
+              }
+            } catch (...) {}
+            awbno = dbInst.next_awbno(prefix);
+            shipment["awbno"] = awbno;
+            modified = true;
+          } else if (shipment.contains("awbno")) {
+            awbno = shipment["awbno"].get<std::string>();
+          }
+          awb_numbers.push_back(awbno);
+        }
+        if (modified) content = body.dump();
       } catch (...) {
       }
 
@@ -2014,9 +2043,39 @@ std::string WebServiceEntry::handle_shipment_POST(std::string &in,
       auto awb_numbers = json::array();
       try {
         auto body = json::parse(content);
-        for (auto &[key, doc] : body.items())
-          if (doc.contains("shipment") && doc["shipment"].contains("awbno"))
-            awb_numbers.push_back(doc["shipment"]["awbno"].get<std::string>());
+        bool modified = false;
+        for (auto &[key, doc] : body.items()) {
+          if (!doc.contains("shipment")) continue;
+          auto &shipment = doc["shipment"];
+          std::string awbno;
+          if (shipment.value("isAutoGenerate", false)) {
+            std::string prefix = "AWB";
+            try {
+              if (shipment.contains("senderInformation")) {
+                auto accNo = shipment["senderInformation"].value("accountNo", std::string{});
+                if (!accNo.empty()) {
+                  json af = {{"loginCredentials.accountCode", accNo}};
+                  json ap = {{"_id", false}, {"awbPrefix", true}};
+                  std::string ad = dbInst.get_document("account", af.dump(), ap.dump());
+                  if (!ad.empty()) {
+                    auto ja = json::parse(ad);
+                    if (ja.contains("awbPrefix") && ja["awbPrefix"].is_string()) {
+                      std::string p = ja["awbPrefix"].get<std::string>();
+                      if (!p.empty()) prefix = p;
+                    }
+                  }
+                }
+              }
+            } catch (...) {}
+            awbno = dbInst.next_awbno(prefix);
+            shipment["awbno"] = awbno;
+            modified = true;
+          } else if (shipment.contains("awbno")) {
+            awbno = shipment["awbno"].get<std::string>();
+          }
+          awb_numbers.push_back(awbno);
+        }
+        if (modified) content = body.dump();
       } catch (...) {
       }
 
