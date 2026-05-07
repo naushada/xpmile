@@ -1,51 +1,60 @@
-<form clrForm clrLayout="vertical" clrLabelSize="3">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-radio-container >
-                <label>Choose lastmile delivery service vendor </label>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="options" required value="Ajoul" />
-                    <label>Ajoul</label>
-                </clr-radio-wrapper>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="options" required value="Sipsy"  />
-                    <label>Sipsy</label>
-                </clr-radio-wrapper>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="options" required value="Dhl"  />
-                    <label>DHL Express</label>
-                </clr-radio-wrapper>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="options" required value="BlueDart"  />
-                    <label>Blue DartExpress</label>
-                </clr-radio-wrapper>
-            <!--<clr-control-helper>Helper text</clr-control-helper>-->
-                <clr-control-error>This field is required!</clr-control-error>
-            </clr-radio-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <cds-file status="success">
-                <label>Choose bulk upload excel file</label>
-                <input type="file" name="excelFileName" formControlName="excelFileName" (change)="onFileSelect($event)" accept=".xls,.excel,.xlsx" />
-            </cds-file>
-            <!--
-            <clr-input-container>
-                <label>Choose bulk upload excel file</label>
-                <input clrInput name="name" type="file"/>
-            </clr-input-container>
-            -->
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label>Excel Template</label>
-            </clr-input-container>
-            <button type="button" class="btn">Download</button>
-        </div>
+<div class="bulk-page">
+
+  <!-- Vendor selection -->
+  <div class="vendor-card">
+    <p class="section-label">Choose Last Mile Delivery Service Vendor</p>
+    <clr-radio-container clrInline>
+      <clr-radio-wrapper>
+        <input type="radio" clrRadio name="vendor" value="Ajoul" [(ngModel)]="selectedVendor" />
+        <label>Ajoul</label>
+      </clr-radio-wrapper>
+      <clr-radio-wrapper>
+        <input type="radio" clrRadio name="vendor" value="Sipsy" [(ngModel)]="selectedVendor" />
+        <label>Sipsy</label>
+      </clr-radio-wrapper>
+      <clr-radio-wrapper>
+        <input type="radio" clrRadio name="vendor" value="Dhl" [(ngModel)]="selectedVendor" />
+        <label>DHL Express</label>
+      </clr-radio-wrapper>
+      <clr-radio-wrapper>
+        <input type="radio" clrRadio name="vendor" value="BlueDart" [(ngModel)]="selectedVendor" />
+        <label>Blue Dart Express</label>
+      </clr-radio-wrapper>
+    </clr-radio-container>
+  </div>
+
+  <!-- Upload card -->
+  <div class="upload-card">
+    <div class="upload-icon">
+      <cds-icon shape="upload-cloud" size="lg"></cds-icon>
     </div>
-    <div class="clr-row">
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary">Create Bulk Shipment</button>
-        </div>
-    </div>    
-    
-</form>
+    <p class="upload-title">Bulk Upload Excel File</p>
+    <p class="upload-sub">Accepted formats: .xls, .xlsx</p>
+
+    <label for="thirdPartyFileInput" class="btn btn-outline btn-sm browse-btn">
+      Browse&hellip;
+    </label>
+    <input id="thirdPartyFileInput" type="file"
+           name="excelFileName"
+           (change)="onFileSelect($event)"
+           accept=".xls,.excel,.xlsx" />
+
+    <p class="file-name" [class.has-file]="selectedFileName">
+      {{ selectedFileName || 'No file selected' }}
+    </p>
+  </div>
+
+  <!-- Action row -->
+  <div class="action-row">
+    <div class="template-block">
+      <span class="template-label">Excel Template</span>
+      <button type="button" class="btn btn-sm btn-outline">Download</button>
+    </div>
+
+    <button type="button" class="btn btn-primary"
+            [disabled]="!selectedFileName || !selectedVendor">
+      Create Bulk Shipment
+    </button>
+  </div>
+
+</div>

@@ -20,6 +20,7 @@ export class BulkComponent implements OnInit, OnDestroy {
   loggedInUser?: Account;
   bulkShipmentForm: FormGroup;
   isButtonEnabled = true;
+  selectedFileName = '';
 
   private accountInfoList = new Map<string, Account>();
   private shipmentExcelRows: ShipmentExcelRow[] = [];
@@ -46,6 +47,7 @@ export class BulkComponent implements OnInit, OnDestroy {
 
   onFileSelect(event: any): void {
     this.isButtonEnabled = true;
+    this.selectedFileName = event.target.files[0]?.name ?? '';
     this.processShipmentExcelFile(event, this.loggedInUser?.personalInfo.role ?? '');
   }
 

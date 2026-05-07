@@ -1,22 +1,40 @@
-<form clrForm clrLayout="compact" [formGroup]="bulkShipmentForm">
-  <div class="clr-row upload-row">
+<div class="bulk-page">
 
-    <div class="clr-col-auto">
-      <cds-file>
-        <label>Bulk upload Excel file</label>
-        <input type="file" name="excelFileName" formControlName="excelFileName"
-               (change)="onFileSelect($event)" accept=".xls,.xlsx" />
-      </cds-file>
+  <!-- Upload card -->
+  <div class="upload-card">
+    <div class="upload-icon">
+      <cds-icon shape="upload-cloud" size="lg"></cds-icon>
     </div>
+    <p class="upload-title">Bulk Upload Excel File</p>
+    <p class="upload-sub">Accepted formats: .xls, .xlsx</p>
 
-    <div class="clr-col-auto upload-row__actions">
-      <span class="upload-row__label">Bulk Shipment Template</span>
-      <button type="button" class="btn btn-sm" type="button" (click)="onDownloadTemplate()">Download</button>
-      <button type="button" class="btn btn-primary" type="button"
-              (click)="onCreateBulkShipment()" [disabled]="isButtonEnabled">
-        Create Bulk Shipment
-      </button>
-    </div>
+    <label for="excelFileInput" class="btn btn-outline btn-sm browse-btn">
+      Browse&hellip;
+    </label>
+    <input id="excelFileInput" type="file"
+           name="excelFileName"
+           [formControl]="$any(bulkShipmentForm.controls['excelFileName'])"
+           (change)="onFileSelect($event)"
+           accept=".xls,.xlsx" />
 
+    <p class="file-name" [class.has-file]="selectedFileName">
+      {{ selectedFileName || 'No file selected' }}
+    </p>
   </div>
-</form>
+
+  <!-- Action row -->
+  <div class="action-row">
+    <div class="template-block">
+      <span class="template-label">Bulk Shipment Template</span>
+      <button type="button" class="btn btn-sm btn-outline"
+              (click)="onDownloadTemplate()">Download</button>
+    </div>
+
+    <button type="button" class="btn btn-primary"
+            [disabled]="isButtonEnabled"
+            (click)="onCreateBulkShipment()">
+      Create Bulk Shipment
+    </button>
+  </div>
+
+</div>

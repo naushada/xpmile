@@ -7,12 +7,14 @@ import { Component, OnInit } from '@angular/core';
 })
 export class ThirdPartyComponent implements OnInit {
 
+  selectedVendor = '';
+  selectedFileName = '';
+
   constructor() { }
 
-  ngOnInit(): void {
-  }
+  ngOnInit(): void { }
 
   onFileSelect(event: any) {
-    
+    this.selectedFileName = event.target.files[0]?.name ?? '';
   }
 }

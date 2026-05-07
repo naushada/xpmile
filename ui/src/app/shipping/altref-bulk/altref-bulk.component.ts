@@ -17,7 +17,8 @@ export class AltrefBulkComponent implements OnInit {
   public loggedInUser?: Account;
   public subsink: SubSink = new SubSink();
   public bulkAltRefUpdateForm: FormGroup;
-  public isButtonEnabled:boolean = true;
+  public isButtonEnabled: boolean = true;
+  public selectedFileName = '';
   
   public accountInfoList: Map<string, Account > = new Map<string, Account>();
   public altRefUpdateExcelRows?: Array<UpdateAltRefForShipment> = new Array<UpdateAltRefForShipment>();
@@ -108,7 +109,7 @@ export class AltrefBulkComponent implements OnInit {
 
   onFileSelect(event: any) {
     this.isButtonEnabled = true;
-    //console.log(event.target.files[0]);
+    this.selectedFileName = event.target.files[0]?.name ?? '';
     this.processAltRefUpdateShipmentExcelFile(event);
   }
   

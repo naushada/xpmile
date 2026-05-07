@@ -1,0 +1,109 @@
+:host {
+  display: block;
+  padding: 24px;
+}
+
+.bulk-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 560px;
+}
+
+// ── Vendor selection card ─────────────────────────────
+.vendor-card {
+  padding: 16px 20px;
+  border: 1px solid #dce3e8;
+  border-radius: 6px;
+  background: #f8fafc;
+
+  .section-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1b4d8e;
+    margin: 0 0 10px;
+  }
+}
+
+// ── Upload card ───────────────────────────────────────
+.upload-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 36px 24px;
+  border: 2px dashed #c2ccd6;
+  border-radius: 6px;
+  background: #f8fafc;
+  text-align: center;
+  transition: border-color 0.2s;
+
+  &:hover {
+    border-color: #1353a4;
+  }
+
+  .upload-icon {
+    color: #64748b;
+    font-size: 2.5rem;
+    margin-bottom: 4px;
+  }
+
+  .upload-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1b4d8e;
+    margin: 0;
+  }
+
+  .upload-sub {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin: 0;
+  }
+
+  input[type="file"] {
+    display: none;
+  }
+
+  .browse-btn {
+    margin-top: 8px;
+    cursor: pointer;
+  }
+
+  .file-name {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin: 4px 0 0;
+    word-break: break-all;
+
+    &.has-file {
+      color: #1353a4;
+      font-weight: 600;
+    }
+  }
+}
+
+// ── Action row ────────────────────────────────────────
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+
+  .template-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .template-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #454545;
+      white-space: nowrap;
+    }
+  }
+
+  .btn-primary {
+    margin-left: auto;
+  }
+}

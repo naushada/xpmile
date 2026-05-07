@@ -1,34 +1,40 @@
-<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="bulkAltRefUpdateForm">
+<div class="bulk-page">
 
-    <div class="clr-row">
-        <div classs="clr-col">
-            <div class="clr-col">
-                <cds-file status="success">
-                    <label>Upload bulk ALT REF excel file</label>
-                    <input type="file" name="excelFileName" formControlName="excelFileName" (change)="onFileSelect($event)" accept=".xls,.excel,.xlsx" />
-                </cds-file>
-                <!--
-                <clr-input-container>
-                    <label>Choose bulk upload excel file</label>
-                    <input type="file" clrInput name="excelFileName" formControlName="excelFileName" (change)="onFileSelect($event)" accept=".xls,.excel,.xlsx" >
-                </clr-input-container>
-                -->
-            </div>
-        
-            <div class="clr-col">
-                <clr-input-container>
-                    <label>Bulk Update ALT REF Template</label>
-                </clr-input-container>
-                <button type="button" class="btn btn-sm" (click)="onDownloadTemplate()">Download</button>
-            </div>
-        </div>
+  <!-- Upload card -->
+  <div class="upload-card">
+    <div class="upload-icon">
+      <cds-icon shape="upload-cloud" size="lg"></cds-icon>
+    </div>
+    <p class="upload-title">Bulk Update ALT REF Excel File</p>
+    <p class="upload-sub">Accepted formats: .xls, .xlsx</p>
+
+    <label for="altRefFileInput" class="btn btn-outline btn-sm browse-btn">
+      Browse&hellip;
+    </label>
+    <input id="altRefFileInput" type="file"
+           name="excelFileName"
+           [formControl]="$any(bulkAltRefUpdateForm.controls['excelFileName'])"
+           (change)="onFileSelect($event)"
+           accept=".xls,.excel,.xlsx" />
+
+    <p class="file-name" [class.has-file]="selectedFileName">
+      {{ selectedFileName || 'No file selected' }}
+    </p>
+  </div>
+
+  <!-- Action row -->
+  <div class="action-row">
+    <div class="template-block">
+      <span class="template-label">ALT REF Update Template</span>
+      <button type="button" class="btn btn-sm btn-outline"
+              (click)="onDownloadTemplate()">Download</button>
     </div>
 
-    <div class="clr-row">
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary" (click)="onUpdateBulkShipment()" [disabled]="isButtonEnabled">Update Bulk ALT REF</button>
-        </div>
-    </div>
+    <button type="button" class="btn btn-primary"
+            [disabled]="isButtonEnabled"
+            (click)="onUpdateBulkShipment()">
+      Update Bulk ALT REF
+    </button>
+  </div>
 
-</form>
-
+</div>
