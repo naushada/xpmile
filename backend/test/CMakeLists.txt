@@ -7,6 +7,7 @@ include_directories(/usr/local/include/bsoncxx/v_noabi)
 include_directories(../../modules/module/webservice/inc)
 include_directories(../../modules/module/http/inc)
 include_directories(../../modules/module/mongodb/inc)
+include_directories(../../modules/module/email/inc)
 include_directories(../inc)
 include_directories(test)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
@@ -19,8 +20,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -g -Wall -Wextra")
 #However, the file(GLOB...) allows for wildcard additions:
 file(GLOB SOURCES "*.cc"
     "../../modules/module/mongodb/src/mongodbc.cpp"
-    "../src/emailservice.cc"
-    "../src/emailservice_fsm.cc"
+    "../../modules/module/email/src/emailservice.cpp"
+    "../../modules/module/email/src/emailservice_fsm.cpp"
     "../../modules/module/http/src/http_parser.cpp"
     "../../modules/module/webservice/src/webservice.cpp")
 
