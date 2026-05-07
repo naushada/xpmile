@@ -1,197 +1,101 @@
 #include "emailservice.hpp"
 #include "webservice.hpp"
 
+namespace {
+
+using Arg = CommandArgumentName;
+constexpr std::size_t idx(Arg a) { return static_cast<std::size_t>(a); }
+constexpr std::size_t N = idx(Arg::MAX_CMD_ARG);
+
+int opt_int(const std::array<std::string, N> &opt, Arg key, int default_val) {
+  const auto &s = opt[idx(key)];
+  return s.empty() ? default_val : std::stoi(s);
+}
+
+void print_usage(const char *prog) {
+  ACE_ERROR((LM_ERROR,
+             ACE_TEXT("Usage: %s [OPTIONS]\n\n"
+                      "  --server-ip              <addr>  Bind address (default: all interfaces)\n"
+                      "  --server-port            <n>     Listen port            (default: 8080)\n"
+                      "  --server-worker          <n>     Worker thread count    (default: 10)\n"
+                      "  --mongo-db-uri           <uri>   MongoDB connection URI\n"
+                      "  --mongo-db-connection-pool <n>   Connection pool size   (default: 50)\n"
+                      "  --mongo-db-name          <name>  Database name\n"
+                      "  --email-from-name        <name>  Outgoing email display name\n"
+                      "  --email-from-id          <addr>  Outgoing email address\n"
+                      "  --email-from-password    <pw>    Outgoing email password\n"
+                      "  --help                           Show this help\n"),
+             prog));
+}
+
+} // namespace
+
 int main(int argc, char *argv[]) {
-  std::string ip("");
-  std::string port("");
-  std::string worker("");
-  std::string db_uri("");
-  std::string db_conn_pool("");
-  std::string db_name("");
-
-  std::array<std::string, std::size_t(CommandArgumentName::MAX_CMD_ARG)> cmdOpt;
-
-  int _port = 8080;
-  int _worker = 10;
-  /* mongodb connection pool */
-  int _pool = 50;
-
-  cmdOpt.fill("");
-
   ACE_LOG_MSG->open(argv[0], ACE_LOG_MSG->STDERR | ACE_LOG_MSG->SYSLOG);
   ACE_LOG_MSG->priority_mask(LM_CRITICAL | LM_ERROR | LM_DEBUG,
                              ACE_Log_Msg::PROCESS);
-  /* The last argument tells from where to start in argv - offset of argv array
-   */
-  ACE_Get_Opt opts(argc, argv, ACE_TEXT("s:p:w:u:c:h:d:n:i:o:"), 1);
 
-  opts.long_option(ACE_TEXT("server-ip"), 's', ACE_Get_Opt::ARG_REQUIRED);
-  opts.long_option(ACE_TEXT("server-port"), 'p', ACE_Get_Opt::ARG_REQUIRED);
-  opts.long_option(ACE_TEXT("server-worker"), 'w', ACE_Get_Opt::ARG_REQUIRED);
-  opts.long_option(ACE_TEXT("mongo-db-uri"), 'u', ACE_Get_Opt::ARG_REQUIRED);
-  opts.long_option(ACE_TEXT("mongo-db-connection-pool"), 'c',
-                   ACE_Get_Opt::ARG_REQUIRED);
-  opts.long_option(ACE_TEXT("mongo-db-name"), 'd', ACE_Get_Opt::ARG_REQUIRED);
-  /* email client configuration */
-  opts.long_option(ACE_TEXT("email-from-name"), 'n', ACE_Get_Opt::ARG_REQUIRED);
-  opts.long_option(ACE_TEXT("email-from-id"), 'i', ACE_Get_Opt::ARG_REQUIRED);
-  opts.long_option(ACE_TEXT("email-from-password"), 'o',
-                   ACE_Get_Opt::ARG_REQUIRED);
+  std::array<std::string, N> opt{};
 
-  opts.long_option(ACE_TEXT("help"), 'h', ACE_Get_Opt::ARG_REQUIRED);
+  ACE_Get_Opt args(argc, argv, ACE_TEXT("s:p:w:u:c:d:n:i:o:h"), 1);
+  args.long_option(ACE_TEXT("server-ip"),               's', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("server-port"),             'p', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("server-worker"),           'w', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("mongo-db-uri"),            'u', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("mongo-db-connection-pool"),'c', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("mongo-db-name"),           'd', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("email-from-name"),         'n', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("email-from-id"),           'i', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("email-from-password"),     'o', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("help"),                    'h', ACE_Get_Opt::NO_ARG);
 
-  int c = 0;
+  // Short-option char → enum key table
+  static constexpr std::pair<char, Arg> kOptMap[] = {
+    {'s', Arg::SERVER_IP},
+    {'p', Arg::SERVER_PORT},
+    {'w', Arg::SERVER_WORKER_NODE},
+    {'u', Arg::DB_URI},
+    {'c', Arg::DB_CONN_POOL},
+    {'d', Arg::DB_NAME},
+    {'n', Arg::EMAIL_FROM_NAME},
+    {'i', Arg::EMAIL_FROM_ID},
+    {'o', Arg::EMAIL_FROM_PASSWORD},
+  };
 
-  while ((c = opts()) != EOF) {
-    switch (c) {
-    case 's': {
-      cmdOpt[std::size_t(CommandArgumentName::SERVER_IP)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l IP %s\n"),
-                 std::get<std::size_t(CommandArgumentName::SERVER_IP)>(cmdOpt)
-                     .c_str()));
-    } break;
+  int c;
+  while ((c = args()) != EOF) {
+    if (c == 'h') { print_usage(argv[0]); return 0; }
+    if (c == '?') { print_usage(argv[0]); return -1; }
 
-    case 'p': {
-      cmdOpt[std::size_t(CommandArgumentName::SERVER_PORT)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l PORT %s\n"),
-                 std::get<std::size_t(CommandArgumentName::SERVER_PORT)>(cmdOpt)
-                     .c_str()));
-    } break;
-
-    case 'w': {
-      cmdOpt[std::size_t(CommandArgumentName::SERVER_WORKER_NODE)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG((
-          LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l Worker Nodes %s\n"),
-          std::get<std::size_t(CommandArgumentName::SERVER_WORKER_NODE)>(cmdOpt)
-              .c_str()));
-    } break;
-
-    case 'u':
-      cmdOpt[std::size_t(CommandArgumentName::DB_URI)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG(
-          (LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l Database URI %s\n"),
-           std::get<std::size_t(CommandArgumentName::DB_URI)>(cmdOpt).c_str()));
-      break;
-
-    case 'c':
-      cmdOpt[std::size_t(CommandArgumentName::DB_CONN_POOL)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG(
-          (LM_DEBUG,
-           ACE_TEXT("%D [WebServer:%t] %M %N:%l Database Connection Pool %s\n"),
-           std::get<std::size_t(CommandArgumentName::DB_CONN_POOL)>(cmdOpt)
-               .c_str()));
-      break;
-
-    case 'd':
-      cmdOpt[std::size_t(CommandArgumentName::DB_NAME)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG((
-          LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l Database Name %s\n"),
-          std::get<std::size_t(CommandArgumentName::DB_NAME)>(cmdOpt).c_str()));
-      break;
-
-    case 'n':
-      cmdOpt[std::size_t(CommandArgumentName::EMAIL_FROM_NAME)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG((
-          LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l email from name %s\n"),
-          std::get<std::size_t(CommandArgumentName::EMAIL_FROM_NAME)>(cmdOpt)
-              .c_str()));
-      break;
-
-    case 'i':
-      cmdOpt[std::size_t(CommandArgumentName::EMAIL_FROM_ID)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG(
-          (LM_DEBUG,
-           ACE_TEXT("%D [WebServer:%t] %M %N:%l email from email-id %s\n"),
-           std::get<std::size_t(CommandArgumentName::EMAIL_FROM_ID)>(cmdOpt)
-               .c_str()));
-      break;
-
-    case 'o':
-      cmdOpt[std::size_t(CommandArgumentName::EMAIL_FROM_PASSWORD)] =
-          std::string(opts.opt_arg());
-      ACE_DEBUG(
-          (LM_DEBUG,
-           ACE_TEXT("%D [WebServer:%t] %M %N:%l email from emai-password %s\n"),
-           std::get<std::size_t(CommandArgumentName::EMAIL_FROM_PASSWORD)>(
-               cmdOpt)
-               .c_str()));
-      break;
-
-    case 'h':
-    default:
-      ACE_ERROR_RETURN(
-          (LM_ERROR,
-           ACE_TEXT("%D [WebServer:%t] %M %N:%l usage: %s\n"
-                    " [-s --server-ip]\n"
-                    " [-p --server-port]\n"
-                    " [-w --server-worker]\n"
-                    " [-u --mongo-db-uri (mongodb://127.0.0.1:27017)]\n"
-                    " [-c --mongo-db-connection-pool]\n"
-                    " [-d --mongo-db-name]\n"
-                    " [-h --help]\n"),
-           argv[0]),
-          -1);
+    for (auto &[ch, key] : kOptMap) {
+      if (c == ch) {
+        opt[idx(key)] = args.opt_arg();
+        ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l opt -%c = %s\n"),
+                   c, opt[idx(key)].c_str()));
+        break;
+      }
     }
   }
 
-  if (std::get<std::size_t(CommandArgumentName::SERVER_PORT)>(cmdOpt)
-          .length()) {
-    _port = std::stoi(
-        std::get<std::size_t(CommandArgumentName::SERVER_PORT)>(cmdOpt));
-    ACE_DEBUG((LM_DEBUG,
-               ACE_TEXT("%D [WebServer:%t] %M %N:%l listening port %d\n"),
-               _port));
-  }
+  const int port   = opt_int(opt, Arg::SERVER_PORT,        8080);
+  const int worker = opt_int(opt, Arg::SERVER_WORKER_NODE, 10);
 
-  if (std::get<std::size_t(CommandArgumentName::SERVER_WORKER_NODE)>(cmdOpt)
-          .length()) {
-    _worker = std::stoi(
-        std::get<std::size_t(CommandArgumentName::SERVER_WORKER_NODE)>(cmdOpt));
-    ACE_DEBUG(
-        (LM_DEBUG,
-         ACE_TEXT(
-             "%D [WebServer:%t] %M %N:%l the number of worker node is %d\n"),
-         _worker));
-  }
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServer:%t] %M %N:%l "
+                      "port:%d workers:%d db-pool:%s db-name:%s\n"),
+             port, worker,
+             opt[idx(Arg::DB_CONN_POOL)].c_str(),
+             opt[idx(Arg::DB_NAME)].c_str()));
 
-  if (std::get<std::size_t(CommandArgumentName::DB_CONN_POOL)>(cmdOpt)
-          .length()) {
-    _pool = std::stoi(
-        std::get<std::size_t(CommandArgumentName::DB_CONN_POOL)>(cmdOpt));
-    ACE_DEBUG(
-        (LM_DEBUG,
-         ACE_TEXT(
-             "%D [WebServer:%t] %M %N:%l the mongodb connection pool is %d\n"),
-         _pool));
-  }
+  WebServer inst(opt[idx(Arg::SERVER_IP)], port, worker,
+                 opt[idx(Arg::DB_URI)],
+                 opt[idx(Arg::DB_CONN_POOL)],
+                 opt[idx(Arg::DB_NAME)]);
 
-  WebServer inst(
-      std::get<std::size_t(CommandArgumentName::SERVER_IP)>(cmdOpt), _port,
-      _worker, std::get<std::size_t(CommandArgumentName::DB_URI)>(cmdOpt),
-      std::get<std::size_t(CommandArgumentName::DB_CONN_POOL)>(cmdOpt),
-      std::get<std::size_t(CommandArgumentName::DB_NAME)>(cmdOpt));
-
-  /* filling email for sending updateds */
-
-  SMTP::Account::instance().from_name(
-      std::get<std::size_t(CommandArgumentName::EMAIL_FROM_NAME)>(cmdOpt));
-  SMTP::Account::instance().from_email(
-      std::get<std::size_t(CommandArgumentName::EMAIL_FROM_ID)>(cmdOpt));
-  SMTP::Account::instance().from_password(
-      std::get<std::size_t(CommandArgumentName::EMAIL_FROM_PASSWORD)>(cmdOpt));
-
-  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WebServer:%t] %M %N:%l from_name:%s\n"),
-             SMTP::Account::instance().from_name().c_str()));
+  SMTP::Account::instance().from_name(opt[idx(Arg::EMAIL_FROM_NAME)]);
+  SMTP::Account::instance().from_email(opt[idx(Arg::EMAIL_FROM_ID)]);
+  SMTP::Account::instance().from_password(opt[idx(Arg::EMAIL_FROM_PASSWORD)]);
 
   inst.start();
-
-  return (0);
+  return 0;
 }
