@@ -1,9 +1,23 @@
 :host {
 
+  // All cards same size
+  .cards-row {
+    align-items: stretch;
+
+    [class*="clr-col"] {
+      display: flex;
+    }
+  }
+
     // Card
     .card {
       z-index: 3;
       box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.14);
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 160px;
   
       //Icon
       &-icon {

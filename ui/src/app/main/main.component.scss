@@ -1,6 +1,2 @@
-a.active {
-  background-color: invert($color: #000000);
-  /*color: white;*/
-  font-weight: bold;
-  
-}
+// Active top-nav highlight is handled globally in styles.scss.
+// Keep this file for any main-layout-specific overrides.
