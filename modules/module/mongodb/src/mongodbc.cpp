@@ -1,6 +1,6 @@
 #include <vector>
 
-#include "mongodbc.h"
+#include "mongodbc.hpp"
 
 namespace {
 // Serialise every document in cursor as a JSON array.

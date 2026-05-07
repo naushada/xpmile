@@ -3,6 +3,6 @@
 
 #include <gtest/gtest.h>
 #include <string>
-#include "webservice.h"
+#include "webservice.hpp"
 
 #endif // WEBSERVICE_TEST_HPP

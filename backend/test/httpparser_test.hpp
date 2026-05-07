@@ -5,7 +5,7 @@
 #include <sstream>
 #include <string>
 #include <zlib.h>
-#include "http_parser.h"
+#include "http_parser.hpp"
 
 /// Gzip-compress a string for use in Content-Encoding tests.
 static inline std::string gzip_compress(const std::string& in)

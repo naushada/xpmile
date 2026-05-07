@@ -1,5 +1,5 @@
-#ifndef WEBSERVICE_H
-#define WEBSERVICE_H
+#ifndef WEBSERVICE_HPP
+#define WEBSERVICE_HPP
 
 #include <algorithm>
 #include <fstream>
@@ -26,7 +26,7 @@
 #include "ace/Thread_Manager.h"
 #include "ace/Timer_Queue_T.h"
 
-#include "mongodbc.h"
+#include "mongodbc.hpp"
 
 /* Forward declaration */
 class WebServer;

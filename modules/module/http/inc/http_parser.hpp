@@ -1,5 +1,5 @@
-#ifndef HTTP_PARSER_H
-#define HTTP_PARSER_H
+#ifndef HTTP_PARSER_HPP
+#define HTTP_PARSER_HPP
 
 #include <string>
 #include <unordered_map>

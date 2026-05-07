@@ -1,5 +1,5 @@
-#ifndef MONGODBC_H
-#define MONGODBC_H
+#ifndef MONGODBC_HPP
+#define MONGODBC_HPP
 
 #include <chrono>
 #include <cstdint>

@@ -10,9 +10,9 @@
 #include <fstream>
 
 #include "emailservice.hpp"
-#include "mongodbc.h"
-#include "webservice.h"
-#include "http_parser.h"
+#include "mongodbc.hpp"
+#include "webservice.hpp"
+#include "http_parser.hpp"
 
 class EmailServiceTest : public ::testing::Test
 {

@@ -4,7 +4,9 @@ find_package(GTest REQUIRED)
 
 include_directories(/usr/local/include/mongocxx/v_noabi)
 include_directories(/usr/local/include/bsoncxx/v_noabi)
-include_directories(../mongodbc/inc)
+include_directories(../../modules/module/webservice/inc)
+include_directories(../../modules/module/http/inc)
+include_directories(../../modules/module/mongodb/inc)
 include_directories(../inc)
 include_directories(test)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
@@ -15,11 +17,12 @@ link_directories(/usr/local/ACE_TAO-7.0.0/lib)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -g -Wall -Wextra")
 
 #However, the file(GLOB...) allows for wildcard additions:
-file(GLOB SOURCES "*.cc" "../mongodbc/src/mongodbc.cc"
-                         "../src/emailservice.cc"
-                         "../src/emailservice_fsm.cc"
-                         "../src/http_parser.cc"
-                         "../src/webservice.cc")
+file(GLOB SOURCES "*.cc"
+    "../../modules/module/mongodb/src/mongodbc.cpp"
+    "../src/emailservice.cc"
+    "../src/emailservice_fsm.cc"
+    "../../modules/module/http/src/http_parser.cpp"
+    "../../modules/module/webservice/src/webservice.cpp")
 
 enable_testing()
 

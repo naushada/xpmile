@@ -1,6 +1,6 @@
-#include "webservice.h"
+#include "webservice.hpp"
 #include "emailservice.hpp"
-#include "http_parser.h"
+#include "http_parser.hpp"
 #include "json.hpp"
 #include <cstring>
 

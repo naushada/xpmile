@@ -63,6 +63,7 @@ RUN cmake .. && make -j$(nproc) install && ldconfig
 # -j1: webservice.cc is large enough that two concurrent TUs OOM the builder
 # -fconcepts: suppresses the set_state(auto) warning from emailservice.hpp
 COPY backend/ /src/backend/
+COPY modules/ /src/modules/
 WORKDIR /src/backend/build
 RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
 

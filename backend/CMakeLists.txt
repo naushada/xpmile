@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.16.3)
 project(microservice)
 
-add_subdirectory(mongodbc)
+add_subdirectory(../modules/module/mongodb ${CMAKE_CURRENT_BINARY_DIR}/mongodb_build)
 add_subdirectory(test)
 
 include_directories(/usr/local/include/mongocxx/v_noabi)
 include_directories(/usr/local/include/bsoncxx/v_noabi)
-include_directories(mongodbc/inc)
-
-
+include_directories(../modules/module/webservice/inc)
+include_directories(../modules/module/http/inc)
+include_directories(../modules/module/mongodb/inc)
 include_directories(inc)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
 
@@ -17,10 +17,11 @@ link_directories(/usr/local/ACE_TAO-7.0.0/lib)
 #Adding Complier flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -g -Wall -Wextra")
 
-#However, the file(GLOB...) allows for wildcard additions:
-file(GLOB SOURCES "src/*.cc")
+file(GLOB BACKEND_SOURCES "src/*.cc")
+file(GLOB MODULE_WEBSERVICE_SOURCES "../modules/module/webservice/src/*.cpp")
+file(GLOB MODULE_HTTP_SOURCES "../modules/module/http/src/*.cpp")
 
-add_executable(uniservice ${SOURCES})
+add_executable(uniservice ${BACKEND_SOURCES} ${MODULE_WEBSERVICE_SOURCES} ${MODULE_HTTP_SOURCES})
 target_link_libraries(uniservice pthread)
 target_link_libraries(uniservice ACE)
 target_link_libraries(uniservice ACE_SSL)
