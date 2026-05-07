@@ -84,12 +84,8 @@ Three cooperating classes built on the ACE framework:
 `ACE_Task<ACE_MT_SYNCH>` — one thread per instance, reading from a synchronized message queue.
 
 - `svc()` — dequeue loop: pulls `ACE_Message_Block` items, extracts the raw HTTP bytes, calls `process_request()`.
-- `process_request()` — delegates entirely to a `WebServiceEntry` instance (see below).
+- `process_request()` — parses the raw HTTP bytes into an `Http` object, dispatches on method to `handle_GET / handle_POST / handle_PUT / handle_DELETE / handle_OPTIONS`, then writes the response via `http_send()`. All routing logic lives here in `MicroService`, not in `WebServiceEntry`.
 - One `MongodbClient` reference is shared across workers; a `ACE_Semaphore` in `WebServer` serializes DB access where needed.
-
-### WebServiceEntry
-
-Stateless facade that contains the routing and response-building logic. Separated from `MicroService` so it can be unit-tested without any ACE threading machinery.
 
 **Routing table** (method → URI prefix → handler):
 
@@ -115,7 +111,7 @@ Stateless facade that contains the routing and response-building logic. Separate
 | PUT | `/api/v1/shipment` (alt-ref) | `handle_altref_update_shipment_PUT` |
 | DELETE | `/api/v1/*` | `handle_DELETE` |
 
-**Response builders** (no DB dependency — fully unit-testable):
+**Response builders** (no DB dependency):
 
 - `build_responseOK(body, content_type)` → `HTTP/1.1 200 OK`
 - `build_responseCreated()` → `HTTP/1.1 201 Created` (no body)
@@ -123,6 +119,10 @@ Stateless facade that contains the routing and response-building logic. Separate
 - `get_contentType(ext)` → maps file extension to MIME type; falls back to `text/html`
 
 **Static file serving:** GET requests that do not match `/api/` are treated as Angular asset requests. The working directory is `/opt/xAPP/granada/` at runtime, so `../webgui/webui/<path>` resolves the Angular `dist/` output.
+
+### WebServiceEntry
+
+A parallel class with the same routing structure as `MicroService` (`process_request` → `handle_GET/POST/PUT/DELETE/OPTIONS`). It is **not called from `MicroService::svc()`** — it exists solely so unit tests can exercise the routing and response-builder logic without spinning up any ACE threading machinery. The webservice test suite instantiates `WebServiceEntry` directly.
 
 ---
 
@@ -288,7 +288,7 @@ Runs once on first container start (when `mongo-data` volume is empty):
 | Module | Location | What is tested |
 |---|---|---|
 | `http` | `modules/module/http/test/` | `Http` parser: URI, query strings, headers, body (Content-Length, chunked, gzip, combined), `header()` boundary |
-| `webservice` | `modules/module/webservice/test/` | `WebServiceEntry`: response builders (200, 201, 4xx, 5xx), `get_contentType()`, OPTIONS handler |
+| `webservice` | `modules/module/webservice/test/` | `WebServiceEntry` (test-only class): response builders (200, 201, 4xx, 5xx), `get_contentType()`, OPTIONS handler |
 | `email` | `modules/module/email/test/` | `SMTP::User` FSM: GREETING state transition via `rx()`, `SMTP::Account` population from JSON |
 
 **46 tests, 0 failures** (as of last run).
@@ -319,12 +319,11 @@ Client TCP connect
   └─ WebServer::handle_input()          accepts, creates WebConnection, registers with reactor
        └─ WebConnection::handle_input()  accumulates bytes until Http::message_length() > 0
             └─ enqueue ACE_Message_Block on next MicroService (round-robin)
-                 └─ MicroService::svc()  dequeues, calls process_request()
-                      └─ WebServiceEntry::process_request()
-                           ├─ Http h(raw)                         parse request
-                           ├─ route on method + URI prefix
-                           ├─ handler(h, dbInst)                  DB ops via MongodbClient
-                           └─ ACE_OS::write(handle, response)     send HTTP response bytes
+                 └─ MicroService::svc()  dequeues, calls MicroService::process_request()
+                      ├─ Http h(raw)                             parse request
+                      ├─ route on method → handle_GET/POST/PUT/DELETE/OPTIONS
+                      ├─ handler(h, dbInst)                      DB ops via MongodbClient
+                      └─ http_send(handle, response)             write HTTP response bytes
 ```
 
 The email send path is triggered by `handle_email_POST`: it populates `SMTP::Account`, constructs an `SMTP::User`, and drives the FSM through GREETING → HELO → MAIL → RCPT → DATA → BODY → QUIT against `smtp.gmail.com:25` over TLS.
