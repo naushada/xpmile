@@ -176,19 +176,58 @@ rather than shared with `uniservice` to keep the agent self-contained.
 
 ## Docker deployment
 
-Build and run the agent container on the MongoDB machine:
+The MongoDB machine behind NAT runs two containers: `mongod` and `wsdbagent`.
+Only outbound connections are needed — no inbound ports need to be opened on the NAT firewall.
+
+```
+MongoDB machine (behind NAT)
+├── mongodb container   — mongod on localhost:27017, data on a named volume
+└── wsdbagent container — connects outbound to Heroku, stateless (no volume)
+```
+
+### Build the image
 
 ```sh
-# Build
 podman build -f docker/Dockerfile.wsdbagent -t wsdbagent .
+```
 
-# Run (production — TLS)
+### Run MongoDB with a persistent volume
+
+```sh
+podman run -d --name mongodb \
+  -v mongo-data:/data/db \
+  -e MONGO_INITDB_ROOT_USERNAME=root \
+  -e MONGO_INITDB_ROOT_PASSWORD=changeme \
+  mongo:latest
+```
+
+The `-v mongo-data:/data/db` mount ensures data survives container restarts.
+`wsdbagent` is stateless and requires no volume.
+
+### Run wsdbagent
+
+```sh
+# Production — TLS on port 443
 podman run -d --name wsdbagent \
+  --network host \
   -e ARGS="--server-host myapp.herokuapp.com \
-           --mongo-db-uri mongodb://host.containers.internal:27017 \
+           --mongo-db-uri mongodb://root:changeme@localhost:27017 \
            --mongo-db-name xpmile" \
   wsdbagent
+
+# Local dev — plain TCP, no TLS
+podman run -d --name wsdbagent \
+  --network host \
+  -e ARGS="--server-host localhost \
+           --server-port 8080 \
+           --no-ssl \
+           --mongo-db-uri mongodb://root:changeme@localhost:27017 \
+           --mongo-db-name xpmile_dev" \
+  wsdbagent
 ```
+
+`--network host` lets the agent reach `mongod` on `localhost:27017`. Alternatively
+put both containers on a shared podman network and reference MongoDB by container name.
 
 The `CMD` in `Dockerfile.wsdbagent` is:
 
