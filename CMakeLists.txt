@@ -14,6 +14,7 @@ include_directories(modules/module/oauth2/inc)
 include_directories(modules/module/whatsapp/inc)
 include_directories(modules/module/thirdparty)
 include_directories(modules/module/wsdbproxy/inc)
+include_directories(modules/module/wsdbagent/inc)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
 
 link_directories(/usr/local/ACE_TAO-7.0.0/lib)
@@ -41,3 +42,17 @@ target_link_libraries(uniservice ACE_SSL)
 target_link_libraries(uniservice ssl crypto)
 target_link_libraries(uniservice mongodbcxx)
 target_link_libraries(uniservice z)
+
+file(GLOB MODULE_WSDBAGENT_SOURCES "modules/module/wsdbagent/src/*.cpp")
+
+add_executable(wsdbagent
+    ${MODULE_WSDBAGENT_SOURCES}
+    modules/module/wsdbproxy/src/dbproto.cpp
+    modules/module/wsdbproxy/src/wsframe.cpp
+)
+target_link_libraries(wsdbagent pthread)
+target_link_libraries(wsdbagent ACE)
+target_link_libraries(wsdbagent ACE_SSL)
+target_link_libraries(wsdbagent ssl crypto)
+target_link_libraries(wsdbagent mongodbcxx)
+target_link_libraries(wsdbagent z)
