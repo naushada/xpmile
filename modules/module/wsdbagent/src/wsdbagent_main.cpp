@@ -13,6 +13,9 @@ void print_usage(const char *prog)
                       "  --server-host  <host>   Heroku hostname (e.g. myapp.herokuapp.com)\n"
                       "  --server-port  <n>      Port (default: 443 with SSL, 8080 without)\n"
                       "  --no-ssl                Use plain TCP instead of TLS\n"
+                      "  --tls-ca   <path>       CA certificate for verifying server cert (mTLS)\n"
+                      "  --tls-cert <path>       Client certificate (mTLS)\n"
+                      "  --tls-key  <path>       Client private key (mTLS)\n"
                       "  --mongo-db-uri <uri>    MongoDB connection URI\n"
                       "  --mongo-db-connection-pool <n>  Pool size (default: 10)\n"
                       "  --mongo-db-name <name>  Database name\n"
@@ -36,16 +39,22 @@ int main(int argc, char *argv[])
   std::string db_pool      = "10";
   std::string db_name;
   int         backoff      = 5;
+  std::string tls_ca;
+  std::string tls_cert;
+  std::string tls_key;
 
-  ACE_Get_Opt args(argc, argv, ACE_TEXT("H:p:U:C:D:b:nh"), 1);
-  args.long_option(ACE_TEXT("server-host"),           'H', ACE_Get_Opt::ARG_REQUIRED);
-  args.long_option(ACE_TEXT("server-port"),           'p', ACE_Get_Opt::ARG_REQUIRED);
-  args.long_option(ACE_TEXT("mongo-db-uri"),          'U', ACE_Get_Opt::ARG_REQUIRED);
+  ACE_Get_Opt args(argc, argv, ACE_TEXT("H:p:U:C:D:b:A:E:K:nh"), 1);
+  args.long_option(ACE_TEXT("server-host"),              'H', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("server-port"),              'p', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("mongo-db-uri"),             'U', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("mongo-db-connection-pool"), 'C', ACE_Get_Opt::ARG_REQUIRED);
-  args.long_option(ACE_TEXT("mongo-db-name"),         'D', ACE_Get_Opt::ARG_REQUIRED);
-  args.long_option(ACE_TEXT("backoff"),               'b', ACE_Get_Opt::ARG_REQUIRED);
-  args.long_option(ACE_TEXT("no-ssl"),                'n', ACE_Get_Opt::NO_ARG);
-  args.long_option(ACE_TEXT("help"),                  'h', ACE_Get_Opt::NO_ARG);
+  args.long_option(ACE_TEXT("mongo-db-name"),            'D', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("backoff"),                  'b', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("tls-ca"),                   'A', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("tls-cert"),                 'E', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("tls-key"),                  'K', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("no-ssl"),                   'n', ACE_Get_Opt::NO_ARG);
+  args.long_option(ACE_TEXT("help"),                     'h', ACE_Get_Opt::NO_ARG);
 
   int c;
   while ((c = args()) != EOF) {
@@ -56,6 +65,9 @@ int main(int argc, char *argv[])
     case 'C': db_pool     = args.opt_arg(); break;
     case 'D': db_name     = args.opt_arg(); break;
     case 'b': backoff     = std::stoi(args.opt_arg()); break;
+    case 'A': tls_ca      = args.opt_arg(); break;
+    case 'E': tls_cert    = args.opt_arg(); break;
+    case 'K': tls_key     = args.opt_arg(); break;
     case 'n': use_ssl     = false; break;
     case 'h': print_usage(argv[0]); return 0;
     case '?': print_usage(argv[0]); return -1;

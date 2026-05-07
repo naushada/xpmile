@@ -4,8 +4,11 @@
 #include <stdexcept>
 #include <sys/socket.h>
 
+#include <openssl/ssl.h>
+
 #include "ace/Log_Msg.h"
 #include "ace/OS_NS_unistd.h"
+#include "ace/SSL/SSL_Context.h"
 
 #include "json.hpp"
 #include "wsframe.hpp"
@@ -21,10 +24,41 @@ using nlohmann::json;
 WsDbServer::WsDbServer(int dispatch_timeout_s)
   : m_timeoutSecs(dispatch_timeout_s) {}
 
+WsDbServer::WsDbServer(TlsConfig tls, int dispatch_timeout_s)
+  : m_timeoutSecs(dispatch_timeout_s)
+  , m_tls_mode(true)
+  , m_tls(std::move(tls))
+{}
+
 WsDbServer::~WsDbServer() { close(0); }
 
 int WsDbServer::open(void*)
 {
+  if (m_tls_mode) {
+    ACE_SSL_Context *ctx = ACE_SSL_Context::instance();
+    ctx->set_mode(ACE_SSL_Context::SSLv23_server);
+    if (ctx->certificate(m_tls.cert.c_str(), SSL_FILETYPE_PEM) != 0 ||
+        ctx->private_key(m_tls.key.c_str(), SSL_FILETYPE_PEM) != 0 ||
+        ctx->load_trusted_ca(m_tls.ca.c_str()) != 0) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbServer:%t] %M %N:%l failed to load TLS certs\n")));
+      return -1;
+    }
+    SSL_CTX_set_verify(ctx->context(),
+                       SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
+                       nullptr);
+    ACE_INET_Addr addr(m_tls.port);
+    if (m_ssl_acceptor.open(addr, 1) == -1) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                          "bind failed on port %u\n"), (unsigned)m_tls.port));
+      return -1;
+    }
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "mTLS agent acceptor on port %u\n"), (unsigned)m_tls.port));
+  }
+
   m_running.store(true);
   if (activate(THR_NEW_LWP | THR_JOINABLE, 1) == -1) {
     ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WsDbServer:%t] %M %N:%l activate failed\n")));
@@ -36,15 +70,20 @@ int WsDbServer::open(void*)
 int WsDbServer::close(u_long)
 {
   m_running.store(false);
-  m_connectCv.notify_all();
-  // Unblock any recv_n() call in run_session() so the svc() thread can exit.
-  {
+
+  if (m_tls_mode) {
+    m_ssl_acceptor.close();  // unblocks accept() in svc()
     std::lock_guard<std::mutex> lock(m_connectMu);
-    if (m_agentHandle != ACE_INVALID_HANDLE) {
+    ACE_HANDLE h = m_ssl_agentStream.get_handle();
+    if (h != ACE_INVALID_HANDLE)
+      ::shutdown(static_cast<int>(h), SHUT_RDWR);
+  } else {
+    m_connectCv.notify_all();
+    std::lock_guard<std::mutex> lock(m_connectMu);
+    if (m_agentHandle != ACE_INVALID_HANDLE)
       ::shutdown(static_cast<int>(m_agentHandle), SHUT_RDWR);
-    }
   }
-  // Wake all pending dispatch() callers so they can exit.
+
   fail_all_pending("server shutting down");
   wait();
   return 0;
@@ -54,17 +93,88 @@ int WsDbServer::close(u_long)
 
 int WsDbServer::svc()
 {
-  while (m_running.load()) {
-    {
-      std::unique_lock<std::mutex> ul(m_connectMu);
-      m_connectCv.wait(ul, [this] {
-        return m_connected.load() || !m_running.load();
-      });
+  if (m_tls_mode) {
+    while (m_running.load()) {
+      if (m_ssl_acceptor.accept(m_ssl_agentStream) == -1) {
+        if (!m_running.load()) break;
+        ACE_ERROR((LM_ERROR,
+                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l SSL accept failed\n")));
+        continue;
+      }
+      {
+        std::lock_guard<std::mutex> lock(m_connectMu);
+        if (m_connected.load()) {
+          const char *rej =
+              "HTTP/1.1 409 Conflict\r\nContent-Length: 0\r\n"
+              "Connection: close\r\n\r\n";
+          m_ssl_agentStream.send_n(rej, std::strlen(rej));
+          m_ssl_agentStream.close();
+          ACE_DEBUG((LM_DEBUG,
+                     ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                              "rejected second agent (409)\n")));
+          continue;
+        }
+        if (!ws_upgrade_server()) {
+          ACE_ERROR((LM_ERROR,
+                     ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                              "WebSocket upgrade failed\n")));
+          m_ssl_agentStream.close();
+          continue;
+        }
+        m_agentHandle = m_ssl_agentStream.get_handle();
+        m_connected.store(true);
+        ACE_DEBUG((LM_DEBUG,
+                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                            "mTLS agent connected\n")));
+      }
+      run_session();
     }
-    if (!m_running.load()) break;
-    run_session();
+  } else {
+    while (m_running.load()) {
+      {
+        std::unique_lock<std::mutex> ul(m_connectMu);
+        m_connectCv.wait(ul, [this] {
+          return m_connected.load() || !m_running.load();
+        });
+      }
+      if (!m_running.load()) break;
+      run_session();
+    }
   }
   return 0;
+}
+
+// ── ws_upgrade_server ─────────────────────────────────────────────────────────
+
+bool WsDbServer::ws_upgrade_server()
+{
+  std::string headers;
+  headers.reserve(512);
+  char c = 0;
+  while (headers.size() < 8192) {
+    if (m_ssl_agentStream.recv_n(&c, 1) != 1) return false;
+    headers += c;
+    if (headers.size() >= 4 &&
+        headers.substr(headers.size() - 4) == "\r\n\r\n")
+      break;
+  }
+
+  auto pos = headers.find("Sec-WebSocket-Key:");
+  if (pos == std::string::npos) return false;
+  pos += 18;
+  while (pos < headers.size() && headers[pos] == ' ') ++pos;
+  auto end = headers.find("\r\n", pos);
+  if (end == std::string::npos) return false;
+  std::string key = headers.substr(pos, end - pos);
+
+  std::string rsp =
+      "HTTP/1.1 101 Switching Protocols\r\n"
+      "Upgrade: websocket\r\n"
+      "Connection: Upgrade\r\n"
+      "Sec-WebSocket-Accept: " + wsframe::accept_key(key) + "\r\n\r\n";
+
+  return m_ssl_agentStream.send_n(rsp.data(), rsp.size())
+         == static_cast<ssize_t>(rsp.size());
 }
 
 // ── on_agent_connected ────────────────────────────────────────────────────────
@@ -152,7 +262,10 @@ done:
   {
     std::lock_guard<std::mutex> lock(m_connectMu);
     m_connected.store(false);
-    m_agentStream.close();
+    if (m_tls_mode)
+      m_ssl_agentStream.close();
+    else
+      m_agentStream.close();
     m_agentHandle = ACE_INVALID_HANDLE;
   }
   fail_all_pending("agent disconnected");
@@ -233,7 +346,9 @@ WsDbServer::dispatch(const std::vector<std::uint8_t>& bson)
 bool WsDbServer::ws_send(const std::vector<std::uint8_t>& frame)
 {
   std::lock_guard<std::mutex> lock(m_writeMu);
-  ssize_t sent = m_agentStream.send_n(frame.data(), frame.size());
+  ssize_t sent = m_tls_mode
+      ? m_ssl_agentStream.send_n(frame.data(), frame.size())
+      : m_agentStream.send_n(frame.data(), frame.size());
   return sent == static_cast<ssize_t>(frame.size());
 }
 
@@ -248,7 +363,9 @@ bool WsDbServer::ws_recv_frame(std::uint8_t& opcode,
   auto read_n = [&](std::size_t n) -> bool {
     std::size_t start = buf.size();
     buf.resize(start + n);
-    ssize_t got = m_agentStream.recv_n(buf.data() + start, n);
+    ssize_t got = m_tls_mode
+        ? m_ssl_agentStream.recv_n(buf.data() + start, n)
+        : m_agentStream.recv_n(buf.data() + start, n);
     if (got != static_cast<ssize_t>(n)) {
       buf.resize(start);
       return false;

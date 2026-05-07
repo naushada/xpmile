@@ -64,6 +64,10 @@ enum class CommandArgumentName : std::uint32_t {
   EMAIL_FROM_ID,
   EMAIL_FROM_PASSWORD,
   REMOTE_DB,
+  AGENT_PORT,
+  TLS_CERT,
+  TLS_KEY,
+  TLS_CA,
   MAX_CMD_ARG
 };
 

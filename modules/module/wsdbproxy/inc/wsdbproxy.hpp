@@ -10,6 +10,8 @@
 #include <vector>
 
 #include "ace/SOCK_Stream.h"
+#include "ace/SSL/SSL_SOCK_Acceptor.h"
+#include "ace/SSL/SSL_SOCK_Stream.h"
 #include "ace/Task.h"
 #include "ace/Task_T.h"
 
@@ -49,8 +51,19 @@ public:
  */
 class WsDbServer : public ACE_Task<ACE_MT_SYNCH>, public IWsDispatcher {
 public:
+  /// TLS configuration for the dedicated mTLS agent port.
+  struct TlsConfig {
+    std::uint16_t port {0};   ///< Port WsDbServer listens on for agent connections.
+    std::string   cert;       ///< Server certificate path (PEM).
+    std::string   key;        ///< Server private key path (PEM).
+    std::string   ca;         ///< CA certificate path used to verify client certs (PEM).
+  };
+
   /// @param dispatch_timeout_s Seconds before dispatch() gives up (default 30).
   explicit WsDbServer(int dispatch_timeout_s = 30);
+
+  /// mTLS constructor: WsDbServer self-accepts on tls.port with mutual TLS.
+  explicit WsDbServer(TlsConfig tls, int dispatch_timeout_s = 30);
   virtual ~WsDbServer();
 
   int open(void* args = nullptr) override;
@@ -79,6 +92,7 @@ private:
   void run_session();
   void fail_all_pending(const std::string& reason);
 
+  bool ws_upgrade_server();  // read WS upgrade request and send 101 (TLS mode)
   bool ws_send(const std::vector<std::uint8_t>& frame);
   bool ws_recv_frame(std::uint8_t& opcode, std::vector<std::uint8_t>& payload);
 
@@ -93,6 +107,11 @@ private:
   int                   m_timeoutSecs;
   ACE_HANDLE            m_agentHandle {ACE_INVALID_HANDLE};
   ACE_SOCK_Stream       m_agentStream;
+
+  bool                  m_tls_mode {false};
+  TlsConfig             m_tls;
+  ACE_SSL_SOCK_Acceptor m_ssl_acceptor;
+  ACE_SSL_SOCK_Stream   m_ssl_agentStream;
 
   std::atomic<bool>     m_connected {false};
   std::atomic<bool>     m_running   {false};

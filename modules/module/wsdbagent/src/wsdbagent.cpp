@@ -10,6 +10,7 @@
 #include <openssl/buffer.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <openssl/ssl.h>
 
 #include <bsoncxx/json.hpp>
 
@@ -54,10 +55,14 @@ std::string random_ws_key()
 // ═══════════════════════════════════════════════════════════════════════════════
 
 WsDbAgent::WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
-                     std::string db_uri, std::string db_pool, std::string db_name)
+                     std::string db_uri, std::string db_pool, std::string db_name,
+                     std::string tls_ca, std::string tls_cert, std::string tls_key)
   : m_host(std::move(host))
   , m_port(port)
   , m_ssl(use_ssl)
+  , m_tls_ca(std::move(tls_ca))
+  , m_tls_cert(std::move(tls_cert))
+  , m_tls_key(std::move(tls_key))
 {
   ACE_UNUSED_ARG(db_pool);
   m_db = std::make_unique<MongodbClient>(db_uri);
@@ -100,7 +105,17 @@ bool WsDbAgent::connect_and_handshake()
 
   // ── TCP connect ─────────────────────────────────────────────────────────────
   if (m_ssl) {
-    ACE_SSL_Context::instance()->set_mode(ACE_SSL_Context::SSLv23_client);
+    ACE_SSL_Context *ctx = ACE_SSL_Context::instance();
+    ctx->set_mode(ACE_SSL_Context::SSLv23_client);
+    if (!m_tls_ca.empty())
+      ctx->load_trusted_ca(m_tls_ca.c_str());
+    if (!m_tls_cert.empty())
+      ctx->certificate(m_tls_cert.c_str(), SSL_FILETYPE_PEM);
+    if (!m_tls_key.empty())
+      ctx->private_key(m_tls_key.c_str(), SSL_FILETYPE_PEM);
+    if (!m_tls_ca.empty())
+      SSL_CTX_set_verify(ctx->context(), SSL_VERIFY_PEER, nullptr);
+
     ACE_SSL_SOCK_Connector conn;
     if (conn.connect(m_ssl_stream, addr) == -1) {
       ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WsDbAgent] SSL connect failed\n")));

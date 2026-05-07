@@ -43,7 +43,8 @@ public:
    * @param db_name     Database name.
    */
   WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
-            std::string db_uri, std::string db_pool, std::string db_name);
+            std::string db_uri, std::string db_pool, std::string db_name,
+            std::string tls_ca = {}, std::string tls_cert = {}, std::string tls_key = {});
   ~WsDbAgent();
 
   /**
@@ -78,6 +79,10 @@ private:
   std::uint16_t     m_port;
   bool              m_ssl;
   std::atomic<bool> m_stop {false};
+
+  std::string       m_tls_ca;
+  std::string       m_tls_cert;
+  std::string       m_tls_key;
 
   ACE_SOCK_Stream     m_plain_stream;
   ACE_SSL_SOCK_Stream m_ssl_stream;
