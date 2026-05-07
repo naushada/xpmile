@@ -1,25 +1,13 @@
-#ifndef __emailservice_hpp__
-#define __emailservice_hpp__
+#ifndef EMAILSERVICE_HPP
+#define EMAILSERVICE_HPP
 
-#include<vector>
-#include<iostream>
-#include<unordered_map>
+#include <vector>
+#include <iostream>
+#include <unordered_map>
 #include <variant>
 #include <type_traits>
 #include <optional>
-#include <cassert>
-#include <iostream>
-#include <fstream>
 
-/*
-#include <openssl/bio.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/ossl_typ.h>
-#include <openssl/pem.h>
-#include <openssl/x509.h>
-#include <openssl/x509_vfy.h>
-*/
 #include "ace/Reactor.h"
 #include "ace/Basic_Types.h"
 #include "ace/Event_Handler.h"
@@ -29,7 +17,6 @@
 #include "ace/SOCK_Acceptor.h"
 #include "ace/Task_T.h"
 #include "ace/Timer_Queue_T.h"
-#include "ace/Reactor.h"
 #include "ace/OS_Memory.h"
 #include "ace/Thread_Manager.h"
 #include "ace/Get_Opt.h"
@@ -181,7 +168,7 @@ namespace SMTP {
           SSL *m_ssl;
           SSL_CTX *m_sslCtx;
           User *m_user;
-          bool m_isTlsUP;
+          bool m_isTlsUP = false;
   };
 
   /// @brief the Client instance will be active object
@@ -210,7 +197,6 @@ namespace SMTP {
         return(*m_user);
       }
 
-    public:
       ACE_INET_Addr m_smtpServerAddress;
       ACE_SOCK_Connector m_connection;
       ACE_SOCK_Stream m_stream;
@@ -248,19 +234,6 @@ namespace SMTP {
           }, m_state);
       }
 
-      auto get_state() {
-        std::visit([&](auto st) {
-          return(st);
-        }, m_state);
-      }
-#if 0
-      std::int32_t onCommand(std::string in, std::string& cmd)
-      {
-        std::visit([&](auto st) -> std::int32_t {
-            return(st.onCommand(in, cmd));
-          }, m_state);
-      }
-#endif
       std::uint32_t onRx(const std::string& in, std::string& out, ST& new_state, User& parent)
       {
           std::int32_t ret_status;
@@ -592,4 +565,4 @@ namespace SMTP {
   };
 
 }
-#endif /* __emailservice_hpp__ */
+#endif // EMAILSERVICE_HPP

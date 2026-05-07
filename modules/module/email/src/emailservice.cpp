@@ -1,13 +1,8 @@
-#ifndef __emailservice_cc__
-#define __emailservice_cc__
-
 #include "emailservice.hpp"
+#include <cassert>
 
-SMTP::Tls::Tls(User* parent)
+SMTP::Tls::Tls(User* parent) : m_ssl(nullptr), m_sslCtx(nullptr), m_user(parent), m_isTlsUP(false)
 {
-    m_ssl = nullptr;
-    m_sslCtx = nullptr;
-    m_user = parent;
 }
 
 SMTP::Tls::~Tls()
@@ -417,4 +412,3 @@ SMTP::User& SMTP::User::stop_response_timeout_timer()
     return(*this);
 }
 
-#endif /* __emailservice_cc__ */

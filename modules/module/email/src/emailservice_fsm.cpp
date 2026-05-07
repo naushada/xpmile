@@ -1,18 +1,5 @@
-#ifndef __emailservice_fsm_cc__
-#define __emailservice_fsm_cc__
-
-/**
- * @file emailservice_fsm.cc
- * @author your name (naushad.dln@gmail.com)
- * @brief This file implements the FSM for SMTP
- * @version 0.1
- * @date 2022-09-17
- * 
- * @copyright Copyright (c) 2022
- * 
- */
-
 #include "emailservice.hpp"
+#include <fstream>
 #include <sstream>
 #include <regex>
 
@@ -800,13 +787,12 @@ std::uint32_t SMTP::RESET::onResponse()
 
 std::uint32_t SMTP::RESET::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
-
+    return 0;
 }
 
 std::uint32_t SMTP::RESET::onCommand(const std::string& in, std::string& out, States& new_state)
 {
-    //new_state = INIT{};
-
+    return 0;
 }
 
 void SMTP::VRFY::onEntry()
@@ -833,13 +819,12 @@ std::uint32_t SMTP::VRFY::onResponse()
 
 std::uint32_t SMTP::VRFY::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
-
+    return 0;
 }
 
 std::uint32_t SMTP::VRFY::onCommand(const std::string& in, std::string& out, States& new_state)
 {
-    //new_state = INIT{};
-
+    return 0;
 }
 
 
@@ -867,12 +852,11 @@ std::uint32_t SMTP::NOOP::onResponse()
 
 std::uint32_t SMTP::NOOP::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
-
+    return 0;
 }
 std::uint32_t SMTP::NOOP::onCommand(const std::string& in, std::string& out, States& new_state)
 {
-    //new_state = INIT{};
-
+    return 0;
 }
 
 void SMTP::EXPN::onEntry()
@@ -899,12 +883,11 @@ std::uint32_t SMTP::EXPN::onResponse()
 
 std::uint32_t SMTP::EXPN::onResponse(const std::string& in, std::string& out, States& new_state, User& parent)
 {
-
+    return 0;
 }
 std::uint32_t SMTP::EXPN::onCommand(const std::string& in, std::string& out, States& new_state)
 {
-    //new_state = INIT{};
-
+    return 0;
 }
 
 void SMTP::HELP::onEntry()
@@ -938,6 +921,7 @@ std::uint32_t SMTP::HELP::onResponse(const std::string& in, std::string& out, St
         default:
         break;
     }
+    return 0;
 }
 
 std::uint32_t SMTP::HELP::onCommand(const std::string& in, std::string& out, States& new_state)
@@ -951,4 +935,3 @@ std::uint32_t SMTP::HELP::onCommand(const std::string& in, std::string& out, Sta
     return(0);
 }
 
-#endif /* __emailservice_fsm_cc__ */
