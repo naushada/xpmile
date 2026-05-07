@@ -1545,7 +1545,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
     semaphore().acquire();
     m_workerPool.push_back(std::unique_ptr<MicroService>(worker));
   }
-  m_currentWorker = std::begin(m_workerPool);
+  m_currentWorker = std::end(m_workerPool);
   /* Start listening for incoming connection */
   int reuse_addr = 1;
   if (m_server.open(m_listen, reuse_addr)) {

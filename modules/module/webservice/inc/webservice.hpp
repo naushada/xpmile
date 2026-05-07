@@ -284,8 +284,13 @@ public:
   std::vector<std::unique_ptr<MicroService>>::const_iterator currentWorker() {
     if (m_currentWorker == std::end(m_workerPool)) {
       m_currentWorker = std::begin(m_workerPool);
+      return m_currentWorker;
     }
-    return ++m_currentWorker;
+    ++m_currentWorker;
+    if (m_currentWorker == std::end(m_workerPool)) {
+      m_currentWorker = std::begin(m_workerPool);
+    }
+    return m_currentWorker;
   }
 
   /// Return a raw pointer to the shared MongoDB client (never null after
