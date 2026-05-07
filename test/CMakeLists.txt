@@ -14,6 +14,8 @@ include_directories(../modules/module/email/test)
 include_directories(../modules/module/oauth2/inc)
 include_directories(../modules/module/whatsapp/inc)
 include_directories(../modules/module/thirdparty)
+include_directories(../modules/module/wsdbproxy/inc)
+include_directories(../modules/module/wsdbproxy/test)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
 
 link_directories(/usr/local/ACE_TAO-7.0.0/lib)
@@ -30,7 +32,14 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/http/src/http_parser.cpp"
     "../modules/module/http/test/httpparser_test.cc"
     "../modules/module/webservice/src/webservice.cpp"
-    "../modules/module/webservice/test/webservice_test.cc")
+    "../modules/module/webservice/test/webservice_test.cc"
+    "../modules/module/wsdbproxy/src/dbproto.cpp"
+    "../modules/module/wsdbproxy/src/wsframe.cpp"
+    "../modules/module/wsdbproxy/src/wsdbproxy.cpp"
+    "../modules/module/wsdbproxy/test/dbproto_test.cc"
+    "../modules/module/wsdbproxy/test/wsframe_test.cc"
+    "../modules/module/wsdbproxy/test/wsdbserver_test.cc"
+    "../modules/module/wsdbproxy/test/wsproxy_test.cc")
 
 enable_testing()
 

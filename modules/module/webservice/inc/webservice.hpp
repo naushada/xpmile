@@ -27,9 +27,11 @@
 #include "ace/Timer_Queue_T.h"
 
 #include "mongodbc.hpp"
+#include "wsdbproxy.hpp"
 
-/* Forward declaration */
+/* Forward declarations */
 class WebServer;
+class WsDbServer;
 
 /// HTTP method category used for routing decisions.
 enum class MicroServiceType : ACE_UINT16 {
@@ -61,6 +63,7 @@ enum class CommandArgumentName : std::uint32_t {
   EMAIL_FROM_NAME,
   EMAIL_FROM_ID,
   EMAIL_FROM_PASSWORD,
+  REMOTE_DB,
   MAX_CMD_ARG
 };
 
@@ -120,7 +123,7 @@ public:
    * @return 0 on success, -1 on error.
    */
   std::int32_t process_request(ACE_HANDLE handle, std::string &req,
-                               MongodbClient &dbInst);
+                               IMongodbClient &dbInst);
 
   /** @name HTTP method dispatchers */
   ///@{
@@ -225,6 +228,7 @@ private:
   ACE_SOCK_Stream m_stream;
   WebServer &m_parent;
   std::string m_recvBuf;
+  bool m_handedOff {false};  // true after WebSocket upgrade — prevents close in handle_close
 };
 
 /**
@@ -253,7 +257,7 @@ public:
   ACE_HANDLE get_handle() const override;
 
   /**
-   * @brief Construct the server.
+   * @brief Construct the server in local-MongoDB mode.
    * @param _ip        Bind address (empty string → all interfaces).
    * @param _port      TCP port to listen on.
    * @param workerPool Number of @c MicroService worker threads.
@@ -263,6 +267,18 @@ public:
    */
   WebServer(std::string _ip, ACE_UINT16 _port, ACE_UINT32 workerPool,
             std::string dbUri, std::string dbConnPool, std::string dbName);
+
+  /**
+   * @brief Construct the server in remote-DB (WebSocket proxy) mode.
+   * @param _ip        Bind address.
+   * @param _port      TCP listen port.
+   * @param workerPool Worker thread count.
+   * @param db         Pre-constructed IMongodbClient (e.g. WsMongodbProxy).
+   * @param wsServer   Owning WsDbServer (may be null in local mode).
+   */
+  WebServer(std::string _ip, ACE_UINT16 _port, ACE_UINT32 workerPool,
+            std::unique_ptr<IMongodbClient> db,
+            std::unique_ptr<WsDbServer> wsServer = nullptr);
   virtual ~WebServer();
 
   /// Start the reactor event loop; returns when the server stops.
@@ -299,7 +315,10 @@ public:
 
   /// Return a raw pointer to the shared MongoDB client (never null after
   /// start()).
-  MongodbClient *mongodbcInst() { return (mMongodbc.get()); }
+  IMongodbClient *mongodbcInst() { return (mMongodbc.get()); }
+
+  /// Return the WsDbServer (null in local-MongoDB mode).
+  WsDbServer *wsDbServer() { return m_wsDbServer.get(); }
 
   /// Return the semaphore used to gate concurrent database access.
   ACE_Semaphore &semaphore() const { return (*m_semaphore.get()); }
@@ -312,8 +331,9 @@ private:
   std::map<ACE_HANDLE, std::unique_ptr<WebConnection>> m_connectionPool;
   std::vector<std::unique_ptr<MicroService>> m_workerPool;
   std::vector<std::unique_ptr<MicroService>>::iterator m_currentWorker;
-  std::unique_ptr<MongodbClient> mMongodbc;
-  std::unique_ptr<ACE_Semaphore> m_semaphore;
+  std::unique_ptr<IMongodbClient> mMongodbc;
+  std::unique_ptr<WsDbServer>     m_wsDbServer;
+  std::unique_ptr<ACE_Semaphore>  m_semaphore;
 };
 
 #endif // WEBSERVICE_H

@@ -2,6 +2,7 @@
 #include "emailservice.hpp"
 #include "http_parser.hpp"
 #include "json.hpp"
+#include "wsframe.hpp"
 #include <cstring>
 
 using json = nlohmann::json;
@@ -10,7 +11,7 @@ namespace {
 
 struct WorkCtx {
   ACE_HANDLE handle;
-  MongodbClient *db;
+  IMongodbClient *db;
   std::string request;
 };
 
@@ -106,7 +107,7 @@ std::int32_t http_send(ACE_HANDLE handle, const std::string &rsp) {
  * @return std::string
  */
 std::string MicroService::handle_DELETE(std::string &in,
-                                        MongodbClient &dbInst) {
+                                        IMongodbClient &dbInst) {
   Http http(in);
 
   /* Action based on uri in get request */
@@ -164,7 +165,7 @@ std::string MicroService::handle_DELETE(std::string &in,
 }
 
 std::int32_t MicroService::process_request(ACE_HANDLE handle, std::string &req,
-                                           MongodbClient &dbInst) {
+                                           IIMongodbClient &dbInst) {
   Http http(req);
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l METHOD:%s URI:%s\n"),
@@ -237,7 +238,7 @@ std::string MicroService::get_contentType(std::string ext) {
  * @param dbInst
  * @return std::string
  */
-std::string MicroService::handle_POST(std::string &in, MongodbClient &dbInst) {
+std::string MicroService::handle_POST(std::string &in, IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -270,7 +271,7 @@ std::string MicroService::handle_POST(std::string &in, MongodbClient &dbInst) {
 }
 
 std::string MicroService::handle_config_POST(std::string &in,
-                                             MongodbClient &dbInst) {
+                                             IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -302,7 +303,7 @@ std::string MicroService::handle_config_POST(std::string &in,
 }
 
 std::string MicroService::handle_shipment_POST(std::string &in,
-                                               MongodbClient &dbInst) {
+                                               IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -644,7 +645,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
 }
 
 std::string MicroService::handle_account_POST(std::string &in,
-                                              MongodbClient &dbInst) {
+                                              IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -679,7 +680,7 @@ std::string MicroService::handle_account_POST(std::string &in,
 }
 
 std::string MicroService::handle_inventory_POST(std::string &in,
-                                                MongodbClient &dbInst) {
+                                                IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -710,7 +711,7 @@ std::string MicroService::handle_inventory_POST(std::string &in,
 }
 
 std::string MicroService::handle_document_POST(std::string &in,
-                                               MongodbClient &dbInst) {
+                                               IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -751,7 +752,7 @@ std::string MicroService::handle_document_POST(std::string &in,
 }
 
 std::string MicroService::handle_email_POST(std::string &in,
-                                            MongodbClient &dbInst) {
+                                            IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -824,7 +825,7 @@ std::string MicroService::handle_email_POST(std::string &in,
   return (std::string());
 }
 
-std::string MicroService::handle_GET(std::string &in, MongodbClient &dbInst) {
+std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
 
@@ -939,7 +940,7 @@ std::string MicroService::handle_GET(std::string &in, MongodbClient &dbInst) {
 }
 
 std::string MicroService::handle_shipment_GET(std::string &in,
-                                              MongodbClient &dbInst) {
+                                              IMongodbClient &dbInst) {
   Http http(in);
   if (http.uri() != "/api/v1/shipment/shipping")
     return {};
@@ -1015,7 +1016,7 @@ std::string MicroService::handle_shipment_GET(std::string &in,
 }
 
 std::string MicroService::handle_account_GET(std::string &in,
-                                             MongodbClient &dbInst) {
+                                             IMongodbClient &dbInst) {
   Http http(in);
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
@@ -1073,7 +1074,7 @@ std::string MicroService::handle_account_GET(std::string &in,
 }
 
 std::string MicroService::handle_inventory_GET(std::string &in,
-                                               MongodbClient &dbInst) {
+                                               IMongodbClient &dbInst) {
   Http http(in);
   if (http.uri() != "/api/v1/inventory")
     return {};
@@ -1105,14 +1106,14 @@ std::string MicroService::handle_inventory_GET(std::string &in,
 }
 
 std::string MicroService::handle_email_GET(std::string &in,
-                                           MongodbClient &dbInst) {
+                                           IMongodbClient &dbInst) {
   ACE_UNUSED_ARG(in);
   ACE_UNUSED_ARG(dbInst);
   return {};
 }
 
 std::string MicroService::handle_document_GET(std::string &in,
-                                              MongodbClient &dbInst) {
+                                              IMongodbClient &dbInst) {
   Http http(in);
   if (http.uri() != "/api/v1/document")
     return {};
@@ -1142,7 +1143,7 @@ std::string MicroService::handle_document_GET(std::string &in,
 }
 
 std::string MicroService::handle_config_GET(std::string &in,
-                                            MongodbClient &dbInst) {
+                                            IMongodbClient &dbInst) {
   ACE_UNUSED_ARG(in);
   ACE_UNUSED_ARG(dbInst);
   return {};
@@ -1155,7 +1156,7 @@ std::string MicroService::handle_config_GET(std::string &in,
  * @param dbInst
  * @return std::string
  */
-std::string MicroService::handle_PUT(std::string &in, MongodbClient &dbInst) {
+std::string MicroService::handle_PUT(std::string &in, IMongodbClient &dbInst) {
   /* Check for Query string */
   Http http(in);
 
@@ -1180,7 +1181,7 @@ std::string MicroService::handle_PUT(std::string &in, MongodbClient &dbInst) {
 }
 
 std::string MicroService::handle_shipment_PUT(std::string &in,
-                                              MongodbClient &dbInst) {
+                                              IMongodbClient &dbInst) {
   Http http(in);
   if (http.uri() != "/api/v1/shipment/shipping")
     return {};
@@ -1237,7 +1238,7 @@ std::string MicroService::handle_shipment_PUT(std::string &in,
 }
 
 std::string MicroService::handle_inventory_PUT(std::string &in,
-                                               MongodbClient &dbInst) {
+                                               IMongodbClient &dbInst) {
   Http http(in);
   if (http.uri() != "/api/v1/inventory")
     return {};
@@ -1268,7 +1269,7 @@ std::string MicroService::handle_inventory_PUT(std::string &in,
 }
 
 std::string MicroService::handle_account_PUT(std::string &in,
-                                             MongodbClient &dbInst) {
+                                             IMongodbClient &dbInst) {
   Http http(in);
   if (http.uri() != "/api/v1/account/account")
     return {};
@@ -1597,6 +1598,44 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   }
 }
 
+// ── Remote-DB (WebSocket proxy) constructor ────────────────────────────────────
+
+WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
+                     ACE_UINT32 workerPool,
+                     std::unique_ptr<IMongodbClient> db,
+                     std::unique_ptr<WsDbServer> wsServer)
+{
+  if (ipStr.length()) {
+    std::string addr = ipStr + ":" + std::to_string(listenPort);
+    m_listen.set_address(addr.c_str(), addr.length());
+  } else {
+    m_listen.set_port_number(listenPort);
+  }
+
+  m_stopMe    = false;
+  mMongodbc   = std::move(db);
+  m_wsDbServer = std::move(wsServer);
+  m_semaphore = std::make_unique<ACE_Semaphore>();
+
+  m_workerPool.clear();
+  for (ACE_UINT32 cnt = 0; cnt < workerPool; ++cnt) {
+    auto *worker = new MicroService(ACE_Thread_Manager::instance(), *this);
+    worker->open();
+    semaphore().acquire();
+    m_workerPool.push_back(std::unique_ptr<MicroService>(worker));
+  }
+  m_currentWorker = std::end(m_workerPool);
+
+  int reuse_addr = 1;
+  if (m_server.open(m_listen, reuse_addr)) {
+    ACE_ERROR((LM_CRITICAL,
+               ACE_TEXT("%D [WebServer:%t] %M %N:%l "
+                        "WebServer (remote-db mode) failed to bind port:%d\n"),
+               listenPort));
+    ::exit(-1);
+  }
+}
+
 WebServer::~WebServer() {
   /*
   if(nullptr != mMongodbc) {
@@ -1723,6 +1762,40 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
                         "(%zu bytes):\n%s"),
                msgLen, request.c_str()));
 
+    // ── WebSocket upgrade detection ────────────────────────────────────────
+    // If this is a WS upgrade to /ws/db and we have a WsDbServer, hand off
+    // the socket instead of dispatching to a MicroService worker.
+    if (parent().wsDbServer()) {
+      Http ws_http(request);
+      bool is_ws_upgrade = (ws_http.method() == "GET") &&
+                           (ws_http.uri()    == "/ws/db") &&
+                           !ws_http.get_element("Sec-WebSocket-Key").empty();
+
+      if (is_ws_upgrade) {
+        std::string key    = ws_http.get_element("Sec-WebSocket-Key");
+        std::string accept = wsframe::accept_key(key);
+        std::string rsp    = "HTTP/1.1 101 Switching Protocols\r\n"
+                             "Upgrade: websocket\r\n"
+                             "Connection: Upgrade\r\n"
+                             "Sec-WebSocket-Accept: " + accept + "\r\n\r\n";
+        m_stream.send_n(rsp.data(), rsp.size());
+
+        // Hand socket to WsDbServer; prevent handle_close from closing it.
+        m_handedOff = true;
+        ACE_HANDLE raw = m_handle;
+        m_handle = ACE_INVALID_HANDLE;
+        m_stream.set_handle(ACE_INVALID_HANDLE);
+
+        // Remove from reactor without calling handle_close again.
+        reactor()->remove_handler(this,
+            ACE_Event_Handler::READ_MASK | ACE_Event_Handler::DONT_CALL);
+
+        parent().wsDbServer()->on_agent_connected(raw);
+        parent().connectionPool().erase(raw);
+        return 0;
+      }
+    }
+
     const auto it = parent().currentWorker();
     if (it != std::end(parent().workerPool())) {
       auto *ctx =
@@ -1763,7 +1836,11 @@ ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle,
              ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle_close for "
                       "handle:%d\n"),
              handle));
-  ::close(handle);
+  // Socket ownership was transferred to WsDbServer on WebSocket upgrade —
+  // do not close it here.
+  if (!m_handedOff) {
+    ::close(handle);
+  }
   return (0);
 }
 
