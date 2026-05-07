@@ -1,168 +1,167 @@
-# Design: VPN DB Proxy — Remote MongoDB via OpenVPN Tunnel
+# Design: WebSocket DB Proxy — Remote MongoDB over WebSocket Tunnel
 
 ## Problem
 
-MongoDB is deployed on a machine behind NAT (not directly roachable from the internet).
-The `uniservice` container runs on a machine with a public IP. A direct `mongodb://` URI
-from the container to the MongoDB host is therefore impossible.
+MongoDB is deployed on a machine behind NAT. The `uniservice` container runs on Heroku,
+which exposes exactly **one TCP port** (`$PORT`) via an HTTP-aware router. Raw TCP/UDP
+(including OpenVPN) is not reachable from outside. The MongoDB machine must be able to
+initiate an outbound connection that works through NAT and through Heroku's router.
 
-## Solution overview
+## Solution
 
-Establish an OpenVPN tunnel between the two machines. Run a lightweight TCP proxy
-protocol over the tunnel so `MicroService` workers can issue database calls that are
-transparently forwarded to the remote MongoDB.
+Use a **persistent WebSocket connection** as the tunnel. WebSocket starts as an HTTP
+`Upgrade` request, so it passes transparently through Heroku's router. The MongoDB-side
+agent initiates the connection outbound (works through any NAT). All DB operations are
+framed as WebSocket binary messages containing BSON envelopes — identical to the original
+BSON protocol design.
 
 ---
 
 ## Topology
 
 ```
-┌──────────────────────────────────────────────────┐
-│  Container (public IP)                           │
-│                                                  │
-│  ┌─────────────────────────────────────────┐     │
-│  │  uniservice                             │     │
-│  │  ├─ WebServer / MicroService            │     │
-│  │  └─ VpnDbServer  (ACE_Task)             │     │
-│  │       listens on 10.8.0.1:9000 (tun0)  │     │
-│  └─────────────────────────────────────────┘     │
-│                                                  │
-│  openvpnd  (server mode)                         │
-│  tun0 = 10.8.0.1                                 │
-│  listens on 0.0.0.0:1194/UDP  ◄──────────────────┼── exposed via docker-compose
-└──────────────────────────────────────────────────┘
-                     │  OpenVPN tunnel (TLS over UDP)
-                     ▼
-┌──────────────────────────────────────────────────┐
-│  MongoDB Machine (behind NAT)                    │
-│                                                  │
-│  openvpnd  (client mode)                         │
-│  tun0 = 10.8.0.2  ── initiates to container:1194 │
-│                                                  │
-│  vpn-db-agent  (new binary, implemented later)   │
-│  ├─ connects to 10.8.0.1:9000 on tunnel up       │
-│  └─ MongodbClient → mongod (localhost:27017)     │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  Heroku Dyno                                             │
+│                                                          │
+│  uniservice  (single process, single port $PORT)         │
+│  ├─ WebServer / MicroService  (existing HTTP)            │
+│  └─ WsDbServer  (ACE_Task)                               │
+│       WebSocket endpoint: GET /ws/db HTTP/1.1            │
+│       Upgrade: websocket                                 │
+└──────────────────────────────────────────────────────────┘
+          ▲
+          │  WSS  wss://yourapp.herokuapp.com/ws/db
+          │  (HTTP Upgrade → Heroku router passes it through)
+          │
+┌─────────┴────────────────────────────────────────────────┐
+│  MongoDB Machine (behind NAT)                            │
+│                                                          │
+│  ws-db-agent  (new binary, implemented in next phase)    │
+│  ├─ WebSocket client → connects to Heroku URL on start   │
+│  └─ MongodbClient → mongod (localhost:27017)             │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### Connection lifecycle
+### Why WebSocket fits Heroku perfectly
 
-1. OpenVPN client on the MongoDB machine dials the container's public IP on port 1194/UDP.
-2. TLS handshake → tunnel established; both ends get tun0 IPs (10.8.0.1 / 10.8.0.2).
-3. `vpn-db-agent` (our client binary) connects to `VpnDbServer` at **10.8.0.1:9000** (TCP over tun0).
-4. This single TCP connection is kept alive. `VpnDbServer` dispatches DB requests on it;
-   `vpn-db-agent` executes them against local MongoDB and sends responses back.
-
-### Why client → server for the DB control connection
-
-The MongoDB machine is behind NAT. Even with the VPN tunnel up, initiating *outbound* from
-the NAT side is reliable; the tun interface gives the client a routable IP but keeping the
-application-level connection direction as client → server avoids requiring any additional
-firewall rules on the server container side.
+| Constraint | OpenVPN | WebSocket |
+|---|---|---|
+| Heroku single TCP port | Fails — needs separate UDP 1194 | Works — same port as HTTP |
+| HTTP-aware router | Fails — not HTTP | Works — starts as HTTP Upgrade |
+| NAT traversal | Requires client-initiates model | Client initiates by design |
+| TLS | Own PKI, certs, ta.key | Heroku edge terminates TLS (free) |
+| Docker privileges | `NET_ADMIN`, `/dev/net/tun` | None |
 
 ---
 
-## Container changes (docker-compose.yml / Dockerfile)
+## WebSocket protocol (RFC 6455 subset we implement)
 
-To host OpenVPN inside the container, the `app` service needs:
+### Handshake
 
-```yaml
-cap_add:
-  - NET_ADMIN        # create/manage tun device
-devices:
-  - /dev/net/tun     # tun character device
-ports:
-  - "1194:1194/udp"  # OpenVPN
-  - "8080:8080"      # existing HTTP
+The `ws-db-agent` sends a standard WebSocket upgrade request to `/ws/db`:
+
+```
+GET /ws/db HTTP/1.1\r\n
+Host: yourapp.herokuapp.com\r\n
+Upgrade: websocket\r\n
+Connection: Upgrade\r\n
+Sec-WebSocket-Key: <base64-16-random-bytes>\r\n
+Sec-WebSocket-Version: 13\r\n
+\r\n
 ```
 
-OpenVPN server config (`docker/openvpn-server.conf`) and PKI (CA cert, server cert/key,
-DH params, ta.key) are baked into the image or mounted as a volume. The VPN subnet
-(10.8.0.0/24), tun device name, and cipher suite are fixed in that config file.
+`WebConnection::handle_input()` detects `Upgrade: websocket` + URI `/ws/db`,
+computes the accept key, and sends:
+
+```
+HTTP/1.1 101 Switching Protocols\r\n
+Upgrade: websocket\r\n
+Connection: Upgrade\r\n
+Sec-WebSocket-Accept: <Base64(SHA1(key + GUID))>\r\n
+\r\n
+```
+
+Accept key formula: `Base64( SHA1( Sec-WebSocket-Key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" ) )`
+
+OpenSSL (`SHA1()` + `BIO_f_base64`) is already linked — no new dependencies.
+
+### Frame format
+
+```
+ Byte 0          Byte 1          Bytes 2-9 (optional)
+ ┌───────────────┬───────────────┬─────────────────────────────────┐
+ │FIN RSV opcode │MASK paylen    │ Extended length + Masking-key   │
+ └───────────────┴───────────────┴─────────────────────────────────┘
+```
+
+Rules for our implementation:
+- `FIN = 1` always (no fragmentation — one frame per BSON message)
+- `opcode = 0x2` (binary frame)
+- `MASK = 1` for agent→server frames (RFC 6455 requirement for clients)
+- `MASK = 0` for server→agent frames
+- Payload length encoding:
+  - `len < 126` → 1 byte
+  - `126 ≤ len < 65536` → byte `126` + uint16 BE
+  - `len ≥ 65536` → byte `127` + uint64 BE (needed for file operations)
+
+### Ping/Pong
+
+`WsDbServer` sends a Ping frame (opcode `0x9`) every 30 s. The agent replies with
+Pong (opcode `0xA`). If three consecutive pings go unanswered, the connection is
+considered dead and `WsDbServer` drops it and waits for the agent to reconnect.
 
 ---
 
-## C++ design — server side (this phase)
+## C++ design — server side
 
-### 1. `IMongodbClient` — abstract interface
+### 1. `IMongodbClient` — abstract interface  *(unchanged from original design)*
 
-Extracted from the current `MongodbClient` public API. Both the existing local client and
-the new remote proxy implement this interface.
-
-**Location:** `modules/module/mongodb/inc/mongodbc.hpp`
+Extracted from the current `MongodbClient` public API.
 
 ```cpp
+// modules/module/mongodb/inc/mongodbc.hpp
 class IMongodbClient {
 public:
   virtual ~IMongodbClient() = default;
-
-  virtual std::string create_document(const std::string &db,
-                                      const std::string &coll,
-                                      const std::string &json) = 0;
-
-  virtual std::int32_t create_bulk_document(const std::string &db,
-                                            const std::string &coll,
-                                            const std::string &json) = 0;
-
-  virtual bool update_collection(const std::string &coll,
-                                 const std::string &filter,
-                                 const std::string &update) = 0;
-
-  virtual std::int32_t update_bulk_document(const std::string &coll,
-                                            const std::string &filters,
-                                            const std::string &values) = 0;
-
-  virtual bool delete_document(const std::string &coll,
-                               const std::string &filter) = 0;
-
-  virtual std::string get_document(const std::string &coll,
-                                   const std::string &query,
-                                   const std::string &projection) = 0;
-
-  virtual std::string get_documents(const std::string &coll,
-                                    const std::string &query,
-                                    const std::string &projection) = 0;
-
-  virtual std::string get_documents(const std::string &coll,
-                                    const std::string &projection) = 0;
-
-  virtual std::string next_awbno(const std::string &prefix) = 0;
-
-  virtual std::string store_file(const std::string &name,
-                                 const std::string &mime,
-                                 const std::string &bytes) = 0;
-
-  virtual std::string fetch_file(const std::string &name) = 0;
-  virtual std::string fetch_file_by_id(const std::string &oid) = 0;
-  virtual bool        delete_file(const std::string &oid) = 0;
-
-  virtual std::string get_database() = 0;
+  virtual std::string  create_document(const std::string &db, const std::string &coll, const std::string &json) = 0;
+  virtual std::int32_t create_bulk_document(const std::string &db, const std::string &coll, const std::string &json) = 0;
+  virtual bool         update_collection(const std::string &coll, const std::string &filter, const std::string &update) = 0;
+  virtual std::int32_t update_bulk_document(const std::string &coll, const std::string &filters, const std::string &values) = 0;
+  virtual bool         delete_document(const std::string &coll, const std::string &filter) = 0;
+  virtual std::string  get_document(const std::string &coll, const std::string &query, const std::string &projection) = 0;
+  virtual std::string  get_documents(const std::string &coll, const std::string &query, const std::string &projection) = 0;
+  virtual std::string  get_documents(const std::string &coll, const std::string &projection) = 0;
+  virtual std::string  next_awbno(const std::string &prefix) = 0;
+  virtual std::string  store_file(const std::string &name, const std::string &mime, const std::string &bytes) = 0;
+  virtual std::string  fetch_file(const std::string &name) = 0;
+  virtual std::string  fetch_file_by_id(const std::string &oid) = 0;
+  virtual bool         delete_file(const std::string &oid) = 0;
+  virtual std::string  get_database() = 0;
 };
 ```
 
-`MongodbClient` inherits from `IMongodbClient` (all existing methods become `override`).
+`MongodbClient` inherits `IMongodbClient`; all existing methods become `override`.
 
 ### 2. Propagate `IMongodbClient*` through the stack
 
-| Location | Change |
-|---|---|
-| `WebServer::mMongodbc` | `unique_ptr<MongodbClient>` → `unique_ptr<IMongodbClient>` |
-| `WebServer::mongodbcInst()` | Returns `IMongodbClient*` |
-| `WorkCtx::db` | `MongodbClient*` → `IMongodbClient*` |
-| `MicroService::process_request()` | Argument type `MongodbClient&` → `IMongodbClient&` |
+| Location | Current type | New type |
+|---|---|---|
+| `WebServer::mMongodbc` | `unique_ptr<MongodbClient>` | `unique_ptr<IMongodbClient>` |
+| `WebServer::mongodbcInst()` return | `MongodbClient*` | `IMongodbClient*` |
+| `WorkCtx::db` | `MongodbClient*` | `IMongodbClient*` |
+| `MicroService::process_request()` arg | `MongodbClient&` | `IMongodbClient&` |
 
-No changes to call sites inside the handlers — they call the same method names.
+No changes inside the handlers — they call identical method names.
 
-### 3. Wire protocol — BSON envelope
+### 3. BSON wire protocol  *(unchanged from original design)*
 
-All communication between `VpnDbServer` and `vpn-db-agent` uses length-prefixed BSON
-documents. BSON's first 4 bytes are the document length (little-endian uint32), so the
-read loop is: read 4 bytes, read `length - 4` more bytes.
+All messages between server and agent are WebSocket **binary** frames whose payload is
+a single BSON document.
 
 #### Operation codes
 
 ```cpp
-// modules/module/vpnservice/inc/dbproto.hpp
+// modules/module/wsdbproxy/inc/dbproto.hpp
 enum class DbOp : std::int32_t {
   CREATE_DOCUMENT       = 0,
   CREATE_BULK_DOCUMENT  = 1,
@@ -180,21 +179,21 @@ enum class DbOp : std::int32_t {
 };
 ```
 
-#### Request envelope (BSON document)
+#### Request envelope (BSON document, carried as WebSocket binary frame payload)
 
 | Field | BSON type | Purpose |
 |---|---|---|
-| `reqid` | int32 | Monotonically incrementing request ID for response correlation |
+| `reqid` | int32 | Monotonically incrementing — used to correlate response to caller |
 | `op` | int32 | `DbOp` value |
 | `db` | string | Database name |
 | `coll` | string | Collection name |
-| `doc` | binary | Primary BSON payload (query / filter / document body) |
+| `doc` | binary | Primary BSON payload (query / filter / insert document) |
 | `doc2` | binary | Secondary BSON payload (projection / update document) |
 | `sval` | string | String parameter (AWB prefix, file name, OID, MIME type) |
 
-Fields not needed for a given op are omitted.
+Fields not needed for a given op are omitted from the BSON document.
 
-#### Response envelope (BSON document)
+#### Response envelope (BSON document, carried as WebSocket binary frame payload)
 
 | Field | BSON type | Purpose |
 |---|---|---|
@@ -206,184 +205,228 @@ Fields not needed for a given op are omitted.
 | `data` | binary | Binary result (file bytes for fetch operations) |
 | `errmsg` | string | Non-empty only when `ok == false` |
 
-#### Op → fields mapping
+#### Op → field mapping
 
-| Op | Request fields used | Response fields used |
+| Op | Request fields | Response field |
 |---|---|---|
-| CREATE_DOCUMENT | op, db, coll, doc | ok, sval (OID) |
-| CREATE_BULK_DOCUMENT | op, db, coll, doc | ok, ival (count) |
-| UPDATE_COLLECTION | op, coll, doc (filter), doc2 (update) | ok, bval |
-| UPDATE_BULK_DOCUMENT | op, coll, doc (filters JSON), doc2 (values JSON) | ok, ival |
-| DELETE_DOCUMENT | op, coll, doc (filter) | ok, bval |
-| GET_DOCUMENT | op, coll, doc (query), doc2 (projection) | ok, sval (JSON) |
-| GET_DOCUMENTS_QUERIED | op, coll, doc (query), doc2 (projection) | ok, sval (JSON array) |
-| GET_DOCUMENTS_ALL | op, coll, doc2 (projection) | ok, sval (JSON array) |
-| NEXT_AWBNO | op, sval (prefix) | ok, sval (AWB string) |
-| STORE_FILE | op, sval (name\|mime), data | ok, sval (OID) |
-| FETCH_FILE | op, sval (name) | ok, data |
-| FETCH_FILE_BY_ID | op, sval (OID) | ok, data |
-| DELETE_FILE | op, sval (OID) | ok, bval |
+| CREATE_DOCUMENT | op, db, coll, doc | sval (OID) |
+| CREATE_BULK_DOCUMENT | op, db, coll, doc | ival (count) |
+| UPDATE_COLLECTION | op, coll, doc (filter), doc2 (update) | bval |
+| UPDATE_BULK_DOCUMENT | op, coll, doc (filter array JSON), doc2 (update array JSON) | ival |
+| DELETE_DOCUMENT | op, coll, doc (filter) | bval |
+| GET_DOCUMENT | op, coll, doc (query), doc2 (projection) | sval (JSON) |
+| GET_DOCUMENTS_QUERIED | op, coll, doc (query), doc2 (projection) | sval (JSON array) |
+| GET_DOCUMENTS_ALL | op, coll, doc2 (projection) | sval (JSON array) |
+| NEXT_AWBNO | op, sval (prefix) | sval (AWB string) |
+| STORE_FILE | op, sval ("name\|mime"), data (bytes) | sval (OID) |
+| FETCH_FILE | op, sval (name) | data (bytes) |
+| FETCH_FILE_BY_ID | op, sval (OID) | data (bytes) |
+| DELETE_FILE | op, sval (OID) | bval |
 
-### 4. `VpnDbServer` — ACE_Task in uniservice
+### 4. `WsDbServer` — ACE_Task in uniservice
 
-**Location:** `modules/module/vpnservice/inc/vpnservice.hpp`,
-             `modules/module/vpnservice/src/vpnservice.cpp`
+**Location:** `modules/module/wsdbproxy/inc/wsdbproxy.hpp`,
+             `modules/module/wsdbproxy/src/wsdbproxy.cpp`
 
 ```cpp
-class VpnDbServer : public ACE_Task<ACE_MT_SYNCH> {
+class WsDbServer : public ACE_Task<ACE_MT_SYNCH> {
 public:
-  VpnDbServer(std::string listen_ip, ACE_UINT16 listen_port);
+  WsDbServer();
+
+  // Called by WebConnection after a successful WebSocket handshake on /ws/db.
+  // Takes ownership of the socket. Replaces any previously connected agent.
+  void on_agent_connected(ACE_HANDLE handle);
+
+  // Called by WsMongodbProxy from any MicroService thread.
+  // Blocks until the matching response arrives. Returns empty on timeout/disconnect.
+  std::vector<uint8_t> dispatch(const std::vector<uint8_t> &request_bson);
+
   int open(void *args = 0) override;
   int svc() override;
   int close(u_long flags = 0) override;
 
-  // Called by VpnMongodbProxy to queue a request and block until response arrives.
-  // Thread-safe. Returns the response envelope BSON bytes.
-  std::vector<uint8_t> dispatch(const std::vector<uint8_t> &request_bson);
-
 private:
-  void run_session(ACE_SOCK_Stream &client_stream);
-  bool send_bson(ACE_SOCK_Stream &s, const std::vector<uint8_t> &doc);
-  bool recv_bson(ACE_SOCK_Stream &s, std::vector<uint8_t> &doc);
+  // WebSocket framing helpers
+  std::vector<uint8_t> ws_encode(const std::vector<uint8_t> &payload, bool mask = false);
+  bool                 ws_decode(std::vector<uint8_t> &buf, std::vector<uint8_t> &payload);
+  bool                 ws_send(const std::vector<uint8_t> &frame);
+  bool                 ws_recv(std::vector<uint8_t> &payload);
 
-  std::string    m_listenIp;
-  ACE_UINT16     m_listenPort;
-  ACE_SOCK_Acceptor m_acceptor;
+  void run_session();  // reads response frames, dispatches to pending callers
 
-  // Pending request queue: reqid → (bson bytes, condition_variable, response slot)
-  std::mutex     m_mu;
-  std::map<std::int32_t, PendingRequest> m_pending;
-  std::atomic<std::int32_t> m_nextReqId{0};
-  bool           m_clientConnected{false};
+  struct PendingRequest {
+    std::vector<uint8_t>    response;
+    bool                    ready{false};
+    std::condition_variable cv;
+  };
+
+  ACE_HANDLE              m_agentHandle{ACE_INVALID_HANDLE};
+  std::mutex              m_socketMu;    // guards writes to m_agentHandle socket
+  std::mutex              m_pendingMu;   // guards m_pending map
+  std::map<int32_t, std::shared_ptr<PendingRequest>> m_pending;
+  std::atomic<int32_t>    m_nextReqId{0};
+  std::atomic<bool>       m_connected{false};
 };
 ```
 
 **Lifecycle:**
-1. `open()` — binds and listens on `listen_ip:listen_port`.
-2. `svc()` loop — calls `accept()` (blocking). When `vpn-db-agent` connects, calls
-   `run_session()`.
-3. `run_session()` — reads responses from the connected client stream and wakes the
-   corresponding waiting `dispatch()` caller via its condition variable.
-   Concurrently, `dispatch()` callers send their requests directly onto the stream.
-4. When the client disconnects, `run_session()` returns and `svc()` goes back to
-   `accept()` (waits for reconnect).
+1. `WebServer` constructs `WsDbServer` at startup (when `--remote-db` flag set) and calls `open()`.
+2. `svc()` loops, calling `run_session()` when `m_connected == true`, otherwise sleeps briefly.
+3. `run_session()` reads WebSocket frames in a loop:
+   - Binary frame → parse `reqid` from BSON → look up `PendingRequest` → store response → `cv.notify_one()`
+   - Ping frame → send Pong
+   - Close frame / socket error → set `m_connected = false`, drain `m_pending` with error responses
+4. `on_agent_connected(handle)` — stores the handle, sets `m_connected = true`. Called from the reactor thread.
+5. `dispatch(bson)` — assigns `reqid`, inserts `PendingRequest`, sends WebSocket binary frame, waits on `cv` with a configurable timeout (default 30 s).
 
-**`dispatch()` — called by `VpnMongodbProxy` from any MicroService thread:**
-1. Assigns a unique `reqid` (atomic increment).
-2. Inserts a `PendingRequest` in `m_pending` (mutex-protected).
-3. Sends the BSON request on the live client stream (mutex for the write).
-4. Blocks on the `PendingRequest`'s condition variable.
-5. When `run_session()` reads the matching response (same `reqid`), it stores it and
-   notifies the CV.
-6. Returns the response BSON to the caller.
+### 5. `WebConnection` changes — WebSocket upgrade detection
 
-### 5. `VpnMongodbProxy` — `IMongodbClient` implementation
+`WebConnection::handle_input()` already buffers HTTP bytes. After `Http::message_length()`
+returns non-zero, check before enqueuing to a MicroService worker:
 
-**Location:** same `vpnservice.hpp / vpnservice.cpp`
+```
+if method == GET
+   and uri == "/ws/db"
+   and header contains "Upgrade: websocket"
+→  perform WebSocket handshake (send 101)
+→  call webServer().wsDbServer().on_agent_connected(handle)
+→  do NOT enqueue to MicroService
+→  remove self from connectionPool (the socket is now owned by WsDbServer)
+```
+
+The handshake accept key is computed as:
+```cpp
+std::string ws_accept_key(const std::string &sec_key) {
+  static const std::string GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+  std::string combined = sec_key + GUID;
+  unsigned char hash[20];
+  SHA1(reinterpret_cast<const unsigned char*>(combined.data()), combined.size(), hash);
+  // Base64-encode hash[20] using BIO_f_base64 (OpenSSL already linked)
+  return base64_encode(hash, 20);
+}
+```
+
+### 6. `WsMongodbProxy` — `IMongodbClient` implementation
 
 ```cpp
-class VpnMongodbProxy : public IMongodbClient {
+class WsMongodbProxy : public IMongodbClient {
 public:
-  explicit VpnMongodbProxy(VpnDbServer &server, std::string db_name);
+  WsMongodbProxy(WsDbServer &server, std::string db_name);
 
-  std::string create_document(const std::string &db,
-                              const std::string &coll,
-                              const std::string &json) override;
-  // ... all other IMongodbClient overrides ...
-  std::string get_database() override;
+  std::string  create_document(const std::string &db, const std::string &coll,
+                               const std::string &json) override;
+  // ... all IMongodbClient overrides ...
+  std::string  get_database() override;
 
 private:
-  std::vector<uint8_t> build_request(DbOp op, const std::string &db,
-                                     const std::string &coll,
+  std::vector<uint8_t> build_request(DbOp op,
+                                     const std::string &db   = {},
+                                     const std::string &coll = {},
                                      const std::string &doc  = {},
                                      const std::string &doc2 = {},
                                      const std::string &sval = {});
-
-  VpnDbServer &m_server;
+  WsDbServer  &m_server;
   std::string  m_dbName;
 };
 ```
 
 Each method:
-1. Calls `build_request()` to serialise a BSON request envelope.
-2. Calls `m_server.dispatch(bson)` — blocks until response arrives.
-3. Deserialises the response envelope and returns the appropriate value.
-4. If `ok == false`, logs the error and returns an empty/false result (matching the
-   existing `MongodbClient` error-return conventions).
+1. Calls `build_request()` → BSON bytes.
+2. Calls `m_server.dispatch(bson)` — blocks until response or timeout.
+3. Parses response BSON → extracts the relevant result field.
+4. On `ok == false` or timeout → logs error, returns empty/false (same contract as `MongodbClient`).
 
-### 6. `webservice_main.cpp` changes
+### 7. `webservice_main.cpp` changes
 
-New CLI flags:
+New CLI flags added to `CommandArgumentName` enum and `kOptMap`:
 
-| Flag | Purpose |
-|---|---|
-| `--remote-db` | Enable VPN proxy mode (no `--mongo-db-uri` needed) |
-| `--vpn-listen-ip` | IP to bind `VpnDbServer` on (default: `10.8.0.1`) |
-| `--vpn-listen-port` | Port for `VpnDbServer` (default: `9000`) |
+| Flag | Default | Purpose |
+|---|---|---|
+| `--remote-db` | (absent = local) | Enable WebSocket proxy mode |
+| `--ws-db-path` | `/ws/db` | WebSocket endpoint path |
 
 Startup logic:
 
 ```cpp
-if (opt[idx(Arg::REMOTE_DB)] == "1") {
-  auto server = std::make_unique<VpnDbServer>(vpn_ip, vpn_port);
-  server->open();
-  auto proxy  = std::make_unique<VpnMongodbProxy>(*server, db_name);
-  inst = WebServer(ip, port, workers, std::move(proxy), std::move(server));
+if (!opt[idx(Arg::REMOTE_DB)].empty()) {
+  auto wsServer = std::make_unique<WsDbServer>();
+  wsServer->open();
+  auto proxy = std::make_unique<WsMongodbProxy>(*wsServer, opt[idx(Arg::DB_NAME)]);
+  inst = WebServer(ip, port, workers, std::move(proxy), std::move(wsServer));
 } else {
   auto db = std::make_unique<MongodbClient>(uri, pool, db_name);
   inst = WebServer(ip, port, workers, std::move(db));
 }
 ```
 
+`WebServer` gains an optional `WsDbServer*` member (null in local mode) exposed via
+`wsDbServer()` so `WebConnection` can call `on_agent_connected()`.
+
 ---
 
 ## New module layout
 
 ```
-modules/module/vpnservice/
+modules/module/wsdbproxy/
 ├── inc/
-│   ├── vpnservice.hpp      VpnDbServer, VpnMongodbProxy
-│   └── dbproto.hpp         DbOp enum, build_request(), parse_response()
+│   ├── wsdbproxy.hpp     WsDbServer, WsMongodbProxy
+│   └── dbproto.hpp       DbOp enum, build_request(), parse_response()
 └── src/
-    ├── vpnservice.cpp
+    ├── wsdbproxy.cpp
     └── dbproto.cpp
 ```
 
-`modules/module/vpnservice` is added to `CMakeLists.txt`'s `uniservice` source glob.
+Added to root `CMakeLists.txt` source glob for `uniservice`.
 
 ---
 
-## Sequence diagram — single DB call in VPN mode
+## docker-compose changes
+
+No additional container capabilities are needed. Just ensure `$PORT` is passed through
+(already done via the `PORT` env var):
+
+```yaml
+app:
+  environment:
+    PORT: "${PORT:-8080}"
+    ARGS: >-
+      --remote-db 1
+      --mongo-db-name ${MONGO_DB:-xpmile}
+      --server-worker ${SERVER_WORKERS:-5}
+      --ws-db-path /ws/db
+  ports:
+    - "${HOST_PORT:-8080}:${PORT:-8080}"
+  # No cap_add, no devices — nothing extra vs today
+```
+
+The MongoDB-side `docker-compose` (separate machine, implemented later) runs only
+`mongod` + `ws-db-agent`.
+
+---
+
+## Sequence diagram — single DB call in WebSocket proxy mode
 
 ```
-MicroService thread          VpnMongodbProxy       VpnDbServer          vpn-db-agent
-      │                            │                    │                     │
-      │  get_document(coll,q,p)    │                    │                     │
-      │──────────────────────────► │                    │                     │
-      │                            │  build_request()   │                     │
-      │                            │  dispatch(bson) ──►│                     │
-      │                            │                    │  send BSON request ►│
-      │                            │                    │                     │  execute MongoDB query
-      │                            │                    │◄ send BSON response │
-      │                            │◄── return bson ────│                     │
-      │                            │  parse_response()  │                     │
-      │◄── JSON string ────────────│                    │                     │
+MicroService thread     WsMongodbProxy       WsDbServer          ws-db-agent
+      │                       │                   │                    │
+      │  get_document(...)     │                   │                    │
+      │──────────────────────►│                   │                    │
+      │                       │  build_request()  │                    │
+      │                       │  dispatch(bson) ─►│                    │
+      │                       │                   │  ws_send(frame) ──►│
+      │                       │  (blocks on cv)   │                    │  MongodbClient.get_document()
+      │                       │                   │◄── ws_send(frame)  │
+      │                       │                   │  cv.notify_one()   │
+      │                       │◄── response bson ─│                    │
+      │                       │  parse_response() │                    │
+      │◄── JSON string ───────│                   │                    │
 ```
 
 ---
 
-## What is NOT in this phase (client side, designed separately)
+## Open questions — answer before TDD
 
-- `vpn-db-agent` binary — connects to VpnDbServer, owns a local `MongodbClient`
-- `VpnDbAgent` class — reads BSON requests, dispatches to local MongodbClient, writes BSON responses
-- OpenVPN PKI setup scripts
-- `vpn-db-agent` Dockerfile / docker-compose entry for the MongoDB-side machine
-
----
-
-## Open questions (to confirm before TDD)
-
-1. Should `VpnDbServer::dispatch()` have a timeout? (What if `vpn-db-agent` disconnects mid-request?)
-2. Should `VpnDbServer` reject new requests when no client is connected, or queue them until the client reconnects?
-3. Is the default VPN subnet `10.8.0.0/24` acceptable, or should tun IPs be configurable?
-4. Does the container image need to embed OpenVPN config + PKI, or will these be mounted as a volume at runtime?
+1. **Timeout on `dispatch()`**: What should happen if the agent doesn't respond within N seconds? Return empty (fail the HTTP request) or retry? Default 30 s suggested.
+2. **Agent reconnect**: If the agent disconnects and reconnects, in-flight requests will have been failed. Should MicroService retry the failed request, or return an error to the HTTP caller?
+3. **`/ws/db` path**: Is this path acceptable, or should it be configurable at runtime via `--ws-db-path`?
+4. **Multiple agents**: Accept only one agent connection at a time (reject subsequent `Upgrade` requests while one is live), or support multiple agents for redundancy?
