@@ -160,17 +160,20 @@ public interface and `src/` for the implementation.
 
 ```
 .
-├── backend/                        C++ build root (CMakeLists.txt entry point)
-│   └── test/                       googletest off-target tests
+├── CMakeLists.txt                  Build entry point (uniservice + test suite)
+├── backend/
+│   └── test/                       googletest runner (main.cc + CMakeLists.txt)
 ├── modules/
 │   └── module/
 │       ├── email/                  SMTP email client (TLS, FSM-driven)
 │       │   ├── inc/emailservice.hpp
-│       │   └── src/emailservice.cpp, emailservice_fsm.cpp
+│       │   ├── src/emailservice.cpp, emailservice_fsm.cpp
+│       │   └── test/emailservice_test.hpp, emailservice_test.cc
 │       ├── http/                   HTTP/1.1 request parser
 │       │   ├── inc/http_parser.hpp
-│       │   └── src/http_parser.cpp
-│       ├── mongodb/                MongoDB client library  (see README.md)
+│       │   ├── src/http_parser.cpp
+│       │   └── test/httpparser_test.hpp, httpparser_test.cc
+│       ├── mongodb/                MongoDB client library (see README.md)
 │       │   ├── inc/mongodbc.hpp
 │       │   ├── src/mongodbc.cpp
 │       │   ├── CMakeLists.txt
@@ -182,7 +185,8 @@ public interface and `src/` for the implementation.
 │       │   └── json.hpp            nlohmann/json (header-only)
 │       ├── webservice/             ACE reactor, HTTP server, request routing
 │       │   ├── inc/webservice.hpp
-│       │   └── src/webservice.cpp, webservice_main.cpp
+│       │   ├── src/webservice.cpp, webservice_main.cpp
+│       │   └── test/webservice_test.hpp, webservice_test.cc
 │       └── whatsapp/               WhatsApp service (stub)
 │           ├── inc/whatsapp_service.hpp
 │           └── src/whatsapp_service.cpp

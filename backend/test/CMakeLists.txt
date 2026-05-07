@@ -5,9 +5,12 @@ find_package(GTest REQUIRED)
 include_directories(/usr/local/include/mongocxx/v_noabi)
 include_directories(/usr/local/include/bsoncxx/v_noabi)
 include_directories(../../modules/module/webservice/inc)
+include_directories(../../modules/module/webservice/test)
 include_directories(../../modules/module/http/inc)
+include_directories(../../modules/module/http/test)
 include_directories(../../modules/module/mongodb/inc)
 include_directories(../../modules/module/email/inc)
+include_directories(../../modules/module/email/test)
 include_directories(../../modules/module/oauth2/inc)
 include_directories(../../modules/module/whatsapp/inc)
 include_directories(../../modules/module/thirdparty)
@@ -23,8 +26,11 @@ file(GLOB SOURCES "*.cc"
     "../../modules/module/mongodb/src/mongodbc.cpp"
     "../../modules/module/email/src/emailservice.cpp"
     "../../modules/module/email/src/emailservice_fsm.cpp"
+    "../../modules/module/email/test/emailservice_test.cc"
     "../../modules/module/http/src/http_parser.cpp"
-    "../../modules/module/webservice/src/webservice.cpp")
+    "../../modules/module/http/test/httpparser_test.cc"
+    "../../modules/module/webservice/src/webservice.cpp"
+    "../../modules/module/webservice/test/webservice_test.cc")
 
 enable_testing()
 
