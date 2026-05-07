@@ -1634,7 +1634,16 @@ bool WebServer::start() {
 
 bool WebServer::stop() { return (true); }
 
-// WebConnection .....
+/*
+ * +--------------------------------------------------------------------------+
+ * | | |  W   W  EEEEE  BBBBB   CCCCC   OOO   N   N  N   N  EEEEE  CCCCC | |  W
+ * W  E      B    B  C      O   O  NN  N  NN  N  E      C        | |  W W W
+ * EEEE   BBBBB   C      O   O  N N N  N N N  EEEE   C         | |  W W W E
+ * B    B  C      O   O  N  NN  N  NN  E      C        | |   W W   EEEEE  BBBBB
+ * CCCCC   OOO   N   N  N   N  EEEEE  CCCCC | | |
+ * +--------------------------------------------------------------------------+
+ */
+
 WebConnection::WebConnection(WebServer &parent, ACE_SOCK_Stream strm,
                              ACE_INET_Addr addr)
     : m_handle(strm.get_handle()), m_connAddr(addr), m_stream(strm),
