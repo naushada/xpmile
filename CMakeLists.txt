@@ -13,6 +13,7 @@ include_directories(modules/module/email/inc)
 include_directories(modules/module/oauth2/inc)
 include_directories(modules/module/whatsapp/inc)
 include_directories(modules/module/thirdparty)
+include_directories(modules/module/wsdbproxy/inc)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
 
 link_directories(/usr/local/ACE_TAO-7.0.0/lib)
@@ -24,6 +25,7 @@ file(GLOB MODULE_HTTP_SOURCES       "modules/module/http/src/*.cpp")
 file(GLOB MODULE_EMAIL_SOURCES      "modules/module/email/src/*.cpp")
 file(GLOB MODULE_OAUTH2_SOURCES     "modules/module/oauth2/src/*.cpp")
 file(GLOB MODULE_WHATSAPP_SOURCES   "modules/module/whatsapp/src/*.cpp")
+file(GLOB MODULE_WSDBPROXY_SOURCES  "modules/module/wsdbproxy/src/*.cpp")
 
 add_executable(uniservice
     ${MODULE_WEBSERVICE_SOURCES}
@@ -31,6 +33,7 @@ add_executable(uniservice
     ${MODULE_EMAIL_SOURCES}
     ${MODULE_OAUTH2_SOURCES}
     ${MODULE_WHATSAPP_SOURCES}
+    ${MODULE_WSDBPROXY_SOURCES}
 )
 target_link_libraries(uniservice pthread)
 target_link_libraries(uniservice ACE)

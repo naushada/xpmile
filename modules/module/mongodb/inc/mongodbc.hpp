@@ -51,6 +51,63 @@ using JsonDocList = std::vector<std::tuple<std::string, std::string>>;
 using JsonExtract = std::variant<std::monostate, std::string, JsonStrVec, JsonDocList>;
 
 /**
+ * @brief Abstract interface for MongoDB CRUD operations.
+ *
+ * Both the local MongodbClient (direct pool) and WsMongodbProxy (WebSocket
+ * tunnel) implement this interface so that MicroService workers are agnostic
+ * to whether MongoDB is local or remote.
+ */
+class IMongodbClient {
+public:
+  virtual ~IMongodbClient() = default;
+
+  virtual const std::string &get_database() const = 0;
+
+  virtual std::string create_document(const std::string &dbName,
+                                      const std::string &coll,
+                                      const std::string &doc) = 0;
+
+  virtual std::int32_t create_bulk_document(const std::string &dbName,
+                                            const std::string &coll,
+                                            const std::string &doc) = 0;
+
+  virtual bool update_collection(const std::string &coll,
+                                 const std::string &filter,
+                                 const std::string &document) = 0;
+
+  virtual std::int32_t update_bulk_document(
+      const std::string &coll,
+      const std::vector<std::string> &filter,
+      const std::vector<std::string> &value) = 0;
+
+  virtual bool delete_document(const std::string &coll,
+                               const std::string &doc) = 0;
+
+  virtual std::string get_document(const std::string &coll,
+                                   const std::string &query,
+                                   const std::string &projection) = 0;
+
+  virtual std::string get_documents(const std::string &coll,
+                                    const std::string &query,
+                                    const std::string &projection) = 0;
+
+  virtual std::string get_documents(const std::string &coll,
+                                    const std::string &projection) = 0;
+
+  virtual std::string next_awbno(const std::string &prefix = "AWB") = 0;
+
+  virtual std::string store_file(const std::string &filename,
+                                 const std::string &content_type,
+                                 const std::vector<std::uint8_t> &data) = 0;
+
+  virtual std::vector<std::uint8_t> fetch_file(const std::string &filename) = 0;
+
+  virtual std::vector<std::uint8_t> fetch_file_by_id(const std::string &oid) = 0;
+
+  virtual bool delete_file(const std::string &oid) = 0;
+};
+
+/**
  * @brief MongoDB connection-pool client.
  *
  * Wraps a mongocxx::pool so that multiple worker threads can share a single
@@ -64,7 +121,7 @@ using JsonExtract = std::variant<std::monostate, std::string, JsonStrVec, JsonDo
  *   std::string oid = db.create_document(db.get_database(), "orders", jsonDoc);
  * @endcode
  */
-class MongodbClient {
+class MongodbClient : public IMongodbClient {
 public:
   /**
    * @brief Construct and initialise the connection pool from a MongoDB URI.
@@ -79,7 +136,7 @@ public:
   ~MongodbClient() = default;
 
   /// Return the database name extracted from the URI at construction time.
-  const std::string &get_database() const { return m_dbName; }
+  const std::string &get_database() const override { return m_dbName; }
 
   /// Override the active database name.
   void set_database(const std::string &dbName) { m_dbName = dbName; }
@@ -97,7 +154,7 @@ public:
    * @return Inserted OID string, or empty on failure.
    */
   std::string create_document(const std::string &dbName,
-                              const std::string &coll, const std::string &doc);
+                              const std::string &coll, const std::string &doc) override;
 
   /**
    * @brief Insert multiple documents via a bulk-write operation.
@@ -108,7 +165,7 @@ public:
    */
   std::int32_t create_bulk_document(const std::string &dbName,
                                     const std::string &coll,
-                                    const std::string &doc);
+                                    const std::string &doc) override;
 
   /**
    * @brief Update all documents matching @p filter in @p coll.
@@ -118,7 +175,7 @@ public:
    * @return @c true if at least one document was matched and updated.
    */
   bool update_collection(const std::string &coll, const std::string &filter,
-                         const std::string &document);
+                         const std::string &document) override;
 
   /**
    * @brief Bulk-update multiple documents using parallel filter/value arrays.
@@ -129,7 +186,7 @@ public:
    */
   std::int32_t update_bulk_document(const std::string &coll,
                                     const std::vector<std::string> &filter,
-                                    const std::vector<std::string> &value);
+                                    const std::vector<std::string> &value) override;
 
   /**
    * @brief Delete all documents matching @p doc filter from @p coll.
@@ -137,7 +194,7 @@ public:
    * @param doc   JSON match filter.
    * @return @c true if the bulk operation completed successfully.
    */
-  bool delete_document(const std::string &coll, const std::string &doc);
+  bool delete_document(const std::string &coll, const std::string &doc) override;
   ///@}
 
   /** @name Read operations */
@@ -150,7 +207,7 @@ public:
    * @return First matching document as a JSON string, or empty if none found.
    */
   std::string get_document(const std::string &coll, const std::string &query,
-                           const std::string &projection);
+                           const std::string &projection) override;
 
   /**
    * @brief Fetch all documents matching @p query as a JSON array string.
@@ -160,7 +217,7 @@ public:
    * @return JSON array of matching documents, or empty if none found.
    */
   std::string get_documents(const std::string &coll, const std::string &query,
-                            const std::string &projection);
+                            const std::string &projection) override;
 
   /**
    * @brief Fetch all documents in @p coll (no filter) as a JSON array string.
@@ -169,7 +226,7 @@ public:
    * @return JSON array of all documents, or empty if the collection is empty.
    */
   std::string get_documents(const std::string &coll,
-                            const std::string &projection);
+                            const std::string &projection) override;
   ///@}
 
   /** @name Vendor-specific helpers (Ajoul courier API) */
@@ -221,7 +278,7 @@ public:
    *                per-carrier sequences.
    * @return Formatted AWB string (e.g. @c "AWB000000042"), or empty on error.
    */
-  std::string next_awbno(const std::string &prefix = "AWB");
+  std::string next_awbno(const std::string &prefix = "AWB") override;
   ///@}
 
   /** @name GridFS file storage */
@@ -241,21 +298,21 @@ public:
    */
   std::string store_file(const std::string &filename,
                          const std::string &content_type,
-                         const std::vector<std::uint8_t> &data);
+                         const std::vector<std::uint8_t> &data) override;
 
   /**
    * @brief Download a file from GridFS by its logical name.
    * @param filename  Name used when the file was uploaded.
    * @return Raw file bytes, or empty vector if the file is not found.
    */
-  std::vector<std::uint8_t> fetch_file(const std::string &filename);
+  std::vector<std::uint8_t> fetch_file(const std::string &filename) override;
 
   /**
    * @brief Download a file from GridFS by its OID.
    * @param oid  OID string returned by @c store_file().
    * @return Raw file bytes, or empty vector if the file is not found.
    */
-  std::vector<std::uint8_t> fetch_file_by_id(const std::string &oid);
+  std::vector<std::uint8_t> fetch_file_by_id(const std::string &oid) override;
 
   /**
    * @brief Delete a file (chunks + metadata) from GridFS by its OID.
@@ -263,7 +320,7 @@ public:
    * @return @c true on success, @c false if the file is not found or an
    *         error occurs.
    */
-  bool delete_file(const std::string &oid);
+  bool delete_file(const std::string &oid) override;
   ///@}
 
   /** @name JSON extraction utility */

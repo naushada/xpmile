@@ -1,5 +1,6 @@
 #include "emailservice.hpp"
 #include "webservice.hpp"
+#include "wsdbproxy.hpp"
 
 namespace {
 
@@ -18,12 +19,13 @@ void print_usage(const char *prog) {
                       "  --server-ip              <addr>  Bind address (default: all interfaces)\n"
                       "  --server-port            <n>     Listen port            (default: 8080)\n"
                       "  --server-worker          <n>     Worker thread count    (default: 10)\n"
-                      "  --mongo-db-uri           <uri>   MongoDB connection URI\n"
+                      "  --mongo-db-uri           <uri>   MongoDB connection URI (local mode)\n"
                       "  --mongo-db-connection-pool <n>   Connection pool size   (default: 50)\n"
                       "  --mongo-db-name          <name>  Database name\n"
                       "  --email-from-name        <name>  Outgoing email display name\n"
                       "  --email-from-id          <addr>  Outgoing email address\n"
                       "  --email-from-password    <pw>    Outgoing email password\n"
+                      "  --remote-db                      Use WebSocket DB proxy (ws-db-agent)\n"
                       "  --help                           Show this help\n"),
              prog));
 }
@@ -37,7 +39,7 @@ int main(int argc, char *argv[]) {
 
   std::array<std::string, N> opt{};
 
-  ACE_Get_Opt args(argc, argv, ACE_TEXT("s:p:w:u:c:d:n:i:o:h"), 1);
+  ACE_Get_Opt args(argc, argv, ACE_TEXT("s:p:w:u:c:d:n:i:o:rh"), 1);
   args.long_option(ACE_TEXT("server-ip"),               's', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-port"),             'p', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-worker"),           'w', ACE_Get_Opt::ARG_REQUIRED);
@@ -47,6 +49,7 @@ int main(int argc, char *argv[]) {
   args.long_option(ACE_TEXT("email-from-name"),         'n', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("email-from-id"),           'i', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("email-from-password"),     'o', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("remote-db"),               'r', ACE_Get_Opt::NO_ARG);
   args.long_option(ACE_TEXT("help"),                    'h', ACE_Get_Opt::NO_ARG);
 
   // Short-option char → enum key table
@@ -66,6 +69,7 @@ int main(int argc, char *argv[]) {
   while ((c = args()) != EOF) {
     if (c == 'h') { print_usage(argv[0]); return 0; }
     if (c == '?') { print_usage(argv[0]); return -1; }
+    if (c == 'r') { opt[idx(Arg::REMOTE_DB)] = "1"; continue; }
 
     for (auto &[ch, key] : kOptMap) {
       if (c == ch) {
@@ -77,25 +81,34 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  const int port   = opt_int(opt, Arg::SERVER_PORT,        8080);
-  const int worker = opt_int(opt, Arg::SERVER_WORKER_NODE, 10);
+  const int port      = opt_int(opt, Arg::SERVER_PORT,        8080);
+  const int worker    = opt_int(opt, Arg::SERVER_WORKER_NODE, 10);
+  const bool remoteDb = !opt[idx(Arg::REMOTE_DB)].empty();
 
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [WebServer:%t] %M %N:%l "
-                      "port:%d workers:%d db-pool:%s db-name:%s\n"),
-             port, worker,
+                      "port:%d workers:%d remote-db:%d db-pool:%s db-name:%s\n"),
+             port, worker, (int)remoteDb,
              opt[idx(Arg::DB_CONN_POOL)].c_str(),
              opt[idx(Arg::DB_NAME)].c_str()));
-
-  WebServer inst(opt[idx(Arg::SERVER_IP)], port, worker,
-                 opt[idx(Arg::DB_URI)],
-                 opt[idx(Arg::DB_CONN_POOL)],
-                 opt[idx(Arg::DB_NAME)]);
 
   SMTP::Account::instance().from_name(opt[idx(Arg::EMAIL_FROM_NAME)]);
   SMTP::Account::instance().from_email(opt[idx(Arg::EMAIL_FROM_ID)]);
   SMTP::Account::instance().from_password(opt[idx(Arg::EMAIL_FROM_PASSWORD)]);
 
-  inst.start();
+  if (remoteDb) {
+    const std::string &dbName = opt[idx(Arg::DB_NAME)];
+    auto wsServer = std::make_unique<WsDbServer>();
+    auto proxy    = std::make_unique<WsMongodbProxy>(*wsServer, dbName);
+    WebServer inst(opt[idx(Arg::SERVER_IP)], port, worker,
+                   std::move(proxy), std::move(wsServer));
+    inst.start();
+  } else {
+    WebServer inst(opt[idx(Arg::SERVER_IP)], port, worker,
+                   opt[idx(Arg::DB_URI)],
+                   opt[idx(Arg::DB_CONN_POOL)],
+                   opt[idx(Arg::DB_NAME)]);
+    inst.start();
+  }
   return 0;
 }
