@@ -138,12 +138,46 @@ Emit via `emit_accountInfo(acct)`, `emit_accountListInfo(list)`, `emit_shipment(
 
 Every component that needs the logged-in user subscribes to `onAccount` in `ngOnInit` and unsubscribes via `SubSink` in `ngOnDestroy`.
 
+**SubSink pattern** — used throughout the app to avoid manual subscription tracking:
+
+```typescript
+import { SubSink } from 'subsink';
+
+private subsink = new SubSink();
+
+ngOnInit(): void {
+  this.subsink.add(
+    this.pubsub.onAccount.subscribe(acct => { this.loggedInUser = acct; })
+  );
+}
+
+ngOnDestroy(): void {
+  this.subsink.unsubscribe();
+}
+```
+
+`SubSink.add()` accepts any number of `Subscription` arguments; `.unsubscribe()` disposes all at once. Always use SubSink instead of manually storing subscriptions in arrays.
+
 ---
 
 ### `ExcelsvcService`
 
 Wraps SheetJS to generate the bulk-upload template:
 - `createAndSaveShipmentTemplate(filename)` — creates a workbook with the correct column headers (`AccountCode`, `ReferenceNo`, etc.) and triggers browser download.
+
+---
+
+## Role-based behaviour
+
+The `personalInfo.role` field on the logged-in `Account` controls feature availability:
+
+| Role | Bulk shipment upload | Account code in Excel | Account list visible |
+|---|---|---|---|
+| `Admin` | Yes — fetches all AccountCodes from Excel | Yes | Yes |
+| `Employee` | Yes — fetches AccountCodes from Excel | Yes | Yes |
+| Customer / other | No — alert "Bulk Upload is not supported for your Account" | — | No |
+
+Checked in `processShipmentExcelFile()` at the `onloadend` callback — the role is read from `this.loggedInUser?.personalInfo.role`.
 
 ---
 

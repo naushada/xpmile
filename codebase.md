@@ -49,9 +49,20 @@ Parses command-line flags with `ACE_Get_Opt`, then:
 | `--server-port` | 8080 | TCP listen port |
 | `--server-worker` | 10 | Worker thread count |
 | `--mongo-db-uri` | — | Full MongoDB URI |
-| `--mongo-db-connection-pool` | 50 | Pool size |
+| `--mongo-db-connection-pool` | 50 | Pool size (passed as string to WebServer) |
 | `--mongo-db-name` | — | Database name |
 | `--email-from-name/id/password` | — | Outgoing email credentials |
+| `--help` | — | Print usage and exit 0 |
+
+**CLI implementation** — options are stored in a `std::array<std::string, N>` indexed by `CommandArgumentName` enum (defined in `webservice.hpp`). A `constexpr idx(Arg)` helper casts the enum to `std::size_t` for clean indexing. Parsing is table-driven: a `constexpr kOptMap[]` of `(char, Arg)` pairs maps each short option to its enum slot, eliminating the verbose `switch` that was there before. `opt_int()` converts string → int with a fallback default for `port` and `worker`.
+
+```
+CommandArgumentName enum:
+  SERVER_IP, SERVER_PORT, SERVER_WORKER_NODE,
+  DB_URI, DB_CONN_POOL, DB_NAME,
+  EMAIL_FROM_NAME, EMAIL_FROM_ID, EMAIL_FROM_PASSWORD,
+  MAX_CMD_ARG
+```
 
 ---
 
@@ -83,9 +94,24 @@ Three cooperating classes built on the ACE framework:
 
 `ACE_Task<ACE_MT_SYNCH>` — one thread per instance, reading from a synchronized message queue.
 
-- `svc()` — dequeue loop: pulls `ACE_Message_Block` items, extracts the raw HTTP bytes, calls `process_request()`.
-- `process_request()` — parses the raw HTTP bytes into an `Http` object, dispatches on method to `handle_GET / handle_POST / handle_PUT / handle_DELETE / handle_OPTIONS`, then writes the response via `http_send()`. All routing logic lives here in `MicroService`, not in `WebServiceEntry`.
+- `svc()` — dequeue loop: pulls `ACE_Message_Block` items, unpacks the embedded `WorkCtx*`, calls `process_request(ctx->handle, ctx->request, *ctx->db)`.
+- `process_request()` — parses the raw HTTP bytes into an `Http` object, dispatches on method to `handle_GET / handle_POST / handle_PUT / handle_DELETE / handle_OPTIONS`, then writes the response via `http_send()`. All routing logic lives here in `MicroService`.
 - One `MongodbClient` reference is shared across workers; `mongocxx::pool::acquire()` is thread-safe so no extra lock is needed around DB calls. The `ACE_Semaphore` in `WebServer` is a startup barrier only — each worker calls `semaphore().release()` as its first act in `svc()` so the constructor can confirm each thread is running before moving on.
+- Default constructor (`MicroService()`) sets `m_parent` to `nullptr` — safe to use in unit tests for response-builder and content-type methods, which never call `webServer()`.
+
+### WorkCtx
+
+Anonymous struct (defined at file scope in `webservice.cpp`) that carries the work item from `WebConnection` to `MicroService` through an `ACE_Message_Block`:
+
+```cpp
+struct WorkCtx {
+  ACE_HANDLE handle;      // socket descriptor to write the response to
+  MongodbClient *db;      // pointer to the shared MongodbClient (never null)
+  std::string request;    // full raw HTTP request bytes
+};
+```
+
+`WebConnection::handle_input()` heap-allocates a `WorkCtx`, wraps the pointer as the `ACE_Message_Block`'s data pointer, and enqueues it on the chosen `MicroService`. `MicroService::svc()` casts back with `reinterpret_cast<WorkCtx*>` and deletes after use.
 
 **Routing table** (method → URI prefix → handler):
 
@@ -217,11 +243,13 @@ Stub states (`RESET`, `VRFY`, `NOOP`, `EXPN`, `HELP`) return `REMAIN_IN_SAME_STA
 | Collection | Purpose |
 |---|---|
 | `account` | User accounts and login credentials |
-| `shipment` | Shipment records |
+| `shipping` | Shipment records (both single and bulk) |
 | `inventory` | Inventory items |
 | `config` | Application configuration |
 | `counters` | AWB sequence counter (`{"_id":"awbno","seq":N}`) |
 | `fs.files` / `fs.chunks` | GridFS document storage |
+
+Note: the collection is named `shipping`, not `shipment`. The URL path is `/api/v1/shipment/...` but the MongoDB collection is `shipping`.
 
 ---
 
@@ -324,3 +352,41 @@ Client TCP connect
 ```
 
 The email send path is triggered by `handle_email_POST`: it populates `SMTP::Account`, constructs an `SMTP::User`, and drives the FSM through GREETING → HELO → MAIL → RCPT → DATA → BODY → QUIT against `smtp.gmail.com:25` over TLS.
+
+---
+
+## AWB number generation flow
+
+AWB numbers are generated server-side in both the single and bulk shipment POST handlers. The logic is identical:
+
+```
+shipment.isAutoGenerate == true?
+  ├─ YES: look up account document by senderInformation.accountNo
+  │         → project only { awbPrefix: true }
+  │         → use account's awbPrefix if present, else fall back to "AWB"
+  │       → call dbInst.next_awbno(prefix)
+  │         → findOneAndUpdate on "counters" { _id: "awbno" }
+  │           with { $inc: { seq: 1 } }, upsert: true, returnAfter: true
+  │         → format result: prefix + zero-padded 9-digit seq
+  │       → set shipment["awbno"] = generated AWB
+  │       → re-serialise JSON body with updated AWB
+  └─ NO:  if shipment["awbno"] exists, use it as-is (customer-supplied)
+```
+
+For bulk: the loop runs over every element in the JSON object before `create_bulk_document` is called, so all AWBs are populated in the stored documents. The array of generated AWB numbers is returned in the response as `{ createdShipments: N, awbNumbers: [...] }`.
+
+---
+
+## Design decisions
+
+**One `MongodbClient` per process, not per connection.**
+`mongocxx::instance` is a process singleton — only one may exist. `mongocxx::pool::acquire()` is fully thread-safe, so a single pool shared across all `MicroService` workers is both correct and efficient. Creating a client per connection would be incorrect (second `mongocxx::instance` → abort).
+
+**`ACE_Semaphore` is a startup barrier, not a DB mutex.**
+`WebServer` creates a semaphore with initial count 0. After spawning N workers, it calls `semaphore().acquire()` N times to block until every thread has called `semaphore().release()` in its first `svc()` tick. This guarantees all workers are ready before the reactor starts accepting connections. It is never used to serialise database access.
+
+**`create_bulk_document` uses `insert_many`, not BSON array-as-object.**
+The original implementation called `bsoncxx::from_json` on a JSON array, which BSON treated as an object with numeric string keys — fragile and incorrect. The current implementation parses with nlohmann/json, iterates elements, converts each to `bsoncxx::document::value`, and calls `collection.insert_many(views, opts)` with `ordered: false` so a single invalid row does not abort the batch.
+
+**`WebServiceEntry` was removed.**
+It was a verbatim copy of `MicroService`'s routing logic used only in older tests. All tests now instantiate `MicroService` directly via its default constructor (which sets `m_parent = nullptr`). The response-builder and content-type methods tested do not call `webServer()`, so the null parent is safe.
