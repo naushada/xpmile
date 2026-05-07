@@ -28,7 +28,7 @@ export class UpdateAccountComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.subsink.add(
       this.subject.onAccount.subscribe({
-        next: (rsp) => { if (rsp) this.accountForm.setValue({ ...rsp }); }
+        next: (rsp) => { if (rsp) this.accountForm.patchValue({ ...rsp }); }
       })
     );
   }
@@ -42,7 +42,7 @@ export class UpdateAccountComponent implements OnInit, OnDestroy {
     if (!accCode) return;
     this.subsink.add(
       this.http.getCustomerInfo(accCode).subscribe({
-        next:  (rsp: Account) => { this.accountForm.setValue({ ...rsp }); },
+        next:  (rsp: Account) => { this.accountForm.patchValue({ ...rsp }); },
         error: ()             => { alert('Account not found.'); }
       })
     );
@@ -61,6 +61,7 @@ export class UpdateAccountComponent implements OnInit, OnDestroy {
   private buildForm(): FormGroup {
     return this.fb.group({
       isAccountCodeAutoGen: true,
+      awbPrefix: '',
       loginCredentials: this.fb.group({
         accountCode:     '',
         accountPassword: ''

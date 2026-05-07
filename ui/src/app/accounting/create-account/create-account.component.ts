@@ -27,6 +27,7 @@ export class CreateAccountComponent {
   private buildForm(): FormGroup {
     return this.fb.group({
       isAccountCodeAutoGen: false,
+      awbPrefix: '',
       loginCredentials: this.fb.group({
         accountCode:     '',
         accountPassword: ''

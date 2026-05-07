@@ -63,7 +63,6 @@ RUN cmake .. && make -j$(nproc) install && ldconfig
 # -j2: webservice.cpp is large enough that full parallelism OOMs the builder
 # -fconcepts: suppresses the set_state(auto) warning from emailservice.hpp
 COPY CMakeLists.txt /src/
-COPY backend/ /src/backend/
 COPY modules/ /src/modules/
 COPY test/ /src/test/
 WORKDIR /src/build

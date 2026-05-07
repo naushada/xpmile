@@ -17,6 +17,7 @@ print(`App DB user '${appUser}' created with readWrite on 'xpmile'`);
 db = db.getSiblingDB('xpmile');
 db.account.insertOne({
   isAccountCodeAutoGen: false,
+  awbPrefix: "AWB",
   loginCredentials: {
     accountCode: "admin",
     accountPassword: "admin@123"

@@ -324,6 +324,7 @@ export interface accessOnUri {
 export interface Account {
 
     isAccountCodeAutoGen: boolean;
+    awbPrefix: string;
     loginCredentials: {
         accountCode: string;
         accountPassword: string
