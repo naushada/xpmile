@@ -2,18 +2,18 @@
 
 // ── build_responseOK ─────────────────────────────────────────────────────────
 
-TEST(WebServiceEntry, ResponseOK_NoBody)
+TEST(MicroService, ResponseOK_NoBody)
 {
-    WebServiceEntry e;
+    MicroService e;
     std::string rsp = e.build_responseOK("");
     EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 200 OK"));
     EXPECT_NE(std::string::npos, rsp.find("Content-Length: 0"));
     EXPECT_NE(std::string::npos, rsp.find("Access-Control-Allow-Origin: *"));
 }
 
-TEST(WebServiceEntry, ResponseOK_WithJsonBody)
+TEST(MicroService, ResponseOK_WithJsonBody)
 {
-    WebServiceEntry e;
+    MicroService e;
     const std::string body = "{\"status\":\"ok\"}";
     std::string rsp = e.build_responseOK(body);
 
@@ -23,9 +23,9 @@ TEST(WebServiceEntry, ResponseOK_WithJsonBody)
     EXPECT_NE(std::string::npos, rsp.find(body));
 }
 
-TEST(WebServiceEntry, ResponseOK_CustomContentType)
+TEST(MicroService, ResponseOK_CustomContentType)
 {
-    WebServiceEntry e;
+    MicroService e;
     const std::string body = "<html></html>";
     std::string rsp = e.build_responseOK(body, "text/html");
 
@@ -33,9 +33,9 @@ TEST(WebServiceEntry, ResponseOK_CustomContentType)
     EXPECT_NE(std::string::npos, rsp.find(body));
 }
 
-TEST(WebServiceEntry, ResponseOK_BodyAppearsAfterHeader)
+TEST(MicroService, ResponseOK_BodyAppearsAfterHeader)
 {
-    WebServiceEntry e;
+    MicroService e;
     const std::string body = "payload";
     std::string rsp = e.build_responseOK(body);
 
@@ -46,9 +46,9 @@ TEST(WebServiceEntry, ResponseOK_BodyAppearsAfterHeader)
 
 // ── build_responseCreated ────────────────────────────────────────────────────
 
-TEST(WebServiceEntry, ResponseCreated)
+TEST(MicroService, ResponseCreated)
 {
-    WebServiceEntry e;
+    MicroService e;
     std::string rsp = e.build_responseCreated();
 
     EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 201 Created"));
@@ -59,18 +59,18 @@ TEST(WebServiceEntry, ResponseCreated)
 
 // ── build_responseERROR ──────────────────────────────────────────────────────
 
-TEST(WebServiceEntry, ResponseError_NoBody)
+TEST(MicroService, ResponseError_NoBody)
 {
-    WebServiceEntry e;
+    MicroService e;
     std::string rsp = e.build_responseERROR("", "404 Not Found");
 
     EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 404 Not Found"));
     EXPECT_NE(std::string::npos, rsp.find("Content-Length: 0"));
 }
 
-TEST(WebServiceEntry, ResponseError_WithBody)
+TEST(MicroService, ResponseError_WithBody)
 {
-    WebServiceEntry e;
+    MicroService e;
     const std::string body = "{\"error\":\"bad request\"}";
     std::string rsp = e.build_responseERROR(body, "400 Bad Request");
 
@@ -80,9 +80,9 @@ TEST(WebServiceEntry, ResponseError_WithBody)
     EXPECT_NE(std::string::npos, rsp.find(body));
 }
 
-TEST(WebServiceEntry, ResponseError_500)
+TEST(MicroService, ResponseError_500)
 {
-    WebServiceEntry e;
+    MicroService e;
     const std::string body = "{\"error\":\"internal\"}";
     std::string rsp = e.build_responseERROR(body, "500 Internal Server Error");
 
@@ -92,102 +92,102 @@ TEST(WebServiceEntry, ResponseError_500)
 
 // ── get_contentType ──────────────────────────────────────────────────────────
 
-TEST(WebServiceEntry, ContentType_Html)
+TEST(MicroService, ContentType_Html)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("text/html", e.get_contentType("html"));
 }
 
-TEST(WebServiceEntry, ContentType_Css)
+TEST(MicroService, ContentType_Css)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("text/css", e.get_contentType("css"));
 }
 
-TEST(WebServiceEntry, ContentType_Js)
+TEST(MicroService, ContentType_Js)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("text/javascript", e.get_contentType("js"));
 }
 
-TEST(WebServiceEntry, ContentType_Json)
+TEST(MicroService, ContentType_Json)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("application/json", e.get_contentType("json"));
 }
 
-TEST(WebServiceEntry, ContentType_Png)
+TEST(MicroService, ContentType_Png)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("image/png", e.get_contentType("png"));
 }
 
-TEST(WebServiceEntry, ContentType_Jpg)
+TEST(MicroService, ContentType_Jpg)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("image/jpeg", e.get_contentType("jpg"));
 }
 
-TEST(WebServiceEntry, ContentType_Gif)
+TEST(MicroService, ContentType_Gif)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("image/gif", e.get_contentType("gif"));
 }
 
-TEST(WebServiceEntry, ContentType_Svg)
+TEST(MicroService, ContentType_Svg)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("image/svg+xml", e.get_contentType("svg"));
 }
 
-TEST(WebServiceEntry, ContentType_Ico)
+TEST(MicroService, ContentType_Ico)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("image/vnd.microsoft.icon", e.get_contentType("ico"));
 }
 
-TEST(WebServiceEntry, ContentType_Woff)
+TEST(MicroService, ContentType_Woff)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("font/woff", e.get_contentType("woff"));
 }
 
-TEST(WebServiceEntry, ContentType_Woff2)
+TEST(MicroService, ContentType_Woff2)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("font/woff2", e.get_contentType("woff2"));
 }
 
-TEST(WebServiceEntry, ContentType_Ttf)
+TEST(MicroService, ContentType_Ttf)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("font/ttf", e.get_contentType("ttf"));
 }
 
-TEST(WebServiceEntry, ContentType_Otf)
+TEST(MicroService, ContentType_Otf)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("font/otf", e.get_contentType("otf"));
 }
 
-TEST(WebServiceEntry, ContentType_Eot)
+TEST(MicroService, ContentType_Eot)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("application/vnd.ms-fontobject", e.get_contentType("eot"));
 }
 
-TEST(WebServiceEntry, ContentType_UnknownFallsBackToHtml)
+TEST(MicroService, ContentType_UnknownFallsBackToHtml)
 {
-    WebServiceEntry e;
+    MicroService e;
     EXPECT_EQ("text/html", e.get_contentType("xyz"));
     EXPECT_EQ("text/html", e.get_contentType(""));
 }
 
 // ── handle_OPTIONS ────────────────────────────────────────────────────────────
 
-TEST(WebServiceEntry, HandleOptions_200OK)
+TEST(MicroService, HandleOptions_200OK)
 {
-    WebServiceEntry e;
+    MicroService e;
     std::string in = "OPTIONS /api/v1/shipment HTTP/1.1\r\nHost: x.com\r\n\r\n";
     std::string rsp = e.handle_OPTIONS(in);
 

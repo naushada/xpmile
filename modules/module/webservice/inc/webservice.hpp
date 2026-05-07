@@ -93,6 +93,10 @@ public:
    * @param parent Back-pointer to the owning @c WebServer.
    */
   MicroService(ACE_Thread_Manager *thrMgr, WebServer &parent);
+
+  /// Default constructor — for unit tests only; does not start a thread.
+  MicroService();
+
   virtual ~MicroService();
 
   /// Return the ACE thread ID assigned to this worker.
@@ -106,7 +110,7 @@ public:
   }
 
   /// Return a reference to the owning @c WebServer.
-  WebServer &webServer() const { return (m_parent); }
+  WebServer &webServer() const { return (*m_parent); }
 
   /**
    * @brief Process a raw HTTP request string and send the response.
@@ -176,7 +180,7 @@ private:
   bool m_continue;
   ACE_thread_t m_threadId;
   bool m_iAmDone;
-  WebServer &m_parent;
+  WebServer *m_parent;
 };
 
 /**
@@ -184,7 +188,7 @@ private:
  *
  * Registered with the reactor on accept.  Accumulates incoming bytes in
  * @c m_recvBuf until @c Http::message_length() reports a complete message,
- * then dispatches to @c WebServiceEntry::process_request().  The connection
+ * then enqueues the request on the next @c MicroService worker.  The connection
  * is closed as soon as the peer disconnects or a socket error occurs.
  */
 class WebConnection : public ACE_Event_Handler {
@@ -310,98 +314,6 @@ private:
   std::vector<std::unique_ptr<MicroService>>::iterator m_currentWorker;
   std::unique_ptr<MongodbClient> mMongodbc;
   std::unique_ptr<ACE_Semaphore> m_semaphore;
-};
-
-/**
- * @brief Stateless request-processing facade used by each @c MicroService
- * worker.
- *
- * Contains the same routing and response-building logic as @c MicroService but
- * without any ACE threading machinery, making it straightforward to unit-test
- * in isolation.  All methods that touch the database receive a @c MongodbClient
- * reference from the caller; pure response-builder methods need no external
- * state.
- *
- * @par Pure functions (testable without MongoDB)
- *   - build_responseOK()
- *   - build_responseCreated()
- *   - build_responseERROR()
- *   - get_contentType()
- *   - handle_OPTIONS()
- */
-class WebServiceEntry {
-public:
-  WebServiceEntry() = default;
-  ~WebServiceEntry() = default;
-
-  /**
-   * @brief Route and dispatch an HTTP request, writing the response to the
-   * socket.
-   * @param handle  Client socket descriptor.
-   * @param req     Raw HTTP request string.
-   * @param dbInst  MongoDB client.
-   * @return 0 on success, -1 on error.
-   */
-  std::int32_t process_request(ACE_HANDLE handle, std::string &req,
-                               MongodbClient &dbInst);
-
-  /** @name HTTP method dispatchers */
-  ///@{
-  std::string handle_OPTIONS(std::string &in);
-  std::string handle_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_shipment_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_account_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_inventory_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_email_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_document_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_config_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_shipment_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_account_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_inventory_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_email_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_document_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_config_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_shipment_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_inventory_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_account_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_altref_update_shipment_PUT(std::string &in,
-                                                MongodbClient &dbInst);
-  std::string handle_DELETE(std::string &in, MongodbClient &dbInst);
-  ///@}
-
-  /** @name HTTP response builders */
-  ///@{
-  /**
-   * @brief Build a @c 200 OK response.
-   * @param http_body    Response body (may be empty).
-   * @param content_type MIME type for the @c Content-Type header.
-   * @return Fully-formed HTTP response string.
-   */
-  std::string build_responseOK(std::string http_body,
-                               std::string content_type = "application/json");
-
-  /// Build a @c 201 Created response with no body.
-  std::string build_responseCreated();
-
-  /**
-   * @brief Map a file extension to its MIME content-type string.
-   * @param _ext Lowercase extension without a leading dot, e.g. @c "js".
-   * @return Corresponding MIME type, or @c "text/html" as a fallback.
-   */
-  std::string get_contentType(std::string _ext);
-
-  /**
-   * @brief Build an HTTP error response.
-   * @param httpBody Error body (may be empty JSON or plain text).
-   * @param error    Status line suffix, e.g. @c "404 Not Found".
-   * @return Fully-formed HTTP response string.
-   */
-  std::string build_responseERROR(std::string httpBody, std::string error);
-  ///@}
-
-private:
 };
 
 #endif // WEBSERVICE_H

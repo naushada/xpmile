@@ -120,9 +120,6 @@ Three cooperating classes built on the ACE framework:
 
 **Static file serving:** GET requests that do not match `/api/` are treated as Angular asset requests. The working directory is `/opt/xAPP/granada/` at runtime, so `../webgui/webui/<path>` resolves the Angular `dist/` output.
 
-### WebServiceEntry
-
-A parallel class with the same routing structure as `MicroService` (`process_request` → `handle_GET/POST/PUT/DELETE/OPTIONS`). It is **not called from `MicroService::svc()`** — it exists solely so unit tests can exercise the routing and response-builder logic without spinning up any ACE threading machinery. The webservice test suite instantiates `WebServiceEntry` directly.
 
 ---
 
@@ -288,7 +285,7 @@ Runs once on first container start (when `mongo-data` volume is empty):
 | Module | Location | What is tested |
 |---|---|---|
 | `http` | `modules/module/http/test/` | `Http` parser: URI, query strings, headers, body (Content-Length, chunked, gzip, combined), `header()` boundary |
-| `webservice` | `modules/module/webservice/test/` | `WebServiceEntry` (test-only class): response builders (200, 201, 4xx, 5xx), `get_contentType()`, OPTIONS handler |
+| `webservice` | `modules/module/webservice/test/` | `MicroService`: response builders (200, 201, 4xx, 5xx), `get_contentType()`, OPTIONS handler |
 | `email` | `modules/module/email/test/` | `SMTP::User` FSM: GREETING state transition via `rx()`, `SMTP::Account` population from JSON |
 
 **46 tests, 0 failures** (as of last run).
