@@ -424,9 +424,11 @@ MicroService thread     WsMongodbProxy       WsDbServer          ws-db-agent
 
 ---
 
-## Open questions — answer before TDD
+## Resolved design decisions
 
-1. **Timeout on `dispatch()`**: What should happen if the agent doesn't respond within N seconds? Return empty (fail the HTTP request) or retry? Default 30 s suggested.
-2. **Agent reconnect**: If the agent disconnects and reconnects, in-flight requests will have been failed. Should MicroService retry the failed request, or return an error to the HTTP caller?
-3. **`/ws/db` path**: Is this path acceptable, or should it be configurable at runtime via `--ws-db-path`?
-4. **Multiple agents**: Accept only one agent connection at a time (reject subsequent `Upgrade` requests while one is live), or support multiple agents for redundancy?
+| Question | Decision |
+|---|---|
+| `dispatch()` timeout | 30 s. Unblocks all waiting callers with an error response; MicroService returns 503 to the browser. No retry. |
+| Agent disconnect (in-flight) | Immediately wake all pending `dispatch()` callers with error. Wait for agent to reconnect before accepting new requests. |
+| WebSocket path | Hardcoded `/ws/db`. |
+| Multiple agents | Reject second connection with `HTTP/1.1 409 Conflict` while a live agent is connected. |
