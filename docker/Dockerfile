@@ -60,11 +60,12 @@ WORKDIR /root/googletest/build
 RUN cmake .. && make -j$(nproc) install && ldconfig
 
 # Build uniservice
-# -j1: webservice.cc is large enough that two concurrent TUs OOM the builder
+# -j2: webservice.cpp is large enough that full parallelism OOMs the builder
 # -fconcepts: suppresses the set_state(auto) warning from emailservice.hpp
+COPY CMakeLists.txt /src/
 COPY backend/ /src/backend/
 COPY modules/ /src/modules/
-WORKDIR /src/backend/build
+WORKDIR /src/build
 RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
 
 # ============================================================
@@ -120,7 +121,7 @@ RUN ldconfig
 
 # Application binary
 RUN mkdir -p /opt/xAPP/granada
-COPY --from=cpp-builder /src/backend/build/uniservice /opt/xAPP/granada/uniservice
+COPY --from=cpp-builder /src/build/uniservice /opt/xAPP/granada/uniservice
 
 # Angular distribution
 RUN mkdir -p /opt/xAPP/webgui

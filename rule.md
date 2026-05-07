@@ -31,11 +31,25 @@ it cannot perform.
 
 ---
 
-## Requesting backend changes (`backend/`)
+## Requesting backend changes (`modules/module/`)
 
-- Name the function, method, or file, or describe the behaviour to change.
+The backend follows a deep module design. Each module lives under `modules/module/<name>/`
+with `inc/` for the public interface and `src/` for the implementation.
+
+| Module | Path | Responsibility |
+|---|---|---|
+| `webservice` | `modules/module/webservice/` | ACE reactor, HTTP server, request routing |
+| `http` | `modules/module/http/` | HTTP/1.1 request parser |
+| `email` | `modules/module/email/` | SMTP email client (TLS, FSM-driven) |
+| `mongodb` | `modules/module/mongodb/` | MongoDB connection-pool client |
+| `oauth2` | `modules/module/oauth2/` | OAuth2 service (stub) |
+| `whatsapp` | `modules/module/whatsapp/` | WhatsApp service (stub) |
+| `thirdparty` | `modules/module/thirdparty/` | Vendored single-file libraries (nlohmann/json) |
+
+- Name the module, function, or file, or describe the behaviour to change.
 - Paste compiler errors or runtime logs directly — Claude will diagnose them.
 - For refactoring, say "refactor X" and Claude will propose the approach before touching code.
+- The build entry point is the root `CMakeLists.txt`; tests live in `backend/test/`.
 
 ---
 
