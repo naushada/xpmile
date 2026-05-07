@@ -146,9 +146,6 @@
   <clr-dg-column>Type</clr-dg-column>
   <clr-dg-column>Status</clr-dg-column>
   <clr-dg-column></clr-dg-column>
-  <clr-dg-column></clr-dg-column>
-  <clr-dg-column></clr-dg-column>
-  <clr-dg-column></clr-dg-column>
 
   <clr-dg-row *clrDgItems="let job of jobDetails" [clrDgItem]="job">
     <clr-dg-cell>{{job.jobId}}</clr-dg-cell>
@@ -161,19 +158,13 @@
     <clr-dg-cell>By</clr-dg-cell>
     <clr-dg-cell>Details</clr-dg-cell>
     <clr-dg-cell>Status</clr-dg-cell>
-    <clr-dg-cell></clr-dg-cell>
-    <clr-dg-cell>
+    <clr-dg-cell class="action-cell">
       <select>
         <option>Test1</option>
         <option>Test2</option>
       </select>
       <button type="button" class="btn btn-primary btn-sm" (click)="onAssign()">Assign</button>
-    </clr-dg-cell>
-    <clr-dg-cell></clr-dg-cell>
-    <clr-dg-cell>
       <button type="button" class="btn btn-primary btn-sm" (click)="onFinalise()">Finalise</button>
-    </clr-dg-cell>
-    <clr-dg-cell>
       <button type="button" class="btn btn-primary btn-sm" (click)="onCancel()">Cancel</button>
     </clr-dg-cell>
   </clr-dg-row>

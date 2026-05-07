@@ -42,18 +42,24 @@
     }
   }
 
-  // Compact overrides: reduce vertical gap between fields
+  // Uniform vertical spacing across all field types (textarea excluded)
   clr-input-container,
-  clr-select-container {
+  clr-select-container,
+  clr-checkbox-container {
     margin-top: 0 !important;
-    margin-bottom: 6px;
+    margin-bottom: 6px !important;
+
+    // Prevent Clarity's subtext/error area from adding phantom height
+    .clr-subtext-wrapper {
+      display: none;
+    }
   }
 
   .clr-form-control {
     margin-top: 0 !important;
   }
 
-  // Shrink inputs slightly so more rows fit
+  // Uniform input/select height and font
   input.clr-input,
   select.clr-select {
     height: 1.5rem;

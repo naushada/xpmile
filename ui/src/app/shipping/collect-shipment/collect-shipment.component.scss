@@ -4,11 +4,30 @@
     align-items: flex-start;
   }
 
+  .action-cell {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
+  // Compact spacing for all field types except textarea
   clr-input-container,
   clr-select-container,
-  clr-date-container,
+  clr-date-container {
+    margin-top: 0 !important;
+    margin-bottom: 6px !important;
+
+    .clr-subtext-wrapper {
+      display: none;
+    }
+  }
+
+  // Textarea keeps its natural height but still removes top gap
   clr-textarea-container {
     margin-top: 0 !important;
+    margin-bottom: 6px !important;
   }
 
   .clr-form-control {
