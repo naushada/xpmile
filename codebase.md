@@ -85,7 +85,7 @@ Three cooperating classes built on the ACE framework:
 
 - `svc()` — dequeue loop: pulls `ACE_Message_Block` items, extracts the raw HTTP bytes, calls `process_request()`.
 - `process_request()` — parses the raw HTTP bytes into an `Http` object, dispatches on method to `handle_GET / handle_POST / handle_PUT / handle_DELETE / handle_OPTIONS`, then writes the response via `http_send()`. All routing logic lives here in `MicroService`, not in `WebServiceEntry`.
-- One `MongodbClient` reference is shared across workers; a `ACE_Semaphore` in `WebServer` serializes DB access where needed.
+- One `MongodbClient` reference is shared across workers; `mongocxx::pool::acquire()` is thread-safe so no extra lock is needed around DB calls. The `ACE_Semaphore` in `WebServer` is a startup barrier only — each worker calls `semaphore().release()` as its first act in `svc()` so the constructor can confirm each thread is running before moving on.
 
 **Routing table** (method → URI prefix → handler):
 
