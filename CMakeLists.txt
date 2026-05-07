@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16.3)
 project(microservice)
 
 add_subdirectory(modules/module/mongodb)
-add_subdirectory(backend/test)
+add_subdirectory(test)
 
 include_directories(/usr/local/include/mongocxx/v_noabi)
 include_directories(/usr/local/include/bsoncxx/v_noabi)

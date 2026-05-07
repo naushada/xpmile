@@ -65,6 +65,7 @@ RUN cmake .. && make -j$(nproc) install && ldconfig
 COPY CMakeLists.txt /src/
 COPY backend/ /src/backend/
 COPY modules/ /src/modules/
+COPY test/ /src/test/
 WORKDIR /src/build
 RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
 

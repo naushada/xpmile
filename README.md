@@ -161,8 +161,7 @@ public interface and `src/` for the implementation.
 ```
 .
 ├── CMakeLists.txt                  Build entry point (uniservice + test suite)
-├── backend/
-│   └── test/                       googletest runner (main.cc + CMakeLists.txt)
+├── test/                           googletest runner (main.cc + CMakeLists.txt)
 ├── modules/
 │   └── module/
 │       ├── email/                  SMTP email client (TLS, FSM-driven)

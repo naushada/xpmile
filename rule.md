@@ -49,7 +49,7 @@ with `inc/` for the public interface and `src/` for the implementation.
 - Name the module, function, or file, or describe the behaviour to change.
 - Paste compiler errors or runtime logs directly — Claude will diagnose them.
 - For refactoring, say "refactor X" and Claude will propose the approach before touching code.
-- The build entry point is the root `CMakeLists.txt`; tests live in `backend/test/`.
+- The build entry point is the root `CMakeLists.txt`; tests live in `test/`.
 
 ---
 
