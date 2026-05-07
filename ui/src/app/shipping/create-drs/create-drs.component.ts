@@ -92,7 +92,7 @@ export class CreateDRSComponent implements OnInit {
   }
 
   buildDRS() {
-    this.onCreateDRS();
+    // PDF export is now triggered manually via the Export PDF button
   }
 
   Info = {
@@ -102,114 +102,59 @@ export class CreateDRSComponent implements OnInit {
     keywords: 'A4 DRS',
   };
 
-  rows:any = [];
-  cols:any[][7] = [][7];
-  
-  A4LabelContentsBody:Array<object> = new Array<object>();
-
-  buildA4ContentsBody() {
-    let idx:number = 0;
-    this.A4LabelContentsBody.length = 0;
-    
-    /*
-    let dd = ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'];
-    this.content.at(idx).push(dd);
-    idx += 1;
-    this.shipments?.forEach((elm: Shipment) => {
-      let data = [{text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, 
-        {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount}, 
-        {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:1, width: 170}, 
-        {} ];
-        this.content.at(idx).push(data);
-      });
-
-      console.log(this.content.at(0));
-      */
-      this.cols.push([{text: 'S.No.'}, {text: 'Sender'}, {text: 'Receiver'}, {text: 'Phone No.'}, {text: 'COD'}, {text: 'AWB No.'}, {text: 'Received By'}]);
-      
-      this.shipments.forEach((elm:Shipment) => {
-      
-        this.cols.push([{text:  idx++ }, {text: elm.shipment.senderInformation.name }, {text: elm.shipment.receiverInformation.address },
-                         {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount },
-                         {image: this.textToBase64Barcode(elm.shipment.awbno, 70) , bold: false, alignment: 'center',rowSpan:1, width: 170}, {}
-                      ]);
-                      /*
-        this.cols.push([idx++, elm.shipment.senderInformation.name, elm.shipment.receiverInformation.address,
-                        elm.shipment.receiverInformation.contact, elm.shipment.shipmentInformation.codAmount,
-                        {image: this.textToBase64Barcode(elm.shipment.awbno, 70) , bold: false, alignment: 'center',rowSpan:1, width: 170}, ''
-                     ]);*/
-        });
-        //this.cols.forEach((row:any[]) => {this.rows.push(row)});
-        //this.rows = this.rows.replace(/,\s*$/, "");
-        console.table(this.cols);
-        /*[
-              ['S.No.', 'Sender', 'Receiver', 'Phone No.', 'COD', 'AWB No.', 'Received By'],*/
-              /*
-              [{text: idx}, {text: elm.shipment.senderInformation.name}, {text: elm.shipment.receiverInformation.address}, 
-               {text: elm.shipment.receiverInformation.contact}, {text: elm.shipment.shipmentInformation.codAmount}, 
-               {image: this.textToBase64Barcode(elm.shipment.awbno, 70), bold: false, alignment: 'center',rowSpan:1, width: 170}, 
-               {} ]*/
-               //this.content
-            //]
-      
-  }
-
-  docDefinitionA4 = {
-    info: this.Info,
-    pageMargins: 10,
-    content: {
-      table: {
-        headerRows: 1,
-        widths: [ '*', '*',  '*',  '*',  '*',  '*',  '*'],
-        body: /*[
-          [ 'First', 'Second', 'Third', 'The last one' ],
-          [ 'Value 1', 'Value 2', 'Value 3', 'Value 4' ],
-          [ { text: 'Bold value', bold: true }, 'Val 2', 'Val 3', 'Val 4' ]
-        ]*/
-        this.cols
-      },
-      pageBreak: 'after'
-    },
-    styles: {
-      header: {
-        fontSize: 18,
-        bold: true,
-        margin: [0, 0, 0, 10]
-      },
-      subheader: {
-        fontSize: 16,
-        bold: true,
-        margin: [0, 10, 0, 5]
-      },
-      tableExample: {
-        margin: [0, 5, 0, 15]
-      },
-      tableHeader: {
-        bold: true,
-        fontSize: 13,
-        color: 'black'
-      },
-      rH: {
-        height: 100,
-        fontSize: 10
-      }
-    }
-  };
-
-  textToBase64Barcode(text: string, ht:number, fSize: number = 15) {
-    if(!text.length) {
-      text = "default";
-    }
-
-    var canvas = document.createElement("canvas");
-    JsBarcode(canvas, text, {format: "CODE128", height: ht, fontOptions: 'bold', fontSize: fSize});
-    return canvas.toDataURL("image/png");
+  textToBase64Barcode(text: string, ht: number, fSize: number = 15): string {
+    if (!text.length) text = 'default';
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, text, { format: 'CODE128', height: ht, width: 1, fontOptions: 'bold', fontSize: fSize });
+    return canvas.toDataURL('image/png');
   }
 
   onCreateDRS() {
-    this.buildA4ContentsBody();
-    console.log(this.docDefinitionA4);
-    pdfMake.createPdf(this.docDefinitionA4).download( "A4" + "-DRS");
+    const body: any[] = [
+      [
+        { text: 'S.No.',    bold: true },
+        { text: 'Sender',   bold: true },
+        { text: 'Receiver', bold: true },
+        { text: 'Phone No.', bold: true },
+        { text: 'COD',      bold: true },
+        { text: 'AWB No.',  bold: true },
+        { text: 'Received By', bold: true }
+      ]
+    ];
+
+    this.shipments.forEach((elm: Shipment, idx: number) => {
+      body.push([
+        { text: idx + 1 },
+        { text: elm.shipment.senderInformation.name },
+        { text: elm.shipment.receiverInformation.address },
+        { text: elm.shipment.receiverInformation.contact },
+        { text: elm.shipment.shipmentInformation.codAmount },
+        { image: this.textToBase64Barcode(elm.shipment.awbno, 50), width: 140, alignment: 'center' },
+        {}
+      ]);
+    });
+
+    const docDef: any = {
+      info: this.Info,
+      pageSize: 'A4',
+      pageOrientation: 'landscape',
+      pageMargins: [10, 10, 10, 10],
+      content: [
+        {
+          table: {
+            headerRows: 1,
+            widths: ['auto', '*', '*', 'auto', 70, 160, '*'],
+            body
+          }
+        }
+      ],
+      styles: {
+        tableHeader: { bold: true, fontSize: 10, color: 'black' }
+      },
+      defaultStyle: { fontSize: 9 }
+    };
+
+    pdfMake.createPdf(docDef).download('DRS-A4.pdf');
   }
 
 

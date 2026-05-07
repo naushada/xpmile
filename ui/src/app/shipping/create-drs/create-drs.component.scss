@@ -1,0 +1,134 @@
+:host {
+  display: block;
+  padding: 24px;
+}
+
+// ── Filter card ───────────────────────────────────────
+.filter-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px;
+  border: 1px solid #dce3e8;
+  border-radius: 6px;
+  background: #f8fafc;
+  margin-bottom: 20px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.vendor-row {
+  align-items: center;
+}
+
+// ── Individual fields ─────────────────────────────────
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+}
+
+.field-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #454545;
+  white-space: nowrap;
+}
+
+.field-textarea {
+  width: 200px;
+  resize: vertical;
+  font-size: 0.8rem;
+  padding: 4px 6px;
+  border: 1px solid #b3bfc8;
+  border-radius: 3px;
+  background: #fff;
+  line-height: 1.4;
+
+  &:focus {
+    outline: none;
+    border-color: #1353a4;
+  }
+
+  &::placeholder {
+    color: #b0bec5;
+    font-size: 0.72rem;
+  }
+}
+
+.field-input {
+  width: 180px;
+  height: 1.75rem;
+  font-size: 0.8rem;
+  padding: 0 6px;
+  border: none;
+  border-bottom: 1px solid #b3bfc8;
+  background: transparent;
+
+  &:focus {
+    outline: none;
+    border-bottom-color: #1353a4;
+  }
+
+  &::placeholder {
+    color: #b0bec5;
+    font-size: 0.72rem;
+  }
+}
+
+// ── Vendor + submit row ───────────────────────────────
+.vendor-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+
+  clr-radio-container {
+    margin: 0;
+  }
+}
+
+.submit-btn {
+  align-self: flex-end;
+  white-space: nowrap;
+}
+
+// ── Grid toolbar ──────────────────────────────────────
+.grid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+
+  .grid-count {
+    font-size: 0.78rem;
+    color: #64748b;
+  }
+
+  .export-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+}
+
+// ── Results grid ──────────────────────────────────────
+.drs-grid {
+  margin-top: 0;
+
+  .awb-cell {
+    padding: 4px;
+  }
+
+  .barcode-img {
+    display: block;
+    max-width: 140px;
+    height: auto;
+  }
+}
