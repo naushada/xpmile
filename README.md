@@ -154,18 +154,43 @@ All variables can be set in `.env` or passed via `docker compose up -e`.
 
 ## Project layout
 
+The backend follows a **deep module** design — each concern lives in its
+own self-contained directory under `modules/module/`, with `inc/` for the
+public interface and `src/` for the implementation.
+
 ```
 .
-├── backend/            C++ HTTP server source
-│   ├── inc/            Public headers
-│   ├── src/            webservice.cc and handlers
-│   ├── mongodbc/       MongoDB client library (see mongodbc/README.md)
-│   └── test/           googletest off-target tests
-├── ui/                 Angular 14 frontend
+├── backend/                        C++ build root (CMakeLists.txt entry point)
+│   └── test/                       googletest off-target tests
+├── modules/
+│   └── module/
+│       ├── email/                  SMTP email client (TLS, FSM-driven)
+│       │   ├── inc/emailservice.hpp
+│       │   └── src/emailservice.cpp, emailservice_fsm.cpp
+│       ├── http/                   HTTP/1.1 request parser
+│       │   ├── inc/http_parser.hpp
+│       │   └── src/http_parser.cpp
+│       ├── mongodb/                MongoDB client library  (see README.md)
+│       │   ├── inc/mongodbc.hpp
+│       │   ├── src/mongodbc.cpp
+│       │   ├── CMakeLists.txt
+│       │   └── README.md
+│       ├── oauth2/                 OAuth2 service (stub)
+│       │   ├── inc/oauth2service.hpp
+│       │   └── src/oauth2service.cpp
+│       ├── thirdparty/             Vendored single-file libraries
+│       │   └── json.hpp            nlohmann/json (header-only)
+│       ├── webservice/             ACE reactor, HTTP server, request routing
+│       │   ├── inc/webservice.hpp
+│       │   └── src/webservice.cpp, webservice_main.cpp
+│       └── whatsapp/               WhatsApp service (stub)
+│           ├── inc/whatsapp_service.hpp
+│           └── src/whatsapp_service.cpp
+├── ui/                             Angular frontend
 ├── docker/
-│   ├── Dockerfile      Multi-stage build (C++ builder → UI builder → runtime)
-│   ├── Dockerfile.mongo Custom mongo:7 image with init script baked in
-│   └── mongo-init.js   DB user creation + bootstrap admin document
+│   ├── Dockerfile                  Multi-stage build (C++ → UI → runtime)
+│   ├── Dockerfile.mongo            Custom mongo:7 image with init script baked in
+│   └── mongo-init.js               DB user creation + bootstrap admin document
 └── docker-compose.yml
 ```
 
@@ -197,11 +222,12 @@ needed — this is already the default configuration.
 
 ### Build OOM kill (`cc1plus: Killed`) on memory-constrained hosts
 
-`webservice.cc` is a large translation unit. Building it with full
-parallelism (`-j$(nproc)`) can exhaust available memory on machines with
-less than ~4 GB RAM per core.  The Dockerfile caps the uniservice build
-at `-j2` and passes `-DCMAKE_CXX_FLAGS="-fconcepts"` to suppress a
-GCC 9 concepts warning from `emailservice.hpp`.  If builds still OOM,
+`modules/module/webservice/src/webservice.cpp` is a large translation unit.
+Building it with full parallelism (`-j$(nproc)`) can exhaust available
+memory on machines with less than ~4 GB RAM per core.  The Dockerfile caps
+the uniservice build at `-j2` and passes `-DCMAKE_CXX_FLAGS="-fconcepts"`
+to suppress a GCC 9 concepts warning from
+`modules/module/email/inc/emailservice.hpp`.  If builds still OOM,
 reduce Docker's memory limit or set `make -j1` in the Dockerfile.
 
 ### `docker compose up` uses a stale image
