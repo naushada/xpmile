@@ -6,10 +6,15 @@
 
   .action-cell {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 4px;
-    flex-wrap: nowrap;
-    white-space: nowrap;
+
+    select,
+    .btn {
+      width: 100%;
+      margin: 0;
+    }
   }
 
   // Compact spacing for all field types except textarea
