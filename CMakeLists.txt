@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.16.3)
 project(microservice)
 
 add_subdirectory(modules/module/mongodb)
-add_subdirectory(test)
+
+option(BUILD_TESTS "Build test suite (requires GTest)" ON)
+if(BUILD_TESTS)
+  add_subdirectory(test)
+endif()
 
 include_directories(/usr/local/include/mongocxx/v_noabi)
 include_directories(/usr/local/include/bsoncxx/v_noabi)

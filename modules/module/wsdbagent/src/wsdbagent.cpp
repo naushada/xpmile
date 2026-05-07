@@ -59,7 +59,9 @@ WsDbAgent::WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
   , m_port(port)
   , m_ssl(use_ssl)
 {
-  m_db = std::make_unique<MongodbClient>(db_uri, db_pool, db_name);
+  ACE_UNUSED_ARG(db_pool);
+  m_db = std::make_unique<MongodbClient>(db_uri);
+  if (!db_name.empty()) m_db->set_database(db_name);
 }
 
 WsDbAgent::~WsDbAgent() { stop(); }
