@@ -1,7 +1,142 @@
-.login-wrapper {
-    //background-image: url(/webui/assets/images/courier_bg.svg);
-    background-image: url(/webui/assets/images/cross3.jpg);
-    background-repeat: no-repeat;
-    background-size: 100%;
-    background-position: right center;
+:host {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.login-page {
+  display: flex;
+  width: 100%;
+  height: 100%;
+
+  // ── Left panel ──────────────────────────────────────
+  .login-panel {
+    width: 420px;
+    min-width: 360px;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 48px 52px;
+    box-shadow: 4px 0 40px rgba(0, 0, 0, 0.12);
+    position: relative;
+    z-index: 1;
+
+    .brand {
+      margin-bottom: 36px;
+
+      .brand-logo {
+        width: 220px;
+      }
+    }
+
+    .welcome {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #1b4d8e;
+      margin: 0 0 6px;
+      line-height: 1.2;
+    }
+
+    .hint {
+      font-size: 0.82rem;
+      color: #64748b;
+      margin: 0 0 28px;
+    }
+
+    .login-form {
+      .field-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 20px;
+
+        clr-input-container,
+        clr-password-container {
+          width: 100%;
+          margin: 0;
+
+          input {
+            width: 100%;
+            font-size: 0.875rem;
+          }
+        }
+      }
+
+      .action-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+        .btn-block {
+          width: 100%;
+          margin: 0;
+          font-size: 0.8rem;
+          letter-spacing: 0.08em;
+        }
+      }
+    }
   }
+
+  // ── Right panel (hero) ──────────────────────────────
+  .hero-panel {
+    flex: 1;
+    background-image: url(/webui/assets/images/cross3.jpg);
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    overflow: hidden;
+
+    .hero-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(13, 43, 94, 0.72) 0%,
+        rgba(27, 77, 142, 0.50) 50%,
+        rgba(10, 30, 70, 0.30) 100%
+      );
+      display: flex;
+      align-items: flex-end;
+      padding: 56px 64px;
+
+      .hero-text {
+        color: #ffffff;
+
+        .hero-badge {
+          display: inline-block;
+          background: rgba(249, 115, 22, 0.88);
+          color: #fff;
+          font-size: 0.72rem;
+          font-weight: 600;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          padding: 4px 12px;
+          border-radius: 2px;
+          margin-bottom: 16px;
+        }
+
+        h1 {
+          font-size: 3.2rem;
+          font-weight: 800;
+          margin: 0 0 4px;
+          line-height: 1.1;
+          letter-spacing: -0.5px;
+
+          span {
+            font-weight: 300;
+            font-size: 2.2rem;
+          }
+        }
+
+        p {
+          font-size: 0.95rem;
+          color: rgba(255, 255, 255, 0.70);
+          margin: 12px 0 0;
+          letter-spacing: 0.04em;
+        }
+      }
+    }
+  }
+}

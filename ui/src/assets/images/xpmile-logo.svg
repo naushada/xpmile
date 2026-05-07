@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 72">
+  <defs>
+    <linearGradient id="rg1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1b4d8e"/>
+      <stop offset="100%" stop-color="#2e86de"/>
+    </linearGradient>
+    <linearGradient id="rg2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1b4d8e"/>
+      <stop offset="100%" stop-color="#2e86de"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Route 1: top-left → bottom-right -->
+  <path d="M 6,9 C 20,32 46,40 63,63" fill="none" stroke="url(#rg1)" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- Route 2: top-right → bottom-left -->
+  <path d="M 63,9 C 49,32 23,40 6,63" fill="none" stroke="url(#rg2)" stroke-width="4.5" stroke-linecap="round"/>
+
+  <!-- Origin nodes (blue) -->
+  <circle cx="6"  cy="9"  r="5.5" fill="#1b4d8e"/>
+  <circle cx="63" cy="9"  r="5.5" fill="#1b4d8e"/>
+
+  <!-- Centre hub -->
+  <circle cx="34.5" cy="36" r="9"   fill="white" stroke="#1b4d8e" stroke-width="3"/>
+  <circle cx="34.5" cy="36" r="3.8" fill="#2e86de"/>
+
+  <!-- Destination nodes (orange = last mile) -->
+  <circle cx="6"  cy="63" r="7" fill="#f97316"/>
+  <circle cx="63" cy="63" r="7" fill="#f97316"/>
+
+  <!-- Brand name -->
+  <text x="83" y="46"
+        font-family="'Arial Black','Arial',sans-serif"
+        font-weight="900" font-size="37"
+        fill="#1b4d8e" letter-spacing="-1">xp</text>
+  <text x="131" y="46"
+        font-family="'Arial',sans-serif"
+        font-weight="300" font-size="37"
+        fill="#64748b" letter-spacing="2">mile</text>
+
+  <!-- Tagline -->
+  <text x="84" y="62"
+        font-family="'Arial',sans-serif"
+        font-size="9.5" font-weight="600"
+        fill="#94a3b8" letter-spacing="3.8">LAST MILE DELIVERY</text>
+</svg>
