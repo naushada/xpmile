@@ -128,25 +128,25 @@ public:
   /** @name HTTP method dispatchers */
   ///@{
   std::string handle_OPTIONS(std::string &in);
-  std::string handle_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_shipment_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_account_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_inventory_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_email_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_document_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_config_GET(std::string &in, MongodbClient &dbInst);
-  std::string handle_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_shipment_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_account_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_inventory_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_email_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_document_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_config_POST(std::string &in, MongodbClient &dbInst);
-  std::string handle_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_shipment_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_inventory_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_account_PUT(std::string &in, MongodbClient &dbInst);
-  std::string handle_DELETE(std::string &in, MongodbClient &dbInst);
+  std::string handle_GET(std::string &in, IMongodbClient &dbInst);
+  std::string handle_shipment_GET(std::string &in, IMongodbClient &dbInst);
+  std::string handle_account_GET(std::string &in, IMongodbClient &dbInst);
+  std::string handle_inventory_GET(std::string &in, IMongodbClient &dbInst);
+  std::string handle_email_GET(std::string &in, IMongodbClient &dbInst);
+  std::string handle_document_GET(std::string &in, IMongodbClient &dbInst);
+  std::string handle_config_GET(std::string &in, IMongodbClient &dbInst);
+  std::string handle_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_shipment_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_account_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_inventory_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_email_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_document_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_config_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_PUT(std::string &in, IMongodbClient &dbInst);
+  std::string handle_shipment_PUT(std::string &in, IMongodbClient &dbInst);
+  std::string handle_inventory_PUT(std::string &in, IMongodbClient &dbInst);
+  std::string handle_account_PUT(std::string &in, IMongodbClient &dbInst);
+  std::string handle_DELETE(std::string &in, IMongodbClient &dbInst);
   ///@}
 
   /** @name HTTP response builders */

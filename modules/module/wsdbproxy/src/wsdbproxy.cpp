@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <sys/socket.h>
 
 #include "ace/Log_Msg.h"
 #include "ace/OS_NS_unistd.h"
@@ -36,6 +37,13 @@ int WsDbServer::close(u_long)
 {
   m_running.store(false);
   m_connectCv.notify_all();
+  // Unblock any recv_n() call in run_session() so the svc() thread can exit.
+  {
+    std::lock_guard<std::mutex> lock(m_connectMu);
+    if (m_agentHandle != ACE_INVALID_HANDLE) {
+      ::shutdown(static_cast<int>(m_agentHandle), SHUT_RDWR);
+    }
+  }
   // Wake all pending dispatch() callers so they can exit.
   fail_all_pending("server shutting down");
   wait();

@@ -165,7 +165,7 @@ std::string MicroService::handle_DELETE(std::string &in,
 }
 
 std::int32_t MicroService::process_request(ACE_HANDLE handle, std::string &req,
-                                           IIMongodbClient &dbInst) {
+                                           IMongodbClient &dbInst) {
   Http http(req);
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l METHOD:%s URI:%s\n"),
@@ -272,6 +272,7 @@ std::string MicroService::handle_POST(std::string &in, IMongodbClient &dbInst) {
 
 std::string MicroService::handle_config_POST(std::string &in,
                                              IMongodbClient &dbInst) {
+  auto &mc = static_cast<MongodbClient &>(dbInst);
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -285,11 +286,11 @@ std::string MicroService::handle_config_POST(std::string &in,
                  ACE_TEXT("%D [Worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
       std::string ip_address;
-      if (auto v = dbInst.from_json(content, "ip_address");
+      if (auto v = mc.from_json(content, "ip_address");
           auto *p = std::get_if<std::string>(&v))
         ip_address = *p;
       std::string port;
-      if (auto v = dbInst.from_json(content, "port");
+      if (auto v = mc.from_json(content, "port");
           auto *p = std::get_if<std::string>(&v))
         port = *p;
       ACE_DEBUG((LM_DEBUG,
@@ -304,6 +305,7 @@ std::string MicroService::handle_config_POST(std::string &in,
 
 std::string MicroService::handle_shipment_POST(std::string &in,
                                                IMongodbClient &dbInst) {
+  auto &mc = static_cast<MongodbClient &>(dbInst);
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -562,7 +564,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
                      rsp.c_str()));
           Http http(rsp);
           std::string access_token =
-              dbInst.get_access_token_for_ajoul(http.body());
+              mc.get_access_token_for_ajoul(http.body());
           ACE_DEBUG(
               (LM_DEBUG,
                ACE_TEXT("%D [worker:%t] %M %N:%l The access_token is - %s\n"),
@@ -630,7 +632,7 @@ std::string MicroService::handle_shipment_POST(std::string &in,
             Http http(rsp);
             std::string ref("");
             std::string awbNo =
-                dbInst.get_tracking_no_for_ajoul(http.body(), ref);
+                mc.get_tracking_no_for_ajoul(http.body(), ref);
             ACE_DEBUG((LM_DEBUG,
                        ACE_TEXT("%D [Worker:%t] %M %N:%l The Tracking Number "
                                 "is - %s refNumber %s\n"),
@@ -712,6 +714,7 @@ std::string MicroService::handle_inventory_POST(std::string &in,
 
 std::string MicroService::handle_document_POST(std::string &in,
                                                IMongodbClient &dbInst) {
+  auto &mc = static_cast<MongodbClient &>(dbInst);
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -727,7 +730,7 @@ std::string MicroService::handle_document_POST(std::string &in,
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [Worker:%t] %M %N:%l http body length %d \n"),
                  content.length()));
-      if (auto v = dbInst.from_json(content, "corporate");
+      if (auto v = mc.from_json(content, "corporate");
           auto *p = std::get_if<std::string>(&v))
         coll = *p + "_attachment";
 
@@ -753,6 +756,7 @@ std::string MicroService::handle_document_POST(std::string &in,
 
 std::string MicroService::handle_email_POST(std::string &in,
                                             IMongodbClient &dbInst) {
+  auto &mc = static_cast<MongodbClient &>(dbInst);
   /* Check for Query string */
   Http http(in);
   /* Action based on uri in get request */
@@ -774,22 +778,22 @@ std::string MicroService::handle_email_POST(std::string &in,
 
     ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l email request:%s\n"),
                json_body.c_str()));
-    if (auto v = dbInst.from_json(json_body, "to");
+    if (auto v = mc.from_json(json_body, "to");
         auto *p = std::get_if<JsonStrVec>(&v))
       out_vec = std::move(*p);
-    if (auto v = dbInst.from_json(json_body, "subject");
+    if (auto v = mc.from_json(json_body, "subject");
         auto *p = std::get_if<std::string>(&v))
       subj = *p;
-    if (auto v = dbInst.from_json(json_body, "emailbody");
+    if (auto v = mc.from_json(json_body, "emailbody");
         auto *p = std::get_if<std::string>(&v))
       body = *p;
-    if (auto v = dbInst.from_json(json_body, "files");
+    if (auto v = mc.from_json(json_body, "files");
         auto *p = std::get_if<JsonDocList>(&v))
       out_list = std::move(*p);
-    if (auto v = dbInst.from_json(json_body, "from");
+    if (auto v = mc.from_json(json_body, "from");
         auto *p = std::get_if<std::string>(&v))
       from = *p;
-    if (auto v = dbInst.from_json(json_body, "passwd");
+    if (auto v = mc.from_json(json_body, "passwd");
         auto *p = std::get_if<std::string>(&v))
       passwd = *p;
 

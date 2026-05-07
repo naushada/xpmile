@@ -65,9 +65,9 @@ bool parse_request(const std::vector<std::uint8_t>& bytes, DbRequest& out)
 
     if (auto e = v["reqid"]) out.reqid = e.get_int32().value;
     if (auto e = v["op"])    out.op    = static_cast<DbOp>(e.get_int32().value);
-    if (auto e = v["db"])    out.db    = std::string(e.get_string().value);
-    if (auto e = v["coll"])  out.coll  = std::string(e.get_string().value);
-    if (auto e = v["sval"])  out.sval  = std::string(e.get_string().value);
+    if (auto e = v["db"])    out.db    = std::string(e.get_utf8().value);
+    if (auto e = v["coll"])  out.coll  = std::string(e.get_utf8().value);
+    if (auto e = v["sval"])  out.sval  = std::string(e.get_utf8().value);
 
     if (auto e = v["doc"]) {
       auto b = e.get_binary();
@@ -110,10 +110,10 @@ bool parse_response(const std::vector<std::uint8_t>& bytes, DbResponse& out)
 
     if (auto e = v["reqid"])  out.reqid  = e.get_int32().value;
     if (auto e = v["ok"])     out.ok     = e.get_bool().value;
-    if (auto e = v["sval"])   out.sval   = std::string(e.get_string().value);
+    if (auto e = v["sval"])   out.sval   = std::string(e.get_utf8().value);
     if (auto e = v["ival"])   out.ival   = e.get_int32().value;
     if (auto e = v["bval"])   out.bval   = e.get_bool().value;
-    if (auto e = v["errmsg"]) out.errmsg = std::string(e.get_string().value);
+    if (auto e = v["errmsg"]) out.errmsg = std::string(e.get_utf8().value);
 
     if (auto e = v["data"]) {
       auto b = e.get_binary();
