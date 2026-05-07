@@ -275,6 +275,7 @@ TEST(HttpParser, HeaderIncludesTrailingCrLfCrLf)
     std::string req =
         "GET / HTTP/1.1\r\n"
         "Host: x.com\r\n"
+        "Content-Length: " + std::to_string(body.size()) + "\r\n"
         "\r\n" + body;
 
     Http h(req);

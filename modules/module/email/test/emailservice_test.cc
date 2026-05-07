@@ -31,9 +31,14 @@ void EmailServiceTest::TestBody()
 
 EmailServiceTest::EmailServiceTest(std::string in)
 {
+    // Initialize members before use — SetUp() is only called by the gtest
+    // framework, not when constructing the object directly in a TEST body.
+    mMongodbc = std::make_unique<MongodbClient>();
+    mUser     = std::make_unique<SMTP::User>();
+
     // {"subject": "", "to": [user-id@domain.com, user-id1@domain.com], "body": ""}
         /* Check for Query string */
-    
+
     std::string json_body = in;
     JsonStrVec  out_vec;
     JsonDocList out_list;
