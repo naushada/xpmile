@@ -29,6 +29,18 @@ podman-compose down
 
 The `app` service is the only service name relevant for rebuilds. `mongodb` has its own image baked with `mongo-init.js`.
 
+### Heroku deployment
+
+See `docs/app.md` for the full guide: authenticating with Podman, cross-building for linux/amd64, pushing to the registry, setting config vars, releasing, and running wsdbagent against the Heroku app.
+
+### wsdbagent image
+
+```sh
+podman build -f docker/Dockerfile.wsdbagent -t wsdbagent .
+```
+
+See `docs/ws-db-agent.md` for run commands (Heroku mode and self-hosted mTLS mode).
+
 ### Running tests
 
 Tests run inside the built image as the `offtarget` binary:
@@ -86,6 +98,8 @@ struct WorkCtx { ACE_HANDLE handle; MongodbClient *db; std::string request; };
 
 **MongoDB:** One `MongodbClient` per process (enforced by `mongocxx::instance` singleton). Workers share it; `pool::acquire()` is thread-safe. The `ACE_Semaphore` in `WebServer` is a startup barrier only (not a DB mutex).
 
+**Remote-DB mode (`--remote-db`):** `WsMongodbProxy` replaces `MongodbClient`. All DB calls are forwarded as BSON messages over a WebSocket to `wsdbagent` running on the MongoDB machine. `WsDbServer` owns the agent connection. On Heroku, `WebConnection` hands off the upgraded socket; on self-hosted, `WsDbServer` binds its own mTLS port. See `docs/ws-db-agent.md`.
+
 **Collection name:** Shipments are stored in the `shipping` collection — not `shipment`. The API path `/api/v1/shipment/...` is unrelated to the collection name.
 
 **AWB generation:** If `shipment.isAutoGenerate == true`, the backend looks up `awbPrefix` from the sender's account, then calls `MongodbClient::next_awbno(prefix)` — an atomic `findOneAndUpdate + $inc` on the `counters` collection. This runs before any insert, in both single and bulk handlers.
@@ -104,4 +118,6 @@ struct WorkCtx { ACE_HANDLE handle; MongodbClient *db; std::string request; };
 
 **`$any()` cast (Angular templates):** `FormGroup.controls[key]` returns `AbstractControl`. Use `$any()` when binding to `[formControl]` on Clarity inputs.
 
-**C++ standard:** C++20 (`-std=c++2a`) for `uniservice` and `offtarget`. The `mongodbcxx` static library uses C++17 (`-std=c++17`).
+**C++ standard:** C++20 (`-std=c++2a`) for `uniservice`, `wsdbagent`, and `offtarget`. The `mongodbcxx` static library uses C++17 (`-std=c++17`).
+
+**`BUILD_TESTS` CMake option:** `add_subdirectory(test)` is guarded by `option(BUILD_TESTS ... ON)`. Pass `-DBUILD_TESTS=OFF` when building `wsdbagent` without GTest (as `Dockerfile.wsdbagent` does).
