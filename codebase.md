@@ -8,7 +8,7 @@ Logistics management platform. C++ HTTP server (ACE + MongoDB) serving an Angula
 
 ```
 .
-├── CMakeLists.txt          Root build — uniservice binary + test suite
+├── CMakeLists.txt          Root build — uniservice + wsdbagent binaries + test suite
 ├── Doxyfile                Doxygen configuration
 ├── test/                   Off-target googletest runner
 │   ├── main.cc
@@ -18,12 +18,20 @@ Logistics management platform. C++ HTTP server (ACE + MongoDB) serving an Angula
 │   ├── http/               HTTP/1.1 request parser
 │   ├── email/              SMTP client (TLS, FSM-driven)
 │   ├── mongodb/            MongoDB connection-pool client
+│   ├── wsdbproxy/          WebSocket DB server (WsDbServer) + proxy (WsMongodbProxy)
+│   ├── wsdbagent/          WebSocket DB agent — runs on the MongoDB machine
 │   ├── oauth2/             OAuth2 stub
 │   ├── whatsapp/           WhatsApp stub
 │   └── thirdparty/         nlohmann/json (header-only)
 ├── ui/                     Angular frontend (served from /webui/)
+├── certs/                  mTLS certificate bundle (CA, server, client)
+│   ├── generate.sh         OpenSSL script — regenerates all certs
+│   ├── ca.crt              Shared CA certificate (committed)
+│   ├── server.crt          uniservice certificate (committed)
+│   └── client.crt          wsdbagent certificate (committed)
 └── docker/
-    ├── Dockerfile           Multi-stage build
+    ├── Dockerfile           Multi-stage build (uniservice + Angular)
+    ├── Dockerfile.wsdbagent Standalone wsdbagent container image
     ├── Dockerfile.mongo     mongo:7 + init script baked in
     └── mongo-init.js        Creates app DB user + seeds admin account
 ```
@@ -48,19 +56,27 @@ Parses command-line flags with `ACE_Get_Opt`, then:
 | `--server-ip` | (all interfaces) | Bind address |
 | `--server-port` | 8080 | TCP listen port |
 | `--server-worker` | 10 | Worker thread count |
-| `--mongo-db-uri` | — | Full MongoDB URI |
-| `--mongo-db-connection-pool` | 50 | Pool size (passed as string to WebServer) |
+| `--mongo-db-uri` | — | Full MongoDB URI (local mode only) |
+| `--mongo-db-connection-pool` | 50 | Pool size |
 | `--mongo-db-name` | — | Database name |
 | `--email-from-name/id/password` | — | Outgoing email credentials |
+| `--remote-db` | off | Use WebSocket DB proxy (ws-db-agent) instead of local MongoDB |
+| `--agent-port` | — | Dedicated mTLS port for wsdbagent (self-hosted only) |
+| `--tls-cert` | — | Server certificate PEM (mTLS mode) |
+| `--tls-key` | — | Server private key PEM (mTLS mode) |
+| `--tls-ca` | — | CA cert to verify agent client cert (mTLS mode) |
 | `--help` | — | Print usage and exit 0 |
 
-**CLI implementation** — options are stored in a `std::array<std::string, N>` indexed by `CommandArgumentName` enum (defined in `webservice.hpp`). A `constexpr idx(Arg)` helper casts the enum to `std::size_t` for clean indexing. Parsing is table-driven: a `constexpr kOptMap[]` of `(char, Arg)` pairs maps each short option to its enum slot, eliminating the verbose `switch` that was there before. `opt_int()` converts string → int with a fallback default for `port` and `worker`.
+When `--remote-db` is set without `--agent-port` / TLS flags, `WsDbServer` runs in Heroku mode — it waits for an upgraded WebSocket handed off from `WebConnection`. When all four TLS flags are provided, it binds its own `ACE_SSL_SOCK_Acceptor` on `--agent-port` and performs the WebSocket handshake itself.
+
+**CLI implementation** — options are stored in a `std::array<std::string, N>` indexed by `CommandArgumentName` enum (defined in `webservice.hpp`). A `constexpr idx(Arg)` helper casts the enum to `std::size_t` for clean indexing. Parsing is table-driven: a `constexpr kOptMap[]` of `(char, Arg)` pairs maps each short option to its enum slot. `opt_int()` converts string → int with a fallback default for `port` and `worker`.
 
 ```
 CommandArgumentName enum:
   SERVER_IP, SERVER_PORT, SERVER_WORKER_NODE,
   DB_URI, DB_CONN_POOL, DB_NAME,
   EMAIL_FROM_NAME, EMAIL_FROM_ID, EMAIL_FROM_PASSWORD,
+  REMOTE_DB, AGENT_PORT, TLS_CERT, TLS_KEY, TLS_CA,
   MAX_CMD_ARG
 ```
 
@@ -253,6 +269,113 @@ Note: the collection is named `shipping`, not `shipment`. The URL path is `/api/
 
 ---
 
+## wsdbproxy module
+
+**Files:** `modules/module/wsdbproxy/inc/wsdbproxy.hpp`, `src/wsdbproxy.cpp`, `src/dbproto.cpp`, `src/wsframe.cpp`
+
+Provides the server-side of the remote-DB WebSocket bridge. Two classes:
+
+### WsDbServer
+
+`ACE_Task<ACE_MT_SYNCH>` — owns the connection from `wsdbagent` and dispatches `DbRequest` messages to the local `IMongodbClient`.
+
+**Two operating modes:**
+
+| Mode | When | How agent connects |
+|---|---|---|
+| Heroku (no-TLS) | `WsDbServer()` default constructor | WebSocket upgrade handed off from `WebConnection` via `on_agent_connected()` |
+| Self-hosted mTLS | `WsDbServer(TlsConfig)` constructor | Binds its own `ACE_SSL_SOCK_Acceptor` on `tls.port`; accepts and upgrades the connection itself |
+
+In mTLS mode, `open()` configures `ACE_SSL_Context` with the server cert/key and CA, sets `SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT`, and binds `m_ssl_acceptor`. `svc()` calls `m_ssl_acceptor.accept()`, rejects a second simultaneous agent, runs `ws_upgrade_server()`, then enters `run_session()`.
+
+`run_session()` loop:
+
+| Opcode | Action |
+|---|---|
+| `0x02` Binary | BSON-decode → `DbRequest` → `dispatch()` → BSON-encode response → send |
+| `0x09` Ping | Send Pong |
+| `0x08` Close | Send Close → exit |
+
+`ws_send()` and the `read_n` lambda in `ws_recv_frame()` route to either the plain `m_agentStream` (Heroku) or `m_ssl_agentStream` (mTLS), transparently.
+
+**`TlsConfig` struct:**
+```cpp
+struct TlsConfig {
+  std::uint16_t port {0};
+  std::string   cert;   // path to server.crt
+  std::string   key;    // path to server.key
+  std::string   ca;     // path to ca.crt
+};
+```
+
+### WsMongodbProxy
+
+`IMongodbClient` implementation that forwards every MongoDB operation as a `DbRequest` BSON message over the WebSocket to `wsdbagent`, then blocks waiting for the `DbResponse`. Constructed with a `WsDbServer&` reference and the database name.
+
+### Wire protocol (dbproto)
+
+`DbRequest` / `DbResponse` are BSON documents. `DbOp` enum covers 13 operations (CREATE_DOCUMENT through DELETE_FILE). `wsframe` handles RFC 6455 framing — client frames are masked, server frames are unmasked.
+
+---
+
+## wsdbagent module
+
+**Files:** `modules/module/wsdbagent/inc/wsdbagent.hpp`, `src/wsdbagent.cpp`, `src/wsdbagent_main.cpp`
+
+Standalone binary (`wsdbagent`) that runs **on the MongoDB machine** (typically behind NAT). Connects outbound to `uniservice /ws/db`, then forwards all DB operations to a local `MongodbClient`.
+
+**`WsDbAgent`** constructor:
+```cpp
+WsDbAgent(server_host, server_port, use_ssl,
+          db_uri, db_pool, db_name,
+          tls_ca="", tls_cert="", tls_key="");
+```
+
+**Connect loop** (`run(backoff_secs)`):
+1. `connect_and_handshake()` — configure `ACE_SSL_Context` (if TLS args provided), open TCP/TLS connection, send RFC 6455 upgrade request to `/ws/db`, verify `101` + `Sec-WebSocket-Accept`.
+2. On success → `run_session()` (same dispatch table as WsDbServer).
+3. On failure or session end → sleep `backoff_secs` → retry indefinitely.
+
+**mTLS on the client side:**
+```cpp
+ACE_SSL_Context *ctx = ACE_SSL_Context::instance();
+ctx->set_mode(ACE_SSL_Context::SSLv23_client);
+ctx->load_trusted_ca(tls_ca.c_str());     // verify server cert
+ctx->certificate(tls_cert.c_str(), ...);  // present client cert
+ctx->private_key(tls_key.c_str(), ...);
+SSL_CTX_set_verify(ctx->context(), SSL_VERIFY_PEER, nullptr);
+```
+
+**CLI flags:**
+
+| Flag | Required | Default |
+|---|---|---|
+| `--server-host` | yes | — |
+| `--mongo-db-uri` | yes | — |
+| `--mongo-db-name` | yes | — |
+| `--server-port` | no | 443 (SSL) / 8080 (plain) |
+| `--no-ssl` | no | TLS on |
+| `--tls-ca` | no | — |
+| `--tls-cert` | no | — |
+| `--tls-key` | no | — |
+| `--backoff` | no | 5 s |
+
+---
+
+## mTLS certificates
+
+`certs/generate.sh` produces a private CA and two leaf certs (server + client), all 4096-bit RSA with 10-year validity. Private keys are git-ignored (`certs/.gitignore: *.key`). Public certs are committed.
+
+| File | Used by |
+|---|---|
+| `ca.crt` | both sides — distributed freely |
+| `server.crt` / `server.key` | uniservice |
+| `client.crt` / `client.key` | wsdbagent |
+
+Re-run `generate.sh` to rotate. Both sides must be updated together.
+
+---
+
 ## oauth2 and whatsapp modules
 
 Both are stubs — empty `.hpp`/`.cpp` pairs compiled into `uniservice` but containing no logic. Placeholders for future OAuth2 and WhatsApp notification integrations.
@@ -267,25 +390,31 @@ Both are stubs — empty `.hpp`/`.cpp` pairs compiled into `uniservice` but cont
 
 ## Infrastructure
 
-### Docker — three build stages
+### Docker — main app image (`docker/Dockerfile`)
+
+Three build stages:
 
 **Stage 1 (`cpp-builder` / `ubuntu:focal`):**
 - Builds ACE/TAO 7.0.0 from source (make install, SSL enabled)
 - Builds mongo-c-driver 1.19.1 and mongo-cxx-driver v3.6 from source
 - Builds googletest
-- Compiles `uniservice` and the `offtarget` test binary via CMake
-
-Build notes:
-- `-j2` cap on uniservice to avoid OOM on constrained hosts (`webservice.cpp` is a large TU)
-- `-fconcepts` suppresses a GCC 9 warning from `emailservice.hpp`
+- Compiles `uniservice` and the `offtarget` test binary via CMake (`-j2` to avoid OOM; `-fconcepts` for GCC 9)
 
 **Stage 2 (`ui-builder` / `node:18-alpine`):**
-- `npm ci` then `ng build --configuration production` with AOT, no optimization flags (kept off to reduce memory during build)
-- `ARG UI_BUST` allows forcing a cache-bust without invalidating the C++ stage: `UI_BUST=$(date +%s) podman compose up --build app`
+- `npm ci` then `ng build --configuration production`
+- `ARG UI_BUST` forces a cache-bust without invalidating the C++ stage: `UI_BUST=$(date +%s) podman compose up --build app`
 
 **Stage 3 (`runtime` / `ubuntu:focal`):**
 - Copies only: ACE/TAO `.so` files, MongoDB driver `.so` files, `uniservice` binary, Angular `dist/webui/`
-- Working directory: `/opt/xAPP/granada/` — relative path `../webgui/webui/` resolves to the Angular output
+- Working directory: `/opt/xAPP/granada/` — relative path `../webgui/webui/` resolves to Angular output
+
+### Docker — wsdbagent image (`docker/Dockerfile.wsdbagent`)
+
+Two build stages, similar cpp-builder base:
+- Passes `-DBUILD_TESTS=OFF` so GTest is not required
+- Builds only the `wsdbagent` target (`make -j2 wsdbagent`)
+- Runtime stage copies the binary and shared libs; all flags passed via `ENV ARGS=""`
+- No volume needed — agent connects outbound only; certs mounted read-only via `-v /path/to/certs:/certs:ro`
 
 ### docker-compose.yml
 
@@ -326,14 +455,15 @@ Note: `EmailServiceTest` is a `testing::Test` subclass with a custom constructor
 
 Root `CMakeLists.txt`:
 - `add_subdirectory(modules/module/mongodb)` — builds `mongodbcxx` static library
-- `add_subdirectory(test)` — builds `offtarget` test binary
-- `add_executable(uniservice ...)` — globs all `*.cpp` from webservice, http, email, oauth2, whatsapp `src/` directories
+- `option(BUILD_TESTS "Build test suite" ON)` — guards `add_subdirectory(test)`; pass `-DBUILD_TESTS=OFF` when building `wsdbagent` without GTest
+- `add_executable(uniservice ...)` — globs all `*.cpp` from webservice, http, email, oauth2, whatsapp `src/` directories; also links in wsdbproxy sources
+- `add_executable(wsdbagent ...)` — globs `wsdbagent/src/*.cpp`, adds `wsdbproxy/src/dbproto.cpp` and `wsdbproxy/src/wsframe.cpp`; links `pthread ACE ACE_SSL ssl crypto mongodbcxx z`
 
 `modules/module/mongodb/CMakeLists.txt` — builds `mongodbcxx` as a separate static library target.
 
-`test/CMakeLists.txt` — explicit source list (not globbed) for the test binary; includes `inc/` and `test/` directories from each module so test headers are found.
+`test/CMakeLists.txt` — explicit source list (not globbed) for the test binary.
 
-Standard: C++20 (`-std=c++2a`).
+Standard: C++20 (`-std=c++2a`) for `uniservice` / `offtarget`; C++17 for `mongodbcxx`.
 
 ---
 
