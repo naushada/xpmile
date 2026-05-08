@@ -113,7 +113,11 @@ struct WorkCtx { ACE_HANDLE handle; MongodbClient *db; std::string request; };
 
 **MongoDB:** One `MongodbClient` per process (enforced by `mongocxx::instance` singleton). Workers share it; `pool::acquire()` is thread-safe. The `ACE_Semaphore` in `WebServer` is a startup barrier only (not a DB mutex).
 
-**Remote-DB mode (`--remote-db`):** `WsMongodbProxy` replaces `MongodbClient`. All DB calls are forwarded as BSON messages over a WebSocket to `wsdbagent` running on the MongoDB machine. `WsDbServer` owns the agent connection. On Heroku, `WebConnection` hands off the upgraded socket; on self-hosted, `WsDbServer` binds its own mTLS port. See `docs/ws-db-agent.md`.
+**Remote-DB mode (`--remote-db`):** `WsMongodbProxy` replaces `MongodbClient`. All DB calls are forwarded as BSON messages over a WebSocket to `wsdbagent` running on the MongoDB machine. `WsDbServer` owns the agent connection. On Heroku, `WebConnection` hands off the upgraded socket (see hand-off mechanics below); on self-hosted, `WsDbServer` binds its own mTLS port. See `docs/ws-db-agent.md`.
+
+**WebSocket hand-off mechanics (Heroku mode):** When `WebConnection::handle_input()` detects a WS upgrade to `/ws/db`, it must remove itself from the reactor *before* clearing `m_handle`. Order matters: `reactor()->remove_handler(this, READ_MASK | DONT_CALL)` → `m_handle = ACE_INVALID_HANDLE` → `wsDbServer()->on_agent_connected(raw)` → `connectionPool().erase(raw)`. If `m_handle` is cleared first, `remove_handler` calls `get_handle()` internally, gets `-1`, and the fd is never removed from epoll — the reactor then dispatches to the deleted `WebConnection` the next time the socket is readable.
+
+**HTTP header case:** `Http::add_element()` and `get_element()` lowercase all keys. Heroku normalises `Sec-WebSocket-Key` → `Sec-Websocket-Key`; the lowercase lookup handles this transparently.
 
 **Collection name:** Shipments are stored in the `shipping` collection — not `shipment`. The API path `/api/v1/shipment/...` is unrelated to the collection name.
 

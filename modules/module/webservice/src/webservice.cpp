@@ -1793,16 +1793,20 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
         // Hand socket to WsDbServer; prevent handle_close from closing it.
         m_handedOff = true;
         ACE_HANDLE raw = m_handle;
-        // Null the stream so WebConnection won't touch the socket, but keep
-        // m_handle so the reactor can identify this handler when it removes it.
         m_stream.set_handle(ACE_INVALID_HANDLE);
 
+        // Remove this handler from the reactor WITHOUT invoking handle_close.
+        // Must be called BEFORE m_handle is cleared — remove_handler calls
+        // get_handle() internally to find which fd to deregister from epoll.
+        reactor()->remove_handler(this,
+            ACE_Event_Handler::READ_MASK | ACE_Event_Handler::DONT_CALL);
+        m_handle = ACE_INVALID_HANDLE;
+
         parent().wsDbServer()->on_agent_connected(raw);
-        // Return -1: the reactor removes this handler from epoll/select and
-        // calls handle_close(raw, ...) for pool cleanup.  Returning 0 would
-        // leave the fd in epoll; 55 s later Heroku H15 makes it readable and
-        // the reactor dispatches to the already-deleted WebConnection → SIGSEGV.
-        return -1;
+        // Erase from the pool here (deletes this); the fd is already out of
+        // epoll so the reactor will never dispatch to us again.
+        parent().connectionPool().erase(raw);
+        return 0;
       }
     }
 
@@ -1851,10 +1855,6 @@ ACE_INT32 WebConnection::handle_close(ACE_HANDLE handle,
   if (!m_handedOff) {
     ::close(handle);
   }
-  // Erase from the connection pool (deletes this).  For the WS hand-off path
-  // this is the only cleanup site; for normal close the pool entry may already
-  // be gone (erased in handle_input) — erase on a missing key is a no-op.
-  parent().connectionPool().erase(handle);
   return (0);
 }
 

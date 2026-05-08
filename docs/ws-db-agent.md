@@ -172,8 +172,10 @@ them, `WsDbServer` falls back to the `on_agent_connected` path (Heroku mode).
 
 1. Call `connect_and_handshake()`.
 2. On success → enter `run_session()`.
-3. On failure or session end → sleep `backoff_secs` seconds → retry.
+3. On failure (including a `503` stale-eviction response) or session end → sleep `backoff_secs` seconds → retry.
 4. Exit only when `stop()` is called.
+
+**503 during reconnect:** If the agent reconnects while the server is still tearing down the previous stale session, the server replies `503 Retry-After: 2`. The agent treats this as a connect failure and retries after `backoff_secs`. Within one or two cycles the server's `run_session()` will have exited and the reconnect succeeds.
 
 ### Handshake (`connect_and_handshake`)
 
@@ -186,13 +188,20 @@ them, `WsDbServer` falls back to the `on_agent_connected` path (Heroku mode).
 
 ### Session loop (`run_session`)
 
+Before each frame recv, `poll(fd, POLLIN, 30 000 ms)` is called:
+- **Data ready** → call `ws_recv_frame()` normally.
+- **Timeout (30 s idle)** → send a Ping frame to verify liveness. If the send fails, the connection is dead → exit.
+
 | Opcode | Action |
 |--------|--------|
 | `0x02` Binary | Parse BSON → `DbRequest` → `dispatch()` → send BSON response |
 | `0x09` Ping | Send Pong frame |
+| `0x0A` Pong | No-op (keepalive reply from server) |
 | `0x08` Close | Send Close frame → exit session loop |
 
-On any recv error the loop exits and the outer `run()` reconnects after backoff.
+On any recv error, or if a Ping cannot be sent, the loop exits and `run()` reconnects after backoff.
+
+**Why the agent sends Pings (not the server):** The agent is the only side that knows when the connection is idle from its perspective. Using `poll` with a 30-second timeout on the recv fd is simpler than a separate ping thread and works correctly even when the server is busy dispatching DB responses.
 
 ### Dispatch table
 

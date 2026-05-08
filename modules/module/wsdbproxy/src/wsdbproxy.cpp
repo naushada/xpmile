@@ -184,17 +184,23 @@ bool WsDbServer::on_agent_connected(ACE_HANDLE handle)
   std::lock_guard<std::mutex> lock(m_connectMu);
 
   if (m_connected.load()) {
-    // Reject: send 409 and close
+    // A stale connection is likely still held (e.g. the agent restarted but
+    // the proxy didn't forward the FIN).  Force-shut it down so run_session()
+    // unblocks and exits, then let the agent retry.
+    ::shutdown(static_cast<int>(m_agentHandle), SHUT_RDWR);
+    m_connected.store(false);
+    m_agentHandle = ACE_INVALID_HANDLE;
     ACE_SOCK_Stream tmp;
     tmp.set_handle(handle);
-    const char* rsp = "HTTP/1.1 409 Conflict\r\n"
+    const char* rsp = "HTTP/1.1 503 Service Unavailable\r\n"
+                      "Retry-After: 2\r\n"
                       "Content-Length: 0\r\n"
                       "Connection: close\r\n\r\n";
     tmp.send_n(rsp, std::strlen(rsp));
     tmp.close();
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                        "rejected second agent (409)\n")));
+                        "stale agent evicted, new agent told to retry\n")));
     return false;
   }
 

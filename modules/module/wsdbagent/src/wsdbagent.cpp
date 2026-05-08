@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <poll.h>
 #include <random>
 #include <sstream>
 #include <thread>
@@ -185,11 +186,39 @@ bool WsDbAgent::connect_and_handshake()
   return true;
 }
 
+// ── recv_ready ────────────────────────────────────────────────────────────────
+
+// Returns true if the socket has data available within timeout_secs seconds.
+// Returns false on timeout.  A closed/errored fd returns true so the caller's
+// recv_frame call will immediately see the error.
+static bool recv_ready(int fd, int timeout_secs)
+{
+  struct pollfd pfd = { fd, POLLIN, 0 };
+  int r = ::poll(&pfd, 1, timeout_secs * 1000);
+  if (r < 0) return true;  // error → let recv detect it
+  return r > 0;
+}
+
 // ── run_session ───────────────────────────────────────────────────────────────
 
 void WsDbAgent::run_session()
 {
+  constexpr int PING_INTERVAL_S = 30;
+
   while (!m_stop.load()) {
+    int fd = m_ssl ? static_cast<int>(m_ssl_stream.get_handle())
+                   : static_cast<int>(m_plain_stream.get_handle());
+
+    if (!recv_ready(fd, PING_INTERVAL_S)) {
+      // No frame for 30 s — send a ping to verify the connection is alive.
+      if (!ws_send(wsframe::ping_frame())) {
+        ACE_DEBUG((LM_DEBUG,
+                   ACE_TEXT("%D [WsDbAgent] server not responding, disconnecting\n")));
+        break;
+      }
+      continue;
+    }
+
     std::uint8_t opcode = 0;
     std::vector<std::uint8_t> payload;
 
@@ -213,6 +242,8 @@ void WsDbAgent::run_session()
     }
     case 0x09:  // ping → pong
       ws_send(wsframe::pong_frame(payload));
+      break;
+    case 0x0A:  // pong — keepalive reply, nothing to do
       break;
     case 0x08:  // close
       ws_send(wsframe::close_frame());

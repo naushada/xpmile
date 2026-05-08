@@ -102,8 +102,9 @@ Three cooperating classes built on the ACE framework:
 
 `ACE_Event_Handler` registered per accepted socket.
 
-- `handle_input()` — reads bytes into `m_recvBuf`, calls `Http::message_length()` to detect a complete HTTP message, then enqueues an `ACE_Message_Block` on the next available worker's message queue.
-- `handle_close()` — deregisters from the reactor and removes itself from `WebServer::connectionPool()`.
+- `handle_input()` — reads bytes into `m_recvBuf`, calls `Http::message_length()` to detect a complete HTTP message, then enqueues an `ACE_Message_Block` on the next available worker's message queue. On WebSocket upgrade to `/ws/db`, calls `reactor()->remove_handler(this, READ_MASK | DONT_CALL)` *before* clearing `m_handle` (so the reactor can find the fd), then hands the raw fd to `WsDbServer::on_agent_connected()` and erases itself from the pool (which deletes `this`). Returns 0 in all close/hand-off cases; pool erase is the only cleanup site.
+- `handle_close()` — called by the reactor on normal disconnect. Closes the fd (unless `m_handedOff` is true, in which case the fd now belongs to `WsDbServer`). Does **not** erase from `connectionPool()`.
+- Destructor — calls `remove_handler(this, READ_MASK | SIGNAL_MASK)` only when `m_handedOff` is false (prevents re-deregistering an already-handed-off fd).
 - Buffers partial reads across multiple reactor callbacks until a full HTTP/1.1 message is assembled.
 
 ### MicroService
@@ -176,7 +177,7 @@ struct WorkCtx {
 **Key accessors:**
 - `method()` — `"GET"`, `"POST"`, etc.
 - `uri()` — percent-decoded path (no query string), e.g. `"/api/v1/shipment"`
-- `get_element(key)` — looks up a MIME header or query-string parameter by name
+- `get_element(key)` — looks up a MIME header or query-string parameter by name (case-insensitive — keys are lowercased on store and lookup; Heroku normalises `Sec-WebSocket-Key` → `Sec-Websocket-Key`)
 - `body()` — decoded and decompressed body bytes
 - `header()` — raw header section including the trailing `\r\n\r\n`
 
@@ -288,12 +289,15 @@ Provides the server-side of the remote-DB WebSocket bridge. Two classes:
 
 In mTLS mode, `open()` configures `ACE_SSL_Context` with the server cert/key and CA, sets `SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT`, and binds `m_ssl_acceptor`. `svc()` calls `m_ssl_acceptor.accept()`, rejects a second simultaneous agent, runs `ws_upgrade_server()`, then enters `run_session()`.
 
+In Heroku (no-TLS) mode, `svc()` blocks on `m_connectCv` waiting for `on_agent_connected()` to be called from the reactor thread. `on_agent_connected()` accepts the first agent; if a second agent arrives while the first is still registered, it force-shuts the stale socket (`shutdown(SHUT_RDWR)` so `run_session()`'s blocked `recv_n` returns), clears `m_connected`, and returns a `503 Retry-After: 2` so the agent reconnects on the next backoff cycle.
+
 `run_session()` loop:
 
 | Opcode | Action |
 |---|---|
 | `0x02` Binary | BSON-decode → `DbRequest` → `dispatch()` → BSON-encode response → send |
 | `0x09` Ping | Send Pong |
+| `0x0A` Pong | No-op (keepalive reply from agent) |
 | `0x08` Close | Send Close → exit |
 
 `ws_send()` and the `read_n` lambda in `ws_recv_frame()` route to either the plain `m_agentStream` (Heroku) or `m_ssl_agentStream` (mTLS), transparently.
@@ -332,9 +336,14 @@ WsDbAgent(server_host, server_port, use_ssl,
 ```
 
 **Connect loop** (`run(backoff_secs)`):
-1. `connect_and_handshake()` — configure `ACE_SSL_Context` (if TLS args provided), open TCP/TLS connection, send RFC 6455 upgrade request to `/ws/db`, verify `101` + `Sec-WebSocket-Accept`.
-2. On success → `run_session()` (same dispatch table as WsDbServer).
-3. On failure or session end → sleep `backoff_secs` → retry indefinitely.
+1. `connect_and_handshake()` — configure `ACE_SSL_Context` (if TLS args provided), open TCP/TLS connection, send RFC 6455 upgrade request to `/ws/db`, verify `101` + `Sec-WebSocket-Accept`. A `503` response (stale-agent eviction in progress) is treated the same as a failed connection and triggers the backoff sleep.
+2. On success → `run_session()`.
+3. On session end → sleep `backoff_secs` → retry indefinitely.
+
+**Keepalive / dead-connection detection** (`run_session()`):
+- Uses `poll(fd, POLLIN, 30 000 ms)` before each `ws_recv_frame()` call.
+- If `poll` times out (no data for 30 s), sends a WS Ping frame. If the send fails, the connection is declared dead and the session exits.
+- This prevents half-open connections (where the server's `recv_n` would otherwise block indefinitely) and keeps Heroku's idle-connection watchdog from silently killing the socket.
 
 **mTLS on the client side:**
 ```cpp

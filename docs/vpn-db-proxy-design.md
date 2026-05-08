@@ -106,9 +106,14 @@ Rules for our implementation:
 
 ### Ping/Pong
 
-`WsDbServer` sends a Ping frame (opcode `0x9`) every 30 s. The agent replies with
-Pong (opcode `0xA`). If three consecutive pings go unanswered, the connection is
-considered dead and `WsDbServer` drops it and waits for the agent to reconnect.
+The **agent** sends a Ping frame (opcode `0x9`) every 30 s when the connection is idle
+(no DB request arrives within the poll window). The server replies with Pong
+(opcode `0xA`). If the Ping send fails, the agent treats the connection as dead and
+reconnects after its backoff interval.
+
+This is the reverse of the original design: the agent polls with `poll(fd, POLLIN,
+30 000 ms)` before every `ws_recv_frame()` call, so it naturally detects idle periods
+and can send Pings without a separate thread.
 
 ---
 
@@ -287,12 +292,24 @@ returns non-zero, check before enqueuing to a MicroService worker:
 ```
 if method == GET
    and uri == "/ws/db"
-   and header contains "Upgrade: websocket"
+   and header "sec-websocket-key" is non-empty   ← case-insensitive lookup
 →  perform WebSocket handshake (send 101)
-→  call webServer().wsDbServer().on_agent_connected(handle)
-→  do NOT enqueue to MicroService
-→  remove self from connectionPool (the socket is now owned by WsDbServer)
+→  call reactor()->remove_handler(this, READ_MASK | DONT_CALL)
+   [MUST be called BEFORE clearing m_handle — remove_handler calls get_handle()
+    internally; if m_handle is already ACE_INVALID_HANDLE the fd is never removed
+    from epoll and the reactor will dispatch to the deleted WebConnection later]
+→  m_handle = ACE_INVALID_HANDLE
+→  call webServer().wsDbServer().on_agent_connected(raw_handle)
+→  parent().connectionPool().erase(raw_handle)   ← deletes this; return 0 after
 ```
+
+**Why `DONT_CALL`:** avoids triggering `handle_close` (which would try to close a
+fd now owned by WsDbServer). The fd is removed from epoll by `remove_handler`;
+`erase()` cleans up the pool entry and frees the object.
+
+**Header case-insensitivity:** Heroku's router normalises `Sec-WebSocket-Key` to
+`Sec-Websocket-Key` before forwarding to the dyno. `Http::add_element()` and
+`Http::get_element()` both lowercase all keys, so the lookup always succeeds.
 
 The handshake accept key is computed as:
 ```cpp
@@ -431,4 +448,4 @@ MicroService thread     WsMongodbProxy       WsDbServer          ws-db-agent
 | `dispatch()` timeout | 30 s. Unblocks all waiting callers with an error response; MicroService returns 503 to the browser. No retry. |
 | Agent disconnect (in-flight) | Immediately wake all pending `dispatch()` callers with error. Wait for agent to reconnect before accepting new requests. |
 | WebSocket path | Hardcoded `/ws/db`. |
-| Multiple agents | Reject second connection with `HTTP/1.1 409 Conflict` while a live agent is connected. |
+| Multiple agents | When a second agent connects while `m_connected` is true, force-shutdown the stale socket (`SHUT_RDWR`) so `run_session()`'s blocked `recv_n` returns, clear `m_connected`, and reply to the new agent with `503 Retry-After: 2`. The agent reconnects after its backoff sleep and is accepted once `run_session()` has exited and the `svc()` thread is back on the `m_connectCv` wait. This handles the common case where Heroku's proxy does not forward the agent's FIN to the dyno, leaving the server-side TCP half-open. |
