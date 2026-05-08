@@ -31,7 +31,14 @@ The `app` service is the only service name relevant for rebuilds. `mongodb` has 
 
 ### Heroku deployment
 
-See `docs/app.md` for the full guide: authenticating with Podman, cross-building for linux/amd64, pushing to the registry, setting config vars, releasing, and running wsdbagent against the Heroku app.
+```sh
+heroku auth:token | podman login --username=_ --password-stdin registry.heroku.com
+podman-compose -f docker-compose.heroku.yml build   # linux/amd64, set UI_BUST to re-build Angular only
+podman-compose -f docker-compose.heroku.yml push
+heroku container:release web --app marvel
+```
+
+`docker-compose.heroku.yml` handles `--platform linux/amd64` and the image tag automatically. See `docs/app.md` for config vars, UI_BUST cache-busting, and wsdbagent setup.
 
 ### wsdbagent stack (MongoDB machine behind NAT)
 

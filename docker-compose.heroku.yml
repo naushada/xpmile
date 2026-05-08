@@ -1,0 +1,27 @@
+# docker-compose.heroku.yml
+#
+# Builds and tags the app image for the Heroku container registry.
+# Requires linux/amd64 because Heroku dynos are x86-64 (cross-built on Apple Silicon).
+#
+# Usage:
+#   heroku auth:token | podman login --username=_ --password-stdin registry.heroku.com
+#   podman-compose -f docker-compose.heroku.yml build
+#   podman-compose -f docker-compose.heroku.yml push
+#   heroku container:release web --app ${HEROKU_APP:-marvel}
+#
+# Force an Angular rebuild without re-compiling C++:
+#   UI_BUST=$(date +%s) podman-compose -f docker-compose.heroku.yml build
+#
+# Environment variables:
+#   HEROKU_APP   Heroku app name   (default: marvel)
+#   UI_BUST      Cache-bust value  (default: 0)
+
+services:
+  web:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        UI_BUST: ${UI_BUST:-0}
+    image: registry.heroku.com/${HEROKU_APP:-marvel}/web
