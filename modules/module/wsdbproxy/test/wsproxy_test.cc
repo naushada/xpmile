@@ -8,7 +8,7 @@
 TEST(WsMongodbProxy, CreateDocument_SendsCorrectOp)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     fake.will_respond_sval(0, "deadbeef");  // reqid unknown ahead of time — use 0 as placeholder
     // Override: let fake capture and return based on whatever reqid comes in
@@ -27,7 +27,7 @@ TEST(WsMongodbProxy, CreateDocument_SendsCorrectOp)
 TEST(WsMongodbProxy, CreateDocument_ReturnsSval)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.sval = "507f1f77bcf86cd799439011";
@@ -40,7 +40,7 @@ TEST(WsMongodbProxy, CreateDocument_ReturnsSval)
 TEST(WsMongodbProxy, CreateDocument_ReturnsEmptyOnError)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     fake.next_response = dbproto::make_error_response(0, "write failed");
     std::string result = proxy.create_document("xpmile", "shipping", R"({})");
@@ -52,7 +52,7 @@ TEST(WsMongodbProxy, CreateDocument_ReturnsEmptyOnError)
 TEST(WsMongodbProxy, GetDocument_SendsDocAndDoc2)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.sval = R"({"awbno":"AWB001"})";
@@ -73,7 +73,7 @@ TEST(WsMongodbProxy, GetDocument_SendsDocAndDoc2)
 TEST(WsMongodbProxy, GetDocuments_WithQuery_UsesQueriedOp)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.sval = "[]";
@@ -86,7 +86,7 @@ TEST(WsMongodbProxy, GetDocuments_WithQuery_UsesQueriedOp)
 TEST(WsMongodbProxy, GetDocuments_WithoutQuery_UsesAllOp)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.sval = "[]";
@@ -101,7 +101,7 @@ TEST(WsMongodbProxy, GetDocuments_WithoutQuery_UsesAllOp)
 TEST(WsMongodbProxy, UpdateCollection_SendsBothDocs)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.bval = true;
@@ -122,7 +122,7 @@ TEST(WsMongodbProxy, UpdateCollection_SendsBothDocs)
 TEST(WsMongodbProxy, DeleteDocument_ReturnsBval)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.bval = true;
@@ -138,7 +138,7 @@ TEST(WsMongodbProxy, DeleteDocument_ReturnsBval)
 TEST(WsMongodbProxy, NextAwbno_SendsPrefixInSval)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.sval = "AWB000000042";
@@ -154,7 +154,7 @@ TEST(WsMongodbProxy, NextAwbno_SendsPrefixInSval)
 TEST(WsMongodbProxy, StoreFile_SvalContainsNameAndMime)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     dbproto::DbResponse ok;
     ok.reqid = 0; ok.ok = true; ok.sval = "oid123";
@@ -174,7 +174,7 @@ TEST(WsMongodbProxy, StoreFile_SvalContainsNameAndMime)
 TEST(WsMongodbProxy, FetchFileById_ReturnsData)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
+    WsMongodbProxy proxy(fake);
 
     std::vector<uint8_t> file_bytes = {1, 2, 3, 4, 5};
     dbproto::DbResponse ok;
@@ -189,11 +189,11 @@ TEST(WsMongodbProxy, FetchFileById_ReturnsData)
 
 // ── get_database ──────────────────────────────────────────────────────────────
 
-TEST(WsMongodbProxy, GetDatabase_ReturnsConfiguredName)
+TEST(WsMongodbProxy, GetDatabase_ReturnsEmpty)
 {
     FakeWsDispatcher fake;
-    WsMongodbProxy proxy(fake, "xpmile");
-    EXPECT_EQ(proxy.get_database(), "xpmile");
+    WsMongodbProxy proxy(fake);
+    EXPECT_EQ(proxy.get_database(), "");
 }
 
 // ── IMongodbClient interface ──────────────────────────────────────────────────
