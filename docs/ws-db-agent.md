@@ -1,27 +1,61 @@
 # ws-db-agent: WebSocket DB Agent
 
 The `wsdbagent` binary runs on the MongoDB machine and connects **outbound** to the
-Heroku-hosted `uniservice` on `/ws/db`. It is the client-side counterpart to the
-`WsDbServer` described in `vpn-db-proxy-design.md`.
+`uniservice` on `/ws/db`. All traffic between the two sides is protected by **mutual
+TLS (mTLS)** — both the server and the agent present certificates signed by a shared
+private CA, so neither side accepts an unknown peer.
 
 ---
 
-## Topology recap
+## Topology
+
+### Heroku (Heroku-edge TLS, no mTLS)
+
+Heroku terminates TLS at its router. `uniservice` uses the existing
+`on_agent_connected` path (WebConnection hands the socket to WsDbServer after the
+WebSocket upgrade on the main HTTP port). mTLS is not available here because Heroku
+does not forward client certificates to the dyno.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  Heroku Dyno                                             │
-│  uniservice  (--remote-db flag set)                      │
-│  └─ WsDbServer   WebSocket endpoint: GET /ws/db          │
+│  uniservice  --remote-db                                 │
+│  └─ WsDbServer  /ws/db  (no dedicated port)              │
 └──────────────────────────────────────────────────────────┘
-          ▲
-          │  WSS   wss://yourapp.herokuapp.com/ws/db
+          ▲  WSS  wss://myapp.herokuapp.com/ws/db
+          │  (TLS terminated by Heroku edge)
+┌─────────┴────────────────────────────────────────────────┐
+│  MongoDB Machine (behind NAT)                            │
+│  wsdbagent  --server-host myapp.herokuapp.com            │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Self-hosted (mTLS, dedicated agent port)
+
+`uniservice` binds a second port exclusively for agent connections. The port uses
+`ACE_SSL_SOCK_Acceptor` and requires a client certificate signed by the shared CA
+(`SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT`). `wsdbagent` loads the CA cert
+(server verification) and its own client cert/key before connecting.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Self-hosted server                                      │
+│  uniservice  --remote-db                                 │
+│              --agent-port 8443                           │
+│              --tls-cert certs/server.crt                 │
+│              --tls-key  certs/server.key                 │
+│              --tls-ca   certs/ca.crt                     │
+│  └─ WsDbServer  mTLS acceptor on :8443                   │
+└──────────────────────────────────────────────────────────┘
+          ▲  TLS (mTLS — both sides present certs)
           │
 ┌─────────┴────────────────────────────────────────────────┐
 │  MongoDB Machine (behind NAT)                            │
-│  wsdbagent                                               │
-│  ├─ WebSocket client → connects to Heroku on start       │
-│  └─ MongodbClient   → mongod (localhost:27017)           │
+│  wsdbagent  --server-host myserver.example.com           │
+│             --server-port 8443                           │
+│             --tls-ca   certs/ca.crt                      │
+│             --tls-cert certs/client.crt                  │
+│             --tls-key  certs/client.key                  │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -36,47 +70,97 @@ modules/module/wsdbagent/
 └── src/
     ├── wsdbagent.cpp       Implementation
     └── wsdbagent_main.cpp  CLI entry point
+certs/
+└── generate.sh             OpenSSL script — generates CA, server, client certs
 docker/
 └── Dockerfile.wsdbagent   Standalone container image
 ```
 
 ---
 
+## Certificates
+
+### Generate
+
+```sh
+cd certs && ./generate.sh
+```
+
+Produces:
+
+| File | Used by | Keep secret? |
+|------|---------|--------------|
+| `ca.crt` | both sides | no — distribute freely |
+| `server.crt` | uniservice | no |
+| `server.key` | uniservice | **yes** |
+| `client.crt` | wsdbagent | no |
+| `client.key` | wsdbagent | **yes** |
+
+Certs are valid for 10 years. Re-run `generate.sh` to rotate — both sides must be
+updated together.
+
+### How mTLS is enforced
+
+**Server (`WsDbServer::open()`):**
+```
+ACE_SSL_Context → SSLv23_server mode
+  certificate()    ← server.crt
+  private_key()    ← server.key
+  load_trusted_ca()← ca.crt
+SSL_CTX_set_verify → SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT
+```
+Any agent connecting without a CA-signed client cert is rejected at the TLS handshake.
+
+**Client (`WsDbAgent::connect_and_handshake()`):**
+```
+ACE_SSL_Context → SSLv23_client mode
+  load_trusted_ca()← ca.crt   (verify server cert)
+  certificate()    ← client.crt
+  private_key()    ← client.key
+SSL_CTX_set_verify → SSL_VERIFY_PEER
+```
+The agent refuses to connect if the server's cert is not signed by the CA.
+
+---
+
 ## CLI
+
+### wsdbagent
 
 ```
 wsdbagent [OPTIONS]
 
 Required:
-  --server-host  <host>   Heroku hostname (e.g. myapp.herokuapp.com)
-  --mongo-db-uri <uri>    MongoDB connection URI
-  --mongo-db-name <name>  Database name
+  --server-host  <host>    Hostname to connect to
+  --mongo-db-uri <uri>     MongoDB connection URI
+  --mongo-db-name <name>   Database name
 
 Optional:
-  --server-port  <n>      Port (default: 443 with SSL, 8080 without)
-  --no-ssl                Use plain TCP instead of TLS
+  --server-port  <n>       Port (default: 443 with SSL, 8080 without)
+  --no-ssl                 Use plain TCP instead of TLS
+  --tls-ca   <path>        CA certificate — enables server cert verification
+  --tls-cert <path>        Client certificate (mTLS)
+  --tls-key  <path>        Client private key  (mTLS)
   --mongo-db-connection-pool <n>  Pool size (default: 10)
-  --backoff      <secs>   Reconnect wait in seconds (default: 5)
+  --backoff  <secs>        Reconnect wait in seconds (default: 5)
   --help
 ```
 
-Examples:
+### uniservice (remote-db mode)
 
-```sh
-# Production — TLS on port 443
-wsdbagent \
-  --server-host myapp.herokuapp.com \
-  --mongo-db-uri "mongodb://localhost:27017" \
-  --mongo-db-name xpmile
-
-# Local dev — plain TCP, no TLS
-wsdbagent \
-  --server-host localhost \
-  --server-port 8080 \
-  --no-ssl \
-  --mongo-db-uri "mongodb://localhost:27017" \
-  --mongo-db-name xpmile_dev
 ```
+uniservice --remote-db [OPTIONS]
+
+mTLS agent port (all four required together):
+  --agent-port <n>      Dedicated port WsDbServer listens on for agent connections
+  --tls-cert   <path>   Server certificate (PEM)
+  --tls-key    <path>   Server private key  (PEM)
+  --tls-ca     <path>   CA cert used to verify the agent's client cert (PEM)
+```
+
+When `--agent-port` and all three TLS flags are provided, `WsDbServer` binds its own
+`ACE_SSL_SOCK_Acceptor` on that port and handles the WebSocket upgrade itself. Without
+them, `WsDbServer` falls back to the `on_agent_connected` path (Heroku mode).
 
 ---
 
@@ -93,17 +177,14 @@ wsdbagent \
 
 ### Handshake (`connect_and_handshake`)
 
-1. Open a TCP (or TLS) connection to `--server-host:--server-port`.
-2. Send a standard RFC 6455 upgrade request to `/ws/db` with a random 16-byte
-   `Sec-WebSocket-Key`.
-3. Read the HTTP response headers until `\r\n\r\n`.
-4. Verify status `101` and `Sec-WebSocket-Accept` value
-   (`Base64(SHA1(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))`).
-5. Return `true` to enter the session loop.
+1. Configure `ACE_SSL_Context` with CA / client cert / key (if provided).
+2. Open a TLS (or plain TCP) connection to `--server-host:--server-port`.
+3. Send a standard RFC 6455 upgrade request to `/ws/db`.
+4. Read the HTTP response headers until `\r\n\r\n`.
+5. Verify status `101` and `Sec-WebSocket-Accept`.
+6. Return `true` to enter the session loop.
 
 ### Session loop (`run_session`)
-
-Reads WebSocket frames and dispatches them:
 
 | Opcode | Action |
 |--------|--------|
@@ -113,10 +194,7 @@ Reads WebSocket frames and dispatches them:
 
 On any recv error the loop exits and the outer `run()` reconnects after backoff.
 
-### Dispatch (`dispatch`)
-
-Receives a `dbproto::DbRequest` and calls the appropriate `MongodbClient` method.
-Returns a BSON-encoded `dbproto::DbResponse`.
+### Dispatch table
 
 | `DbOp` | `MongodbClient` call | Response field |
 |--------|----------------------|----------------|
@@ -134,28 +212,20 @@ Returns a BSON-encoded `dbproto::DbResponse`.
 | `FETCH_FILE_BY_ID` | `fetch_file_by_id(oid)` | `data` (bytes) |
 | `DELETE_FILE` | `delete_file(oid)` | `bval` |
 
-**Serialisation notes** (mirror of `WsMongodbProxy` encoding):
-
-- `CREATE_BULK_DOCUMENT`: `req.doc` carries the raw JSON array string bytes
-  (`std::string(req.doc.begin(), req.doc.end())`).
-- `UPDATE_BULK_DOCUMENT`: `req.doc` and `req.doc2` each carry a JSON-array string
-  (`std::vector<std::string>`) serialised with `nlohmann::json::dump()`. The agent
-  parses them back with `json::parse(...).get<std::vector<std::string>>()`.
-- `STORE_FILE`: `req.sval` is `"filename|content_type"` (pipe-separated). `req.doc`
-  carries the raw file bytes.
+**Serialisation notes:**
+- `CREATE_BULK_DOCUMENT`: `req.doc` carries raw JSON string bytes.
+- `UPDATE_BULK_DOCUMENT`: `req.doc`/`req.doc2` are JSON-array bytes from `nlohmann::json::dump()`.
+- `STORE_FILE`: `req.sval` is `"filename|content_type"` (pipe-separated).
 
 ### Frame encoding
 
 - Agent → server frames are **masked** (`MASK = 1`) per RFC 6455 §5.3.
 - Server → agent frames are **unmasked**.
-- Both sides use binary frames (`opcode = 0x2`) for all DB traffic.
-- `wsframe::encode()` / `wsframe::decode()` (shared with `WsDbServer`) handle framing.
+- `wsframe::encode()` / `wsframe::decode()` handle framing on both sides.
 
 ---
 
 ## Building
-
-The agent is a CMake target in the root `CMakeLists.txt`:
 
 ```cmake
 file(GLOB MODULE_WSDBAGENT_SOURCES "modules/module/wsdbagent/src/*.cpp")
@@ -168,21 +238,19 @@ add_executable(wsdbagent
 target_link_libraries(wsdbagent pthread ACE ACE_SSL ssl crypto mongodbcxx z)
 ```
 
-`mongodbcxx` (static lib built by `modules/module/mongodb/CMakeLists.txt`) provides
-`MongodbClient`. `dbproto.cpp` and `wsframe.cpp` are compiled directly into the binary
-rather than shared with `uniservice` to keep the agent self-contained.
+Pass `-DBUILD_TESTS=OFF` when building without GTest (as `Dockerfile.wsdbagent` does).
 
 ---
 
 ## Docker deployment
 
-The MongoDB machine behind NAT runs two containers: `mongod` and `wsdbagent`.
-Only outbound connections are needed — no inbound ports need to be opened on the NAT firewall.
+The MongoDB machine behind NAT runs two containers. Only outbound connections are
+needed — no inbound ports need to be opened on the NAT firewall.
 
 ```
 MongoDB machine (behind NAT)
-├── mongodb container   — mongod on localhost:27017, data on a named volume
-└── wsdbagent container — connects outbound to Heroku, stateless (no volume)
+├── mongodb container   — mongod, data on a named volume
+└── wsdbagent container — connects outbound, stateless (no volume)
 ```
 
 ### Build the image
@@ -201,64 +269,77 @@ podman run -d --name mongodb \
   mongo:latest
 ```
 
-The `-v mongo-data:/data/db` mount ensures data survives container restarts.
-`wsdbagent` is stateless and requires no volume.
-
 ### Run wsdbagent
 
+**Heroku (Heroku-edge TLS, no mTLS):**
+
 ```sh
-# Production — TLS on port 443
 podman run -d --name wsdbagent \
   --network host \
   -e ARGS="--server-host myapp.herokuapp.com \
            --mongo-db-uri mongodb://root:changeme@localhost:27017 \
            --mongo-db-name xpmile" \
   wsdbagent
+```
 
-# Local dev — plain TCP, no TLS
+**Self-hosted with mTLS** — mount the cert directory and pass the TLS flags:
+
+```sh
 podman run -d --name wsdbagent \
   --network host \
-  -e ARGS="--server-host localhost \
-           --server-port 8080 \
-           --no-ssl \
+  -v /path/to/certs:/certs:ro \
+  -e ARGS="--server-host myserver.example.com \
+           --server-port 8443 \
+           --tls-ca   /certs/ca.crt \
+           --tls-cert /certs/client.crt \
+           --tls-key  /certs/client.key \
            --mongo-db-uri mongodb://root:changeme@localhost:27017 \
-           --mongo-db-name xpmile_dev" \
+           --mongo-db-name xpmile" \
   wsdbagent
 ```
 
 `--network host` lets the agent reach `mongod` on `localhost:27017`. Alternatively
-put both containers on a shared podman network and reference MongoDB by container name.
+use a shared podman network and reference MongoDB by container name.
 
-The `CMD` in `Dockerfile.wsdbagent` is:
+### Run uniservice in mTLS mode (self-hosted)
 
-```dockerfile
-CMD /opt/wsdbagent/wsdbagent ${ARGS}
+```sh
+podman run -d --name uniservice \
+  -v /path/to/certs:/certs:ro \
+  -p 8080:8080 -p 8443:8443 \
+  -e PORT=8080 \
+  -e ARGS="--remote-db \
+           --agent-port 8443 \
+           --tls-cert /certs/server.crt \
+           --tls-key  /certs/server.key \
+           --tls-ca   /certs/ca.crt \
+           --mongo-db-name xpmile \
+           --server-worker 5" \
+  xpmile
 ```
 
-All flags are passed via the `ARGS` environment variable.
+Port `8080` serves browser traffic; port `8443` is the dedicated mTLS agent port.
 
 ---
 
-## Sequence diagram
+## Sequence diagram — mTLS connect
 
 ```
-wsdbagent                  WsDbServer (Heroku)       MicroService thread
-    │                             │                          │
-    │  TCP/TLS connect            │                          │
-    │────────────────────────────►│                          │
-    │  GET /ws/db HTTP/1.1        │                          │
-    │  Upgrade: websocket         │                          │
-    │────────────────────────────►│                          │
-    │◄── HTTP/1.1 101 ────────────│                          │
-    │                             │                          │
-    │         (session open)      │                          │
-    │                             │   MicroService.get_document()
-    │                             │◄─────────────────────────│
-    │◄── binary frame (DbRequest) │                          │
-    │                             │                          │
-    │  MongodbClient.get_document()                          │
-    │                             │                          │
-    │─── binary frame (DbResponse)►│                         │
-    │                             │──────────────────────────►│
-    │                             │   returns JSON string     │
+wsdbagent                        WsDbServer (self-hosted)
+    │                                     │
+    │  TCP connect to :8443               │
+    │────────────────────────────────────►│
+    │◄── TLS ServerHello + server.crt ────│
+    │  verify server.crt against ca.crt   │
+    │  send client.crt                   ►│
+    │                                     │  verify client.crt against ca.crt
+    │                                     │  (SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
+    │       TLS handshake complete        │
+    │                                     │
+    │  GET /ws/db HTTP/1.1               ►│  ws_upgrade_server()
+    │◄── HTTP/1.1 101 ────────────────────│
+    │                                     │
+    │      (mTLS WebSocket session)       │
+    │◄── binary frame (DbRequest) ────────│
+    │─── binary frame (DbResponse) ──────►│
 ```
