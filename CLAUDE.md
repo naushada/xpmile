@@ -40,6 +40,12 @@ heroku container:release web --app marvel
 
 `docker-compose.heroku.yml` handles `--platform linux/amd64` and the image tag automatically. See `docs/app.md` for config vars, UI_BUST cache-busting, and wsdbagent setup.
 
+### Clean up dangling images
+
+```sh
+podman rmi $(podman images -f "dangling=true" -q)
+```
+
 ### wsdbagent stack (MongoDB machine behind NAT)
 
 ```sh
