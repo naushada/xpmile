@@ -80,6 +80,7 @@ private:
   bool              m_ssl;
   std::atomic<bool> m_stop {false};
 
+  std::string       m_db_name;
   std::string       m_tls_ca;
   std::string       m_tls_cert;
   std::string       m_tls_key;

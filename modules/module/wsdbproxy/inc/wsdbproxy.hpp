@@ -135,9 +135,12 @@ private:
  */
 class WsMongodbProxy : public IMongodbClient {
 public:
-  WsMongodbProxy(IWsDispatcher& dispatcher, std::string db_name);
+  explicit WsMongodbProxy(IWsDispatcher& dispatcher);
 
-  const std::string& get_database() const override { return m_dbName; }
+  const std::string& get_database() const override {
+    static const std::string empty;
+    return empty;
+  }
 
   std::string create_document(const std::string& dbName,
                               const std::string& coll,
@@ -193,7 +196,6 @@ private:
   static std::vector<std::uint8_t> json_to_bson(const std::string& json);
 
   IWsDispatcher& m_dispatcher;
-  std::string    m_dbName;
 };
 
 #endif // WSDBPROXY_HPP

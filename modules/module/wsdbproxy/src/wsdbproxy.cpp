@@ -415,8 +415,8 @@ bool WsDbServer::ws_recv_frame(std::uint8_t& opcode,
 // WsMongodbProxy
 // ═══════════════════════════════════════════════════════════════════════════════
 
-WsMongodbProxy::WsMongodbProxy(IWsDispatcher& dispatcher, std::string db_name)
-  : m_dispatcher(dispatcher), m_dbName(std::move(db_name)) {}
+WsMongodbProxy::WsMongodbProxy(IWsDispatcher& dispatcher)
+  : m_dispatcher(dispatcher) {}
 
 // ── json_to_bson ──────────────────────────────────────────────────────────────
 
@@ -458,21 +458,21 @@ dbproto::DbResponse WsMongodbProxy::roundtrip(DbOp op,
 
 // ── IMongodbClient overrides ──────────────────────────────────────────────────
 
-std::string WsMongodbProxy::create_document(const std::string& dbName,
+std::string WsMongodbProxy::create_document(const std::string& /*dbName*/,
                                              const std::string& coll,
                                              const std::string& doc)
 {
-  auto rsp = roundtrip(DbOp::CREATE_DOCUMENT, dbName, coll, json_to_bson(doc));
+  auto rsp = roundtrip(DbOp::CREATE_DOCUMENT, {}, coll, json_to_bson(doc));
   return rsp.ok ? rsp.sval : std::string{};
 }
 
-std::int32_t WsMongodbProxy::create_bulk_document(const std::string& dbName,
+std::int32_t WsMongodbProxy::create_bulk_document(const std::string& /*dbName*/,
                                                    const std::string& coll,
                                                    const std::string& doc)
 {
   // doc is a JSON object/array; embed raw bytes
   std::vector<std::uint8_t> raw(doc.begin(), doc.end());
-  auto rsp = roundtrip(DbOp::CREATE_BULK_DOCUMENT, dbName, coll, raw);
+  auto rsp = roundtrip(DbOp::CREATE_BULK_DOCUMENT, {}, coll, raw);
   return rsp.ok ? rsp.ival : 0;
 }
 

@@ -109,7 +109,6 @@ int main(int argc, char *argv[]) {
   SMTP::Account::instance().from_password(opt[idx(Arg::EMAIL_FROM_PASSWORD)]);
 
   if (remoteDb) {
-    const std::string &dbName    = opt[idx(Arg::DB_NAME)];
     const std::string &agentPort = opt[idx(Arg::AGENT_PORT)];
     const std::string &tlsCert   = opt[idx(Arg::TLS_CERT)];
     const std::string &tlsKey    = opt[idx(Arg::TLS_KEY)];
@@ -130,7 +129,7 @@ int main(int argc, char *argv[]) {
       wsServer = std::make_unique<WsDbServer>();
     }
 
-    auto proxy = std::make_unique<WsMongodbProxy>(*wsServer, dbName);
+    auto proxy = std::make_unique<WsMongodbProxy>(*wsServer);
     WebServer inst(opt[idx(Arg::SERVER_IP)], port, worker,
                    std::move(proxy), std::move(wsServer));
     inst.start();

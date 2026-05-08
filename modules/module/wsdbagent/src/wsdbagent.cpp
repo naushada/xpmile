@@ -65,6 +65,7 @@ WsDbAgent::WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
   , m_tls_key(std::move(tls_key))
 {
   ACE_UNUSED_ARG(db_pool);
+  m_db_name = db_name;
   m_db = std::make_unique<MongodbClient>(db_uri);
   if (!db_name.empty()) m_db->set_database(db_name);
 }
@@ -243,7 +244,7 @@ std::vector<std::uint8_t> WsDbAgent::dispatch(const dbproto::DbRequest &req)
     switch (req.op) {
 
     case DbOp::CREATE_DOCUMENT:
-      rsp.sval = m_db->create_document(req.db, req.coll,
+      rsp.sval = m_db->create_document(m_db_name, req.coll,
                                         bson_to_json(req.doc));
       rsp.ok   = !rsp.sval.empty();
       break;
@@ -251,7 +252,7 @@ std::vector<std::uint8_t> WsDbAgent::dispatch(const dbproto::DbRequest &req)
     case DbOp::CREATE_BULK_DOCUMENT: {
       // doc carries the raw JSON string bytes
       std::string json_str(req.doc.begin(), req.doc.end());
-      rsp.ival = m_db->create_bulk_document(req.db, req.coll, json_str);
+      rsp.ival = m_db->create_bulk_document(m_db_name, req.coll, json_str);
       rsp.ok   = (rsp.ival >= 0);
       break;
     }

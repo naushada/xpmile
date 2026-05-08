@@ -90,7 +90,7 @@ Heroku injects `$PORT` automatically. The app reads all other flags from `ARGS`:
 
 ```sh
 heroku config:set \
-  ARGS="--remote-db --mongo-db-name xpmile --server-worker 5" \
+  ARGS="--remote-db --server-worker 5" \
   --app marvel
 ```
 
@@ -98,7 +98,7 @@ Email credentials (optional):
 
 ```sh
 heroku config:set \
-  ARGS="--remote-db --mongo-db-name xpmile --server-worker 5 \
+  ARGS="--remote-db --server-worker 5 \
         --email-from-name 'My App' \
         --email-from-id sender@gmail.com \
         --email-from-password secret" \
