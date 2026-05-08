@@ -54,6 +54,7 @@ services:
         --mongo-db-name ${MONGO_DB:-xpmile}
         --mongo-db-connection-pool ${MONGO_POOL:-20}
         --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin&maxPoolSize=${MONGO_POOL:-20}
+      REMOTE_DB: "${REMOTE_DB:-}"
     ports:
       - "${HOST_PORT:-8080}:${PORT:-8080}"
     networks:

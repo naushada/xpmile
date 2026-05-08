@@ -262,7 +262,7 @@ MongoDB machine (behind NAT)
 └── wsdbagent container — connects outbound, stateless (no volume)
 ```
 
-### Compose stack (recommended)
+### Compose stack — production (Heroku)
 
 `docker-compose.agent.yml` at the repo root runs both MongoDB and wsdbagent
 together. Copy `.env.agent` to `.env`, set `SERVER_HOST`, then:
@@ -277,6 +277,33 @@ bridge — no `--network host` needed. MongoDB data is persisted in the
 
 For mTLS (self-hosted uniservice), uncomment the `volumes` and append the TLS
 flags in `docker-compose.agent.yml` as shown in the inline comments.
+
+### Compose stack — local development
+
+Run the full remote-db stack on one machine for local testing. Two terminals:
+
+**Terminal 1 — uniservice with `--remote-db`:**
+```sh
+REMOTE_DB=1 podman-compose up --build
+```
+uniservice listens on `localhost:8080` and waits for wsdbagent to connect on
+`/ws/db`. The `mongodb` service in this compose still starts (it's harmless;
+uniservice ignores it in `--remote-db` mode).
+
+**Terminal 2 — wsdbagent + its own MongoDB:**
+```sh
+SERVER_HOST=host.containers.internal \
+SERVER_PORT=8080 \
+NO_SSL=1 \
+podman-compose -f docker-compose.agent.yml up --build
+```
+
+`host.containers.internal` resolves to the host machine from inside a Podman
+container on macOS. On Linux, use the Docker/Podman bridge gateway IP
+(typically `172.17.0.1`) or start the agent with `--network host` instead.
+
+Both stacks share the same image builds (CMake/Angular cache), so only changed
+source files trigger a recompile.
 
 ### Manual run (without Compose)
 

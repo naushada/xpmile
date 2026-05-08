@@ -10,7 +10,7 @@ App name used in these examples: **`marvel`**
 |---|---|---|
 | `docker-compose.yml` | Dev machine | Local stack — MongoDB + app together |
 | `docker-compose.heroku.yml` | Dev machine | Builds and pushes to Heroku registry |
-| `docker-compose.agent.yml` | NAT machine | MongoDB + wsdbagent outbound to Heroku |
+| `docker-compose.agent.yml` | MongoDB machine | MongoDB + wsdbagent outbound to Heroku |
 
 ---
 
@@ -25,11 +25,17 @@ App name used in these examples: **`marvel`**
 ## Container stack (Heroku)
 
 `docker-compose.heroku.yml` defines the `web` service with `platform: linux/amd64`
-and `image: registry.heroku.com/<app>/web`. `podman-compose` builds and pushes it;
-`heroku container:release` activates it on the dyno.
+and `image: registry.heroku.com/<app>/web`. `podman-compose` builds it;
+`podman push --format=v2s2` pushes it (plain `podman-compose push` fails with
+"unsupported manifest" on some Podman versions); `heroku container:release`
+activates it on the dyno.
 
 ```
-Mac (ARM64) ──podman-compose build (linux/amd64)──► Heroku registry
+Mac (ARM64) ──podman-compose build (linux/amd64)──► local image
+                                                          │
+                                              podman push --format=v2s2
+                                                          │
+                                                   Heroku registry
                                                           │
                                                    heroku container:release
                                                           │
@@ -80,13 +86,18 @@ UI_BUST=$(date +%s) podman-compose -f docker-compose.heroku.yml build
 
 ### 4. Push the image
 
+`podman-compose push` fails with an "unsupported manifest" error against the
+Heroku registry. Use `podman push` directly with the v2s2 manifest format:
+
 ```sh
-podman-compose -f docker-compose.heroku.yml push
+podman push --format=v2s2 registry.heroku.com/marvel/web
 ```
 
 ### 5. Set config vars
 
-Heroku injects `$PORT` automatically. The app reads all other flags from `ARGS`:
+Heroku injects `$PORT` automatically. The app reads all other flags from `ARGS`.
+
+**Remote-DB mode** (MongoDB behind NAT via wsdbagent — recommended for Heroku):
 
 ```sh
 heroku config:set \
@@ -94,7 +105,7 @@ heroku config:set \
   --app marvel
 ```
 
-Email credentials (optional):
+With email credentials:
 
 ```sh
 heroku config:set \
@@ -129,8 +140,8 @@ heroku auth:token | podman login --username=_ --password-stdin registry.heroku.c
 # 2. Build
 podman-compose -f docker-compose.heroku.yml build
 
-# 3. Push
-podman-compose -f docker-compose.heroku.yml push
+# 3. Push  (must use --format=v2s2; podman-compose push doesn't work)
+podman push --format=v2s2 registry.heroku.com/marvel/web
 
 # 4. Release
 heroku container:release web --app marvel
@@ -166,10 +177,9 @@ Heroku does not provide a MongoDB add-on by default. Options:
 | **wsdbagent** (recommended) | MongoDB runs on your own machine behind NAT; `wsdbagent` connects outbound to the Heroku app's `/ws/db` WebSocket endpoint. No inbound ports needed. |
 | **MongoDB Atlas** | Managed cloud MongoDB; pass the Atlas URI via `--mongo-db-uri` in `ARGS` (use local mode, not `--remote-db`). |
 
-### wsdbagent on Heroku (no mTLS)
+### wsdbagent on the MongoDB machine (Heroku path, no mTLS)
 
-Heroku terminates TLS at its edge router. The agent connects with standard WSS;
-no client certificate is needed. Use `docker-compose.agent.yml` on the MongoDB machine:
+Heroku terminates TLS at its edge router — no client certificate is needed.
 
 ```sh
 # On the MongoDB machine
@@ -177,7 +187,11 @@ cp .env.agent .env          # set SERVER_HOST=marvel.herokuapp.com
 podman-compose -f docker-compose.agent.yml up --build -d
 ```
 
-See `docs/ws-db-agent.md` for full details including mTLS configuration.
+The agent connects outbound to `wss://marvel.herokuapp.com/ws/db` on port 443.
+No inbound firewall rules are needed on the MongoDB machine.
+
+See `docs/ws-db-agent.md` for full details including mTLS configuration and
+running the agent locally for development.
 
 ---
 
@@ -186,7 +200,9 @@ See `docs/ws-db-agent.md` for full details including mTLS configuration.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `podman login` fails with 401 | Token expired | Re-run `heroku auth:token \| podman login ...` |
+| Push fails with "unsupported manifest" | Wrong push command | Use `podman push --format=v2s2 registry.heroku.com/marvel/web` |
 | Push fails with "manifest unknown" | Wrong tag format | Tag must be exactly `registry.heroku.com/<app>/web` |
 | Dyno crashes immediately | Wrong `PORT` | Ensure `CMD` uses `$PORT`; check `heroku logs` |
 | Build very slow on Apple Silicon | QEMU emulation for amd64 | Normal for first cross-compile; cached layers speed up repeats |
 | `uniservice: not found` in logs | Binary not copied | Confirm `Dockerfile` `COPY --from=cpp-builder` step succeeded |
+| Login times out (H12) with agent connected | DB response not received | Check wsdbagent logs for `ws_send failed`; check Heroku logs for `recv_n` errors |

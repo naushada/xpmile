@@ -211,7 +211,7 @@ void WsDbAgent::run_session()
 
     if (!recv_ready(fd, PING_INTERVAL_S)) {
       // No frame for 30 s — send a ping to verify the connection is alive.
-      if (!ws_send(wsframe::ping_frame())) {
+      if (!ws_send({}, 0x09)) {
         ACE_DEBUG((LM_DEBUG,
                    ACE_TEXT("%D [WsDbAgent] server not responding, disconnecting\n")));
         break;
@@ -237,16 +237,24 @@ void WsDbAgent::run_session()
         continue;
       }
       auto rsp_bson = dispatch(req);
-      ws_send(rsp_bson);
+      bool sent = ws_send(rsp_bson);
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WsDbAgent] ws_send reqid=%d size=%zu sent=%d\n"),
+                 req.reqid, rsp_bson.size(), (int)sent));
+      if (!sent) {
+        ACE_ERROR((LM_ERROR,
+                   ACE_TEXT("%D [WsDbAgent] ws_send failed, disconnecting\n")));
+        goto done;
+      }
       break;
     }
     case 0x09:  // ping → pong
-      ws_send(wsframe::pong_frame(payload));
+      ws_send(payload, 0x0A);
       break;
     case 0x0A:  // pong — keepalive reply, nothing to do
       break;
     case 0x08:  // close
-      ws_send(wsframe::close_frame());
+      ws_send({}, 0x08);
       goto done;
     default:
       break;
@@ -379,9 +387,9 @@ std::vector<std::uint8_t> WsDbAgent::dispatch(const dbproto::DbRequest &req)
 
 // ── ws_send ───────────────────────────────────────────────────────────────────
 
-bool WsDbAgent::ws_send(const std::vector<std::uint8_t> &payload)
+bool WsDbAgent::ws_send(const std::vector<std::uint8_t> &payload, uint8_t opcode)
 {
-  auto frame = wsframe::encode(payload, 0x02, true);  // masked (client→server)
+  auto frame = wsframe::encode(payload, opcode, true);  // masked (client→server)
   return stream_send_n(frame.data(), frame.size())
          == static_cast<ssize_t>(frame.size());
 }

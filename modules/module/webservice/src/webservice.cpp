@@ -1621,6 +1621,12 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   m_wsDbServer = std::move(wsServer);
   m_semaphore = std::make_unique<ACE_Semaphore>();
 
+  if (m_wsDbServer && m_wsDbServer->open() == -1) {
+    ACE_ERROR((LM_CRITICAL,
+               ACE_TEXT("%D [WebServer:%t] %M %N:%l WsDbServer open failed\n")));
+    ::exit(-1);
+  }
+
   m_workerPool.clear();
   for (ACE_UINT32 cnt = 0; cnt < workerPool; ++cnt) {
     auto *worker = new MicroService(ACE_Thread_Manager::instance(), *this);

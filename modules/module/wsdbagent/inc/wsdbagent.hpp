@@ -64,7 +64,7 @@ private:
   std::vector<std::uint8_t> dispatch(const dbproto::DbRequest &req);
 
   // WebSocket frame I/O (masked=true for client→server)
-  bool ws_send(const std::vector<std::uint8_t> &payload);
+  bool ws_send(const std::vector<std::uint8_t> &payload, uint8_t opcode = 0x02);
   bool ws_recv_frame(std::uint8_t &opcode, std::vector<std::uint8_t> &payload);
 
   // Low-level socket wrappers (route to SSL or plain stream)

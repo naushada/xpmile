@@ -46,7 +46,7 @@ public:
  *   and wakes the corresponding `dispatch()` caller by reqid.
  * - `dispatch()` is called from MicroService worker threads.  It assigns a
  *   unique reqid, writes the request frame (with socket-write mutex), then
- *   blocks on a per-request condition variable for up to 30 s.
+ *   blocks on a per-request condition variable for up to 60 s.
  * - On disconnect all in-flight `dispatch()` calls are failed immediately.
  */
 class WsDbServer : public ACE_Task<ACE_MT_SYNCH>, public IWsDispatcher {
@@ -59,11 +59,11 @@ public:
     std::string   ca;         ///< CA certificate path used to verify client certs (PEM).
   };
 
-  /// @param dispatch_timeout_s Seconds before dispatch() gives up (default 30).
-  explicit WsDbServer(int dispatch_timeout_s = 30);
+  /// @param dispatch_timeout_s Seconds before dispatch() gives up (default 60).
+  explicit WsDbServer(int dispatch_timeout_s = 60);
 
   /// mTLS constructor: WsDbServer self-accepts on tls.port with mutual TLS.
-  explicit WsDbServer(TlsConfig tls, int dispatch_timeout_s = 30);
+  explicit WsDbServer(TlsConfig tls, int dispatch_timeout_s = 60);
   virtual ~WsDbServer();
 
   int open(void* args = nullptr) override;

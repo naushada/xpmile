@@ -217,20 +217,30 @@ bool WsDbServer::on_agent_connected(ACE_HANDLE handle)
 
 void WsDbServer::run_session()
 {
-  std::vector<std::uint8_t> buf;
-  buf.reserve(65536);
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WsDbServer:%t] %M %N:%l run_session started, "
+                      "handle=%d\n"), (int)m_agentHandle));
 
   while (m_connected.load()) {
     // Read one WebSocket frame from the agent.
     std::uint8_t  opcode  = 0;
     std::vector<std::uint8_t> payload;
 
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "waiting for frame from agent\n")));
+
     if (!ws_recv_frame(opcode, payload)) {
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                          "agent disconnected\n")));
+                          "ws_recv_frame failed — agent disconnected\n")));
       break;
     }
+
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "received frame opcode=0x%02x payload=%zu bytes\n"),
+               (unsigned)opcode, payload.size()));
 
     switch (opcode) {
     case 0x02: {  // binary — BSON response envelope
@@ -238,9 +248,14 @@ void WsDbServer::run_session()
       if (!dbproto::parse_response(payload, rsp)) {
         ACE_ERROR((LM_ERROR,
                    ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                            "malformed response BSON\n")));
+                            "malformed response BSON (payload %zu bytes)\n"),
+                   payload.size()));
         continue;
       }
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                          "response reqid=%d ok=%d\n"),
+                 rsp.reqid, (int)rsp.ok));
       std::shared_ptr<PendingRequest> pending;
       {
         std::lock_guard<std::mutex> lock(m_pendingMu);
@@ -252,6 +267,10 @@ void WsDbServer::run_session()
         pending->response = std::move(payload);
         pending->ready    = true;
         pending->cv.notify_one();
+      } else {
+        ACE_DEBUG((LM_DEBUG,
+                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                            "no pending request for reqid=%d\n"), rsp.reqid));
       }
       break;
     }
@@ -261,10 +280,15 @@ void WsDbServer::run_session()
     case 0x08:  // close
       goto done;
     default:
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                          "ignoring frame opcode=0x%02x\n"), (unsigned)opcode));
       break;
     }
   }
 done:
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WsDbServer:%t] %M %N:%l run_session ended\n")));
   {
     std::lock_guard<std::mutex> lock(m_connectMu);
     m_connected.store(false);
@@ -373,6 +397,10 @@ bool WsDbServer::ws_recv_frame(std::uint8_t& opcode,
         ? m_ssl_agentStream.recv_n(buf.data() + start, n)
         : m_agentStream.recv_n(buf.data() + start, n);
     if (got != static_cast<ssize_t>(n)) {
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                          "recv_n wanted %zu got %zd errno=%d\n"),
+                 n, got, errno));
       buf.resize(start);
       return false;
     }

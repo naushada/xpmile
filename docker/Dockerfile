@@ -135,7 +135,9 @@ WORKDIR /opt/xAPP/granada
 
 # CMD_ARGS: --server-ip <ip> --server-port <port> --server-worker <n>
 #           --mongo-db-name <name> --mongo-db-connection-pool <n> --mongo-db-uri <uri>
+# Set REMOTE_DB=1 in the container environment to enable --remote-db mode.
 ENV ARGS="--server-worker 5"
 ENV PORT=8080
+ENV REMOTE_DB=""
 
-CMD /opt/xAPP/granada/uniservice --server-port ${PORT} ${ARGS}
+CMD /opt/xAPP/granada/uniservice --server-port ${PORT} ${ARGS} ${REMOTE_DB:+--remote-db}
