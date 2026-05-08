@@ -1701,8 +1701,14 @@ WebConnection::~WebConnection() {
        ACE_TEXT("%D [WebConnection:%t] %M %N:%l handle:%d closing dtor\n"),
        m_handle));
 
-  ACE_Reactor::instance()->remove_handler(
-      this, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
+  // Don't call remove_handler after a WebSocket hand-off: the reactor
+  // entry was already removed (with DONT_CALL) before the hand-off, and
+  // m_handle is ACE_INVALID_HANDLE (-1). Passing -1 to remove_handler
+  // corrupts the ACE handler table and causes a delayed crash.
+  if (!m_handedOff) {
+    ACE_Reactor::instance()->remove_handler(
+        this, ACE_Event_Handler::READ_MASK | ACE_Event_Handler::SIGNAL_MASK);
+  }
 }
 
 ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
