@@ -33,13 +33,15 @@ The `app` service is the only service name relevant for rebuilds. `mongodb` has 
 
 See `docs/app.md` for the full guide: authenticating with Podman, cross-building for linux/amd64, pushing to the registry, setting config vars, releasing, and running wsdbagent against the Heroku app.
 
-### wsdbagent image
+### wsdbagent stack (MongoDB machine behind NAT)
 
 ```sh
-podman build -f docker/Dockerfile.wsdbagent -t wsdbagent .
+# Copy the env template, fill in SERVER_HOST, then bring the stack up
+cp .env.agent .env
+podman-compose -f docker-compose.agent.yml up --build -d
 ```
 
-See `docs/ws-db-agent.md` for run commands (Heroku mode and self-hosted mTLS mode).
+Runs MongoDB + wsdbagent together. `docker-compose.agent.yml` is self-contained — no other services needed. See `docs/ws-db-agent.md` for mTLS and manual run options.
 
 ### Running tests
 

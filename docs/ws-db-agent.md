@@ -253,13 +253,31 @@ MongoDB machine (behind NAT)
 └── wsdbagent container — connects outbound, stateless (no volume)
 ```
 
-### Build the image
+### Compose stack (recommended)
+
+`docker-compose.agent.yml` at the repo root runs both MongoDB and wsdbagent
+together. Copy `.env.agent` to `.env`, set `SERVER_HOST`, then:
+
+```sh
+podman-compose -f docker-compose.agent.yml up --build -d
+```
+
+Containers reach each other by service name (`mongodb`) on the `agent-net`
+bridge — no `--network host` needed. MongoDB data is persisted in the
+`mongo-data` named volume.
+
+For mTLS (self-hosted uniservice), uncomment the `volumes` and append the TLS
+flags in `docker-compose.agent.yml` as shown in the inline comments.
+
+### Manual run (without Compose)
+
+#### Build the image
 
 ```sh
 podman build -f docker/Dockerfile.wsdbagent -t wsdbagent .
 ```
 
-### Run MongoDB with a persistent volume
+#### Run MongoDB with a persistent volume
 
 ```sh
 podman run -d --name mongodb \
@@ -269,7 +287,7 @@ podman run -d --name mongodb \
   mongo:latest
 ```
 
-### Run wsdbagent
+#### Run wsdbagent
 
 **Heroku (Heroku-edge TLS, no mTLS):**
 

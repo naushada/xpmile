@@ -1,0 +1,99 @@
+# docker-compose.agent.yml
+#
+# Runs on the MongoDB machine (behind NAT).
+# Only outbound connections are needed — no inbound ports need to be opened
+# on the NAT firewall.
+#
+# Usage:
+#   cp .env.agent .env        # fill in SERVER_HOST and credentials
+#   podman-compose -f docker-compose.agent.yml up --build -d
+#
+# Environment variables (set in .env or export before running):
+#
+#   SERVER_HOST        Heroku app hostname, e.g. marvel.herokuapp.com
+#   SERVER_PORT        Port to connect to (default: 443)
+#   MONGO_ROOT_USER    MongoDB root username          (default: root)
+#   MONGO_ROOT_PASS    MongoDB root password          (default: changeme)
+#   MONGO_APP_USER     MongoDB app username           (default: xpmile)
+#   MONGO_APP_PASS     MongoDB app password           (default: xpmile_pass)
+#   MONGO_DB           Database name                  (default: xpmile)
+#   MONGO_POOL         MongoDB connection pool size   (default: 10)
+#   BACKOFF            Reconnect wait in seconds      (default: 5)
+#   CERTS_DIR          Path to certs/ on host (mTLS only, optional)
+
+services:
+
+  # ------------------------------------------------------------------
+  # MongoDB — persistent store; data survives container restarts
+  # ------------------------------------------------------------------
+  mongodb:
+    pull_policy: never
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.mongo
+    image: xpmile-mongo:latest
+    container_name: agent-mongo
+    user: "999:999"
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-changeme}
+      MONGO_APP_USER: ${MONGO_APP_USER:-xpmile}
+      MONGO_APP_PASS: ${MONGO_APP_PASS:-xpmile_pass}
+    command: ["mongod", "--setParameter", "logComponentVerbosity={accessControl:{verbosity:0}}"]
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - agent-net
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --eval \"db.adminCommand('ping')\" --quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ------------------------------------------------------------------
+  # wsdbagent — connects outbound to uniservice /ws/db
+  # Stateless: no volume needed (certs mounted read-only if using mTLS)
+  # ------------------------------------------------------------------
+  wsdbagent:
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.wsdbagent
+    image: wsdbagent:latest
+    container_name: agent-wsdbagent
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      ARGS: >-
+        --server-host ${SERVER_HOST:?SERVER_HOST must be set}
+        --server-port ${SERVER_PORT:-443}
+        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin
+        --mongo-db-name ${MONGO_DB:-xpmile}
+        --mongo-db-connection-pool ${MONGO_POOL:-10}
+        --backoff ${BACKOFF:-5}
+    # Uncomment and set CERTS_DIR to enable mTLS (self-hosted uniservice only):
+    # volumes:
+    #   - ${CERTS_DIR:-./certs}:/certs:ro
+    # Then append to ARGS:
+    #   --tls-ca   /certs/ca.crt
+    #   --tls-cert /certs/client.crt
+    #   --tls-key  /certs/client.key
+    networks:
+      - agent-net
+
+# ------------------------------------------------------------------
+# Named volume — MongoDB data persists across restarts and upgrades
+# ------------------------------------------------------------------
+volumes:
+  mongo-data:
+
+# ------------------------------------------------------------------
+# Isolated bridge network — wsdbagent reaches MongoDB by service name
+# ------------------------------------------------------------------
+networks:
+  agent-net:
+    driver: bridge
