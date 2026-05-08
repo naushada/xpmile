@@ -4,6 +4,16 @@ App name used in these examples: **`marvel`**
 
 ---
 
+## Compose files
+
+| File | Where it runs | What it does |
+|---|---|---|
+| `docker-compose.yml` | Dev machine | Local stack — MongoDB + app together |
+| `docker-compose.heroku.yml` | Dev machine | Builds and pushes to Heroku registry |
+| `docker-compose.agent.yml` | NAT machine | MongoDB + wsdbagent outbound to Heroku |
+
+---
+
 ## Prerequisites
 
 - [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli) installed and logged in (`heroku login`)
