@@ -51,7 +51,10 @@ RUN cmake .. \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr/local \
     -DBUILD_TESTING=OFF \
-    && make -j2 && make install && ldconfig
+    -DCMAKE_SKIP_INSTALL_ALL_DEPENDENCY=TRUE \
+    && make -j2 mongocxx_shared bsoncxx_shared \
+    && make install \
+    && ldconfig
 
 # Build googletest
 WORKDIR /root
