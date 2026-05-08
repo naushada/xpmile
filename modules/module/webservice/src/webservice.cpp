@@ -1773,10 +1773,10 @@ ACE_INT32 WebConnection::handle_input(ACE_HANDLE handle) {
       Http ws_http(request);
       bool is_ws_upgrade = (ws_http.method() == "GET") &&
                            (ws_http.uri()    == "/ws/db") &&
-                           !ws_http.get_element("Sec-WebSocket-Key").empty();
+                           !ws_http.get_element("sec-websocket-key").empty();
 
       if (is_ws_upgrade) {
-        std::string key    = ws_http.get_element("Sec-WebSocket-Key");
+        std::string key    = ws_http.get_element("sec-websocket-key");
         std::string accept = wsframe::accept_key(key);
         std::string rsp    = "HTTP/1.1 101 Switching Protocols\r\n"
                              "Upgrade: websocket\r\n"

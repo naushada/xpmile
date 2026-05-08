@@ -1,4 +1,6 @@
 #include "http_parser.hpp"
+#include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <zlib.h>
 
@@ -125,12 +127,18 @@ Http::Http(const std::string &in) {
   m_body = get_body(in);
 }
 
+static std::string to_lower(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c){ return std::tolower(c); });
+  return s;
+}
+
 void Http::add_element(std::string key, std::string value) {
-  m_tokenMap.emplace(std::move(key), std::move(value));
+  m_tokenMap.emplace(to_lower(std::move(key)), std::move(value));
 }
 
 std::string Http::get_element(const std::string &key) const {
-  auto it = m_tokenMap.find(key);
+  auto it = m_tokenMap.find(to_lower(key));
   return (it != m_tokenMap.end()) ? it->second : std::string{};
 }
 
