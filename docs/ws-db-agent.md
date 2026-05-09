@@ -262,6 +262,106 @@ MongoDB machine (behind NAT)
 └── wsdbagent container — connects outbound, stateless (no volume)
 ```
 
+### Quick start — build and run both containers (Heroku)
+
+Run every command from the **repo root** on the MongoDB machine.
+
+#### 1. Configure
+
+```sh
+cp .env.agent .env
+```
+
+Open `.env` and set at minimum:
+
+```
+SERVER_HOST=marvel.herokuapp.com   # your Heroku app hostname
+```
+
+All other variables have sensible defaults. Change MongoDB credentials if you
+need non-default values:
+
+```
+MONGO_ROOT_USER=root
+MONGO_ROOT_PASS=changeme
+MONGO_APP_USER=xpmile
+MONGO_APP_PASS=xpmile_pass
+MONGO_DB=xpmile
+```
+
+#### 2. Build both images
+
+```sh
+podman-compose -f docker-compose.agent.yml build
+```
+
+This compiles wsdbagent (ACE/TAO + mongo-cxx-driver) and tags the custom
+MongoDB image with the init script. The build takes 20–30 minutes on first
+run; subsequent builds use the layer cache.
+
+#### 3. Start both containers
+
+```sh
+podman-compose -f docker-compose.agent.yml up -d
+```
+
+`wsdbagent` depends on `mongodb` with `condition: service_healthy`, so it
+will not start until MongoDB passes the ping healthcheck.
+
+#### 4. Verify both are running
+
+```sh
+podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+```
+
+Expected output (both should show `Up`):
+
+```
+NAMES              STATUS                   IMAGE
+agent-mongo        Up X minutes (healthy)   xpmile-mongo:latest
+agent-wsdbagent    Up X minutes             wsdbagent:latest
+```
+
+#### 5. Watch the logs
+
+```sh
+# Both containers together
+podman-compose -f docker-compose.agent.yml logs -f
+
+# MongoDB only
+podman logs -f agent-mongo
+
+# wsdbagent only (confirm it connected to Heroku)
+podman logs -f agent-wsdbagent
+```
+
+A successful wsdbagent startup looks like:
+
+```
+[WsDbAgent] connecting to marvel.herokuapp.com:443 (ssl=1)
+[WsDbAgent] session started
+```
+
+And on the Heroku side (`heroku logs --tail --app marvel`):
+
+```
+[WsDbServer] agent connected
+```
+
+#### 6. Stop
+
+```sh
+podman-compose -f docker-compose.agent.yml down
+```
+
+MongoDB data is preserved in the `mongo-data` named volume. To wipe it:
+
+```sh
+podman volume rm mongo-data
+```
+
+---
+
 ### Compose stack — production (Heroku)
 
 `docker-compose.agent.yml` at the repo root runs both MongoDB and wsdbagent
