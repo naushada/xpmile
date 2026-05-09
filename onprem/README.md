@@ -109,15 +109,13 @@ java -jar onprem-1.0.0-SNAPSHOT.jar --xpmile.backend.base-url=http://<host>:8080
 
 ```sh
 cd onprem
-docker build -t xpmile-onprem .
-# or with podman:
 podman build -t xpmile-onprem .
 ```
 
 ### Run against local backend
 
 ```sh
-docker run -p 8090:8090 \
+podman run -p 8090:8090 \
   -e XPMILE_BACKEND_BASE_URL=http://host.docker.internal:8080 \
   xpmile-onprem
 ```
@@ -127,7 +125,7 @@ docker run -p 8090:8090 \
 ### Run against Heroku backend
 
 ```sh
-docker run -p 8090:8090 \
+podman run -p 8090:8090 \
   -e XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com \
   xpmile-onprem
 ```
@@ -135,7 +133,7 @@ docker run -p 8090:8090 \
 ### Run against on-prem remote machine
 
 ```sh
-docker run -p 8090:8090 \
+podman run -p 8090:8090 \
   -e XPMILE_BACKEND_BASE_URL=http://<backend-host>:8080 \
   xpmile-onprem
 ```

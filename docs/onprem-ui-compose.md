@@ -23,7 +23,7 @@ All three share the `xpmile-net` bridge network so the on-prem UI reaches the ba
 
 ```sh
 # From the repo root
-docker-compose -f docker-compose.onprem.yml up --build
+podman-compose -f docker-compose.onprem.yml up --build
 ```
 
 - Backend + Angular UI → **http://localhost:8080**
@@ -37,27 +37,27 @@ First run takes 30–40 min (C++ + Maven build). Subsequent runs reuse the cache
 
 ```sh
 # Start (build if needed)
-docker-compose -f docker-compose.onprem.yml up --build
+podman-compose -f docker-compose.onprem.yml up --build
 
 # Start in background
-docker-compose -f docker-compose.onprem.yml up --build -d
+podman-compose -f docker-compose.onprem.yml up --build -d
 
 # On-prem UI only (backend already running via ./run.sh start)
-docker-compose -f docker-compose.onprem.yml up --build onprem-ui
+podman-compose -f docker-compose.onprem.yml up --build onprem-ui
 
 # Rebuild on-prem UI only (fast — Maven cache warm after first build)
-docker-compose -f docker-compose.onprem.yml build onprem-ui
-docker-compose -f docker-compose.onprem.yml up onprem-ui
+podman-compose -f docker-compose.onprem.yml build onprem-ui
+podman-compose -f docker-compose.onprem.yml up onprem-ui
 
 # Follow logs
-docker-compose -f docker-compose.onprem.yml logs -f
-docker-compose -f docker-compose.onprem.yml logs -f onprem-ui
+podman-compose -f docker-compose.onprem.yml logs -f
+podman-compose -f docker-compose.onprem.yml logs -f onprem-ui
 
 # Stop (data preserved)
-docker-compose -f docker-compose.onprem.yml down
+podman-compose -f docker-compose.onprem.yml down
 
 # Stop and delete MongoDB data
-docker-compose -f docker-compose.onprem.yml down -v
+podman-compose -f docker-compose.onprem.yml down -v
 ```
 
 ---
@@ -66,7 +66,7 @@ docker-compose -f docker-compose.onprem.yml down -v
 
 ```sh
 XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com \
-  docker-compose -f docker-compose.onprem.yml up --build onprem-ui
+  podman-compose -f docker-compose.onprem.yml up --build onprem-ui
 ```
 
 Only the `onprem-ui` service starts; MongoDB and `app` are skipped.
@@ -81,15 +81,11 @@ Only the `onprem-ui` service starts; MongoDB and `app` are skipped.
 | `ONPREM_PORT` | `8090` | Host port for the on-prem UI |
 
 ```sh
-ONPREM_PORT=9090 docker-compose -f docker-compose.onprem.yml up -d
+ONPREM_PORT=9090 podman-compose -f docker-compose.onprem.yml up -d
 ```
 
 ---
 
-## Using Podman
+## Note on Podman
 
-```sh
-podman-compose -f docker-compose.onprem.yml up --build
-```
-
-All commands are identical — just replace `docker-compose` with `podman-compose`.
+All commands above use `podman-compose`. If you have `docker-compose` installed instead, the commands are identical — just substitute `docker-compose` for `podman-compose`.
