@@ -103,6 +103,47 @@ java -jar onprem-1.0.0-SNAPSHOT.jar --xpmile.backend.base-url=http://<host>:8080
 
 ---
 
+## Docker
+
+### Build the image
+
+```sh
+cd onprem
+docker build -t xpmile-onprem .
+# or with podman:
+podman build -t xpmile-onprem .
+```
+
+### Run against local backend
+
+```sh
+docker run -p 8090:8090 \
+  -e XPMILE_BACKEND_BASE_URL=http://host.docker.internal:8080 \
+  xpmile-onprem
+```
+
+> On Linux replace `host.docker.internal` with the host's actual IP (e.g. `172.17.0.1`).
+
+### Run against Heroku backend
+
+```sh
+docker run -p 8090:8090 \
+  -e XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com \
+  xpmile-onprem
+```
+
+### Run against on-prem remote machine
+
+```sh
+docker run -p 8090:8090 \
+  -e XPMILE_BACKEND_BASE_URL=http://<backend-host>:8080 \
+  xpmile-onprem
+```
+
+Open **http://localhost:8090** after the container starts.
+
+---
+
 ## Ports
 
 | Service | Default port |
