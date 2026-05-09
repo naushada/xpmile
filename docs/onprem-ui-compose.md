@@ -18,12 +18,19 @@
 
 Builds and starts only the Vaadin UI container. The C++ backend is not touched.
 
+`XPMILE_BACKEND_BASE_URL` is set in `.env` — podman-compose picks it up automatically.
+
 ```sh
 cd xpmile
-XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com podman-compose -f docker-compose.onprem.yml up --build onprem-ui
+podman-compose -f docker-compose.onprem.yml up --build onprem-ui
 ```
 
 Open **http://localhost:8090** — logs in against your live Heroku data.
+
+To override the URL without editing `.env`:
+```sh
+XPMILE_BACKEND_BASE_URL=http://localhost:8080 podman-compose -f docker-compose.onprem.yml up --build onprem-ui
+```
 
 ---
 

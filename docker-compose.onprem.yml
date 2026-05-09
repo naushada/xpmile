@@ -73,7 +73,7 @@ services:
     container_name: xpmile-onprem-ui
     restart: unless-stopped
     environment:
-      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-http://app:8080}"
+      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-http://app:8080}"   # set in .env for remote targets
     ports:
       - "${ONPREM_PORT:-8090}:8090"
     networks:
