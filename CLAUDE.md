@@ -10,21 +10,29 @@ All C++ compilation happens inside Docker. There is no native build path — ACE
 
 ### Container stack
 
+Use `run.sh` for common operations (wraps `podman-compose`):
+
 ```sh
-# Build and start both services (MongoDB + app)
-podman-compose up --build
+./run.sh build          # full build — C++ + Angular (30–40 min first run)
+./run.sh build-ui       # rebuild Angular only, reuses C++ cache (~3 min)
+./run.sh start          # start MongoDB + app
+./run.sh start remote   # start in --remote-db mode (wsdbagent on another machine)
+./run.sh stop           # stop containers (data preserved)
+./run.sh restart        # stop then start
+./run.sh logs           # follow logs from both containers
+./run.sh logs app       # app (uniservice) logs only
+./run.sh logs db        # MongoDB logs only
+./run.sh status         # show container status
+./run.sh clean          # stop + delete MongoDB data volume
+```
 
-# Build only the app container (C++ + Angular)
-podman-compose build app
+Raw `podman-compose` equivalents (if needed):
 
-# Force Angular rebuild without invalidating the C++ layer
-UI_BUST=$(date +%s) podman-compose build app
-
-# Start without rebuilding
-podman-compose up
-
-# Stop and remove containers
-podman-compose down
+```sh
+podman-compose up --build                          # build + start
+UI_BUST=$(date +%s) podman-compose build app       # Angular-only rebuild
+REMOTE_DB=1 podman-compose up -d                   # remote-db mode
+podman-compose down                                # stop
 ```
 
 The `app` service is the only service name relevant for rebuilds. `mongodb` has its own image baked with `mongo-init.js`.
