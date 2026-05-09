@@ -1,22 +1,43 @@
 :host {
 
-  .section-head {
-    margin: 0 0 4px 0;
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: #454545;
-    letter-spacing: 0.02em;
-  }
-
-  .lookup-row {
+  .action-bar {
+    display: flex;
     align-items: flex-end;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-bottom: 8px;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background: #f7f9fb;
+    border: 1px solid #dce4ea;
+    border-radius: 4px;
+
+    .lookup-group {
+      clr-input-container { margin-top: 0 !important; }
+    }
   }
 
   .form-body {
     align-items: flex-start;
+  }
+
+  .section-card {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    margin-bottom: 0;
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #1b5a7d;
+      background: #f0f5f9;
+      border-bottom: 1px solid #dce4ea;
+      padding: 0.6rem 0.75rem;
+    }
+
+    .card-block {
+      padding: 0.5rem 0.75rem 0.75rem;
+    }
   }
 
   clr-input-container,
@@ -31,11 +52,11 @@
   input.clr-input,
   select.clr-select {
     height: 1.5rem;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   label {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
 }
