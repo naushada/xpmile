@@ -1,0 +1,87 @@
+services:
+
+  # ------------------------------------------------------------------
+  # MongoDB — same image as the main stack
+  # ------------------------------------------------------------------
+  mongodb:
+    pull_policy: never
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.mongo
+    image: xpmile-mongo:latest
+    container_name: xpmile-mongo
+    user: "999:999"
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-changeme}
+      MONGO_APP_USER: ${MONGO_APP_USER:-xpmile}
+      MONGO_APP_PASS: ${MONGO_APP_PASS:-xpmile_pass}
+    command: ["mongod", "--setParameter", "logComponentVerbosity={accessControl:{verbosity:0}}"]
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - xpmile-net
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --eval \"db.adminCommand('ping')\" --quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ------------------------------------------------------------------
+  # xpmile C++ backend + Angular UI
+  # ------------------------------------------------------------------
+  app:
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        UI_BUST: ${UI_BUST:-0}
+    image: xpmile:latest
+    container_name: xpmile-app
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      PORT: "${PORT:-8080}"
+      ARGS: >-
+        --server-worker ${SERVER_WORKERS:-5}
+        --mongo-db-name ${MONGO_DB:-xpmile}
+        --mongo-db-connection-pool ${MONGO_POOL:-20}
+        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin&maxPoolSize=${MONGO_POOL:-20}
+      REMOTE_DB: "${REMOTE_DB:-}"
+    ports:
+      - "${HOST_PORT:-8080}:${PORT:-8080}"
+    networks:
+      - xpmile-net
+
+  # ------------------------------------------------------------------
+  # On-prem Java/Vaadin UI — talks to the backend over the shared network
+  # ------------------------------------------------------------------
+  onprem-ui:
+    pull_policy: never
+    build:
+      context: ./onprem
+      dockerfile: Dockerfile
+    image: xpmile-onprem:latest
+    container_name: xpmile-onprem-ui
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      # "app" resolves to the backend container on the shared network
+      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-http://app:8080}"
+    ports:
+      - "${ONPREM_PORT:-8090}:8090"
+    networks:
+      - xpmile-net
+
+volumes:
+  mongo-data:
+
+networks:
+  xpmile-net:
+    driver: bridge

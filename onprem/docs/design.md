@@ -84,6 +84,66 @@ WireMock stubs replace the backend. Excel fixtures are generated automatically b
 
 ---
 
+## Docker
+
+### Build the image
+
+```sh
+cd onprem
+docker build -t xpmile-onprem .
+# or with podman:
+podman build -t xpmile-onprem .
+```
+
+### Run against local backend
+
+```sh
+docker run -p 8090:8090 \
+  -e XPMILE_BACKEND_BASE_URL=http://host.docker.internal:8080 \
+  xpmile-onprem
+```
+
+> On Linux replace `host.docker.internal` with the host's actual IP (e.g. `172.17.0.1`).
+
+### Run against Heroku backend
+
+```sh
+docker run -p 8090:8090 \
+  -e XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com \
+  xpmile-onprem
+```
+
+### Run against on-prem remote machine
+
+```sh
+docker run -p 8090:8090 \
+  -e XPMILE_BACKEND_BASE_URL=http://<backend-host>:8080 \
+  xpmile-onprem
+```
+
+Open **http://localhost:8090** after the container starts.
+
+---
+
+## Docker Compose (local stack)
+
+See `docker-compose.onprem.yml` in the repo root for a compose file that brings up both the xpmile backend (MongoDB + uniservice) and the on-prem UI together.
+
+```sh
+# Start everything (backend + on-prem UI)
+docker-compose -f docker-compose.onprem.yml up --build
+
+# On-prem UI only (backend already running separately)
+docker-compose -f docker-compose.onprem.yml up --build onprem-ui
+
+# Stop
+docker-compose -f docker-compose.onprem.yml down
+```
+
+See `docs/onprem-ui-compose.md` for the full guide.
+
+---
+
 ## Scope (Phase 1)
 
 | # | View | API endpoints used |
