@@ -1,0 +1,160 @@
+// ── Search card ────────────────────────────────────────────────────────────────
+.search-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1.25rem 1.5rem 0.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+}
+
+.search-btn-col {
+  padding-bottom: 1rem;
+}
+
+// ── Summary card ───────────────────────────────────────────────────────────────
+.summary-card {
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.09);
+}
+
+.summary-header {
+  background: #f7f9fb;
+  border-bottom: 1px solid #e0e6ed;
+  padding: 1rem 1.25rem;
+}
+
+.awb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.awb-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6f7c84;
+  margin-right: 0.5rem;
+}
+
+.awb-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1b5a7d;
+}
+
+.status-badge {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.meta-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  padding: 0 1.5rem 0 0;
+  margin-right: 1.5rem;
+  border-right: 1px solid #dce4ea;
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.meta-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6f7c84;
+  margin-bottom: 2px;
+}
+
+.meta-value {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #21333b;
+}
+
+// ── Timeline ───────────────────────────────────────────────────────────────────
+.timeline-block {
+  padding: 1.25rem 2rem 1rem;
+  border-top: 1px solid #e8edf1;
+
+  .clr-timeline {
+    margin: 0;
+  }
+}
+
+// ── Section title ──────────────────────────────────────────────────────────────
+.section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5c6e79;
+  margin: 1.25rem 0 0.5rem;
+}
+
+// ── Datagrid ───────────────────────────────────────────────────────────────────
+.tracking-grid {
+  margin-bottom: 1.5rem;
+}
+
+// ── Detail cards ───────────────────────────────────────────────────────────────
+.detail-cards {
+  margin-top: 0;
+
+  .clr-col-md-4 {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.detail-card {
+  flex: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+
+  .card-header {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #1b5a7d;
+    background: #f7f9fb;
+    border-bottom: 1px solid #e0e6ed;
+  }
+
+  .card-block {
+    padding: 0.75rem 1rem;
+  }
+}
+
+// ── Info definition list ───────────────────────────────────────────────────────
+.info-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  row-gap: 0.55rem;
+  column-gap: 1rem;
+  margin: 0;
+
+  dt {
+    font-size: 0.75rem;
+    color: #6f7c84;
+    font-weight: 500;
+    white-space: nowrap;
+    padding-top: 1px;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #21333b;
+    word-break: break-word;
+  }
+}

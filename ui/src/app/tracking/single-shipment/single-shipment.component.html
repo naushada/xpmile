@@ -1,365 +1,220 @@
-<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="singleShipmentTrackingForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="awbNo">Air Way Bill No. </label>
-                <input type="text" clrInput name="awbNo" formControlName="awbNo">
-            </clr-input-container>
-
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="altRefNo">Alternate Reference No</label>
-                <input type="text" clrInput name="altRefNo" formControlName="altRefNo">
-            </clr-input-container>
-
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-radio-container clrInline>
-                <label>Last Mile Delivery Service Vendor</label>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="vendor" required value="self"  checked (click)="onVendorSelect('self')" formControlName="vendor" />
-                    <label>Self</label>
-                </clr-radio-wrapper>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="vendor" required value="sipsy" (click)="onVendorSelect('sipsy')" formControlName="vendor" />
-                     <label>Sipsy</label>
-                </clr-radio-wrapper>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="vendor" required value="ajoul"  (click)="onVendorSelect('ajoul')" formControlName="vendor" />
-                    <label>Ajoul</label>
-                </clr-radio-wrapper>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="vendor" required value="dhl"  (click)="onVendorSelect('dhl')" formControlName="vendor" />
-                    <label>DHL Express</label>
-                </clr-radio-wrapper>
-                <clr-radio-wrapper>
-                    <input type="radio" clrRadio name="vendor" required value="bluedart" (click)="onVendorSelect('bludart')"  formControlName="vendor" />
-                    <label>Blue Dart Express</label>
-                </clr-radio-wrapper>
-              </clr-radio-container>
-        </div>
+<!-- ── Search ── -->
+<div class="search-card">
+  <form [formGroup]="singleShipmentTrackingForm">
+    <div class="clr-row clr-align-items-end">
+      <div class="clr-col-auto">
+        <clr-input-container>
+          <label>Air Way Bill No.</label>
+          <input clrInput type="text" formControlName="awbNo" placeholder="e.g. AWB000000010">
+        </clr-input-container>
+      </div>
+      <div class="clr-col-auto">
+        <clr-input-container>
+          <label>Alternate Reference No.</label>
+          <input clrInput type="text" formControlName="altRefNo">
+        </clr-input-container>
+      </div>
+      <div class="clr-col-auto">
+        <clr-radio-container clrInline>
+          <label>Delivery Vendor</label>
+          <clr-radio-wrapper>
+            <input type="radio" clrRadio formControlName="vendor" value="self" (click)="onVendorSelect('self')">
+            <label>Self</label>
+          </clr-radio-wrapper>
+          <clr-radio-wrapper>
+            <input type="radio" clrRadio formControlName="vendor" value="sipsy" (click)="onVendorSelect('sipsy')">
+            <label>Sipsy</label>
+          </clr-radio-wrapper>
+          <clr-radio-wrapper>
+            <input type="radio" clrRadio formControlName="vendor" value="ajoul" (click)="onVendorSelect('ajoul')">
+            <label>Ajoul</label>
+          </clr-radio-wrapper>
+          <clr-radio-wrapper>
+            <input type="radio" clrRadio formControlName="vendor" value="dhl" (click)="onVendorSelect('dhl')">
+            <label>DHL Express</label>
+          </clr-radio-wrapper>
+          <clr-radio-wrapper>
+            <input type="radio" clrRadio formControlName="vendor" value="bluedart" (click)="onVendorSelect('bluedart')">
+            <label>Blue Dart</label>
+          </clr-radio-wrapper>
+        </clr-radio-container>
+      </div>
+      <div class="clr-col-auto search-btn-col">
+        <button type="button" class="btn btn-primary" (click)="onSubmit()">
+          <cds-icon shape="search"></cds-icon>&nbsp;Track
+        </button>
+      </div>
     </div>
-    <div class="clr-row">
-            
-    </div>
-    
-    <div class="clr-row" >
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary" (click)="onSubmit()">Submit</button>
-        </div>
-    </div>
-</form>
-
-<div clrLayout="horizontal" clrLabelSize="4" *ngIf="shipment?.shipment?.shipmentInformation?.activity?.length">
-    <div class="clr-row">
-        <div class="clr-col-4">
-            <div class="clr-row">
-                <div class="clr-col">
-                    <div class="clr-col-md">
-                        <clr-input-container>
-                            <label for="awbNo">Connote#: {{shipment?.shipment?.awbno}}</label>
-                        </clr-input-container>
-                    </div>
-                    <div class="clr-col-md">
-                        <clr-input-container>
-                            <label for="altRefNo">Alternate Reference No: {{shipment?.shipment?.altRefNo}}</label>
-                        </clr-input-container>
-                    </div>
-                    <div class="clr-col-md">
-                        <clr-input-container>
-                            <label for="">Service Type: {{shipment?.shipment?.shipmentInformation?.service}}</label>
-                        </clr-input-container>
-                    </div>
-                    <div class="clr-col-md">
-                        <clr-input-container>
-                            <label for="">Shipped On: {{shipment?.shipment?.shipmentInformation?.createdOn}}</label>
-                        </clr-input-container>
-                    </div>
-                    <div class="clr-col-md">
-                        <clr-input-container>
-                            <label for="">Destination: {{shipment?.shipment?.receiverInformation?.country}}</label>
-                        </clr-input-container>
-                    </div>
-                    <div class="clr-col-md">
-                        <clr-input-container>
-                            <label for="">Status: {{status}}</label>
-                        </clr-input-container>
-                    </div>
-                    <div class="clr-col-md">
-                        <clr-input-container>
-                            <label for="">Job #: Value is my actual value</label>
-                        </clr-input-container>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!--Timeline -->
-        <div class="clr-col">
-            <div class="clr-col-lg">
-                <ul class="clr-timeline">
-                    <li class="clr-timeline-step">
-                        <ng-container>
-                            <cds-icon role="img" shape="success-standard" aria-label="Current" ></cds-icon>
-                        </ng-container>
-                        <div class="clr-timeline-step-body">
-                            <span class="clr-timeline-step-title">Document Created</span>
-                        </div>
-                    </li>
-                    <li class="clr-timeline-step">
-
-                        <ng-container>
-                            <cds-icon role="img" [shape]=inTransit() aria-label="Completed" ></cds-icon>
-                        </ng-container>
-
-                        <div class="clr-timeline-step-body">
-                            <span class="clr-timeline-step-title">In Transit</span>
-                        </div>
-                    </li>
-                    <li class="clr-timeline-step">
-
-                        <ng-container>
-                            <cds-icon role="img" [shape]=outForDelivery() aria-label="Completed" ></cds-icon>
-                        </ng-container>
-
-                        <div class="clr-timeline-step-body">
-                            <span class="clr-timeline-step-title">Out For Delivery</span>
-                        </div>
-                    </li>
-                    <li class="clr-timeline-step">
-                        <ng-container>
-                            <cds-icon role="img" [shape]=delivered() aria-label="Completed" ></cds-icon>
-                        </ng-container>
-                        <div class="clr-timeline-step-body">
-                            <span class="clr-timeline-step-title">Delivered</span>
-                        </div>
-
-                    </li>
-                    <!--
-                    <li class="clr-timeline-step" *ngFor="let act of shipment?.shipment?.shipmentInformation?.activity; let idx = index; last as isLast">
-                        
-                        <ng-container *ngIf="(idx + 1) == len">
-                            <div class="clr-timeline-step-header">{{act.time}}</div>
-                            
-                            <ng-container *ngIf="act.event != 'Proof of Delivery'">
-                                <cds-icon role="img" shape="dot-circle" aria-label="Current" ></cds-icon>
-                            </ng-container>
-
-                            <ng-container *ngIf="act.event === 'Proof of Delivery'">
-                                <cds-icon role="img" shape="dot-circle" aria-label="Completed" ></cds-icon>
-                            </ng-container>
-                            
-                            <div class="clr-timeline-step-body">
-                                <span class="clr-timeline-step-title">{{act.event}}</span>
-                                <span class="clr-timeline-step-description">{{act.notes}}</span>
-                            </div>
-                        </ng-container>
-                        <ng-container *ngIf="len != (idx + 1)">
-                            <div class="clr-timeline-step-header">{{act.time}}</div>
-                            <cds-icon role="img" shape="success-standard" aria-label="Completed"></cds-icon>
-                            <div class="clr-timeline-step-body">
-                                <span class="clr-timeline-step-title">{{act.event}}</span>
-                                <span class="clr-timeline-step-description">{{act.notes}}</span>
-                            </div>
-                        </ng-container>
-                    </li>
-                    -->
-                </ul>      
-            </div>
-        </div>
-        <!--<div class="clr-col"></div>-->
-    </div>
+  </form>
 </div>
 
+<!-- ── Results ── -->
+<ng-container *ngIf="shipment?.shipment?.shipmentInformation?.activity?.length">
 
-<clr-datagrid>
+  <!-- Summary + Timeline card -->
+  <div class="card summary-card">
+    <div class="card-header summary-header">
+      <div class="awb-row">
+        <div>
+          <span class="awb-label">Connote</span>
+          <span class="awb-value">{{ shipment?.shipment?.awbno }}</span>
+        </div>
+        <span class="label label-info status-badge">{{ status }}</span>
+      </div>
+      <div class="meta-grid">
+        <div class="meta-item" *ngIf="shipment?.shipment?.altRefNo">
+          <span class="meta-label">Alt. Reference</span>
+          <span class="meta-value">{{ shipment?.shipment?.altRefNo }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Service</span>
+          <span class="meta-value">{{ shipment?.shipment?.shipmentInformation?.service }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Shipped On</span>
+          <span class="meta-value">{{ shipment?.shipment?.shipmentInformation?.createdOn }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Destination</span>
+          <span class="meta-value">{{ shipment?.shipment?.receiverInformation?.country }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-block timeline-block">
+      <ul class="clr-timeline clr-timeline-horizontal">
+        <li class="clr-timeline-step">
+          <cds-icon shape="success-standard" aria-label="Completed"></cds-icon>
+          <div class="clr-timeline-step-body">
+            <span class="clr-timeline-step-title">Document Created</span>
+          </div>
+        </li>
+        <li class="clr-timeline-step">
+          <cds-icon [shape]="inTransit()" aria-label="Step"></cds-icon>
+          <div class="clr-timeline-step-body">
+            <span class="clr-timeline-step-title">In Transit</span>
+          </div>
+        </li>
+        <li class="clr-timeline-step">
+          <cds-icon [shape]="outForDelivery()" aria-label="Step"></cds-icon>
+          <div class="clr-timeline-step-body">
+            <span class="clr-timeline-step-title">Out For Delivery</span>
+          </div>
+        </li>
+        <li class="clr-timeline-step">
+          <cds-icon [shape]="delivered()" aria-label="Step"></cds-icon>
+          <div class="clr-timeline-step-body">
+            <span class="clr-timeline-step-title">Delivered</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Tracking history -->
+  <h4 class="section-title">Tracking History</h4>
+  <clr-datagrid class="tracking-grid">
     <clr-dg-column>Date</clr-dg-column>
     <clr-dg-column>Time</clr-dg-column>
     <clr-dg-column>Location</clr-dg-column>
     <clr-dg-column>Activity</clr-dg-column>
     <clr-dg-column>Notes</clr-dg-column>
     <clr-dg-column>Entered By</clr-dg-column>
-    <clr-dg-column>Received (UTC)</clr-dg-column>
-    <clr-dg-column>Sent (UTC)</clr-dg-column>
-
     <clr-dg-row *ngFor="let act of shipment?.shipment?.shipmentInformation?.activity?.slice()?.reverse()">
-        <clr-dg-cell>{{act.date}}</clr-dg-cell>
-        <clr-dg-cell>{{act.time}}</clr-dg-cell>
-        <clr-dg-cell>{{act.eventLocation}}</clr-dg-cell>
-        <clr-dg-cell>{{act.event}}</clr-dg-cell>
-        <clr-dg-cell>{{act.notes}}</clr-dg-cell>
-        <clr-dg-cell>{{act.updatedBy}}</clr-dg-cell>
-        <clr-dg-cell></clr-dg-cell>
-        <clr-dg-cell></clr-dg-cell>
+      <clr-dg-cell>{{ act.date }}</clr-dg-cell>
+      <clr-dg-cell>{{ act.time }}</clr-dg-cell>
+      <clr-dg-cell>{{ act.eventLocation }}</clr-dg-cell>
+      <clr-dg-cell>{{ act.event }}</clr-dg-cell>
+      <clr-dg-cell>{{ act.notes }}</clr-dg-cell>
+      <clr-dg-cell>{{ act.updatedBy }}</clr-dg-cell>
     </clr-dg-row>
-</clr-datagrid>
+  </clr-datagrid>
 
-<div class="clr-row" >
-    <div class="clr-col-8">
-        <div class="clr-row">
-            <!-- Column Ist -->
-            <div class="clr-col">
-                <div class="clr-col-md">
-                    <h3>Sender Information</h3>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Name : {{shipment?.shipment?.senderInformation?.name}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Company Name : {{shipment?.shipment?.senderInformation?.companyName}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Address : {{shipment?.shipment?.senderInformation?.address}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">City : {{shipment?.shipment?.senderInformation?.city}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Country : {{shipment?.shipment?.senderInformation?.country}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Contact : {{shipment?.shipment?.senderInformation?.contact}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Sender Reference Number : {{shipment?.shipment?.senderInformation?.referenceNo}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Account Code : {{shipment?.shipment?.senderInformation?.accountNo}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Phone : {{shipment?.shipment?.senderInformation?.phoneNumber}}</label>
-                    </clr-input-container>
-                </div>
-            </div>
-            <div class="clr-col">
-                <div class="clr-col-md">
-                    <h3>Receiver Information</h3>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Name : {{shipment?.shipment?.receiverInformation?.name}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Address : {{shipment?.shipment?.receiverInformation?.address}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Contact No : {{shipment?.shipment?.receiverInformation?.contact}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Phone No : {{shipment?.shipment?.receiverInformation?.phone}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">City : {{shipment?.shipment?.receiverInformation?.city}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">State : {{shipment?.shipment?.receiverInformation?.state}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Country : {{shipment?.shipment?.receiverInformation?.country}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Email : {{shipment?.shipment?.receiverInformation?.email}}</label>
-                    </clr-input-container>
-                </div>  
-            </div>
-        </div>
-    </div>
-</div>
-<div class="clr-row">
-    <div class="clr-col-9">
-        <h3>Shipment Information</h3>
-        <div class="clr-row">
-            <div class="clr-col">
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">SKU Number : {{shipment?.shipment?.shipmentInformation?.skuNo}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Service Type : {{shipment?.shipment?.shipmentInformation?.service}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Number Of Items : {{shipment?.shipment?.shipmentInformation?.numberOfItems}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                            <label for="">Goods Description : {{shipment?.shipment?.shipmentInformation?.goodsDescription}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Goods Value : {{shipment?.shipment?.shipmentInformation?.goodsValue}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Customs Value : {{shipment?.shipment?.shipmentInformation?.customsValue}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                        <label for="">Weight : {{shipment?.shipment?.shipmentInformation?.weight}}</label>
-                    </clr-input-container>
-                </div>
-                <div class="clr-col-md">
-                    <clr-input-container>
-                            <label for="">Weight Unit : {{shipment?.shipment?.shipmentInformation?.weightUnits}}</label>
-                    </clr-input-container>
-                </div>
-            </div>
-        <div class="clr-col">
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Cubic Weight : {{shipment?.shipment?.shipmentInformation?.cubicWeight}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">COD Amount : {{shipment?.shipment?.shipmentInformation?.codAmount}}</label>
-                </clr-input-container>
-            </div>
-            <div class="clr-col-md">
-                <clr-input-container>
-                    <label for="">Currency : {{shipment?.shipment?.shipmentInformation?.currency}}</label>
-                </clr-input-container>
-            </div>
-        </div>
-        <div class="clr-col"></div>
-    </div>
-</div>       
+  <!-- Detail cards -->
+  <div class="clr-row detail-cards">
 
+    <div class="clr-col-md-4">
+      <div class="card detail-card">
+        <div class="card-header">Sender Information</div>
+        <div class="card-block">
+          <dl class="info-dl">
+            <dt>Name</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.name || '-' }}</dd>
+            <dt>Company</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.companyName || '-' }}</dd>
+            <dt>Address</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.address || '-' }}</dd>
+            <dt>City</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.city || '-' }}</dd>
+            <dt>Country</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.country || '-' }}</dd>
+            <dt>Phone</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.phoneNumber || '-' }}</dd>
+            <dt>Contact</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.contact || '-' }}</dd>
+            <dt>Account Code</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.accountNo || '-' }}</dd>
+            <dt>Reference No.</dt>
+            <dd>{{ shipment?.shipment?.senderInformation?.referenceNo || '-' }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="clr-col-md-4">
+      <div class="card detail-card">
+        <div class="card-header">Receiver Information</div>
+        <div class="card-block">
+          <dl class="info-dl">
+            <dt>Name</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.name || '-' }}</dd>
+            <dt>Address</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.address || '-' }}</dd>
+            <dt>City</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.city || '-' }}</dd>
+            <dt>State</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.state || '-' }}</dd>
+            <dt>Country</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.country || '-' }}</dd>
+            <dt>Phone</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.phone || '-' }}</dd>
+            <dt>Contact</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.contact || '-' }}</dd>
+            <dt>Email</dt>
+            <dd>{{ shipment?.shipment?.receiverInformation?.email || '-' }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="clr-col-md-4">
+      <div class="card detail-card">
+        <div class="card-header">Shipment Information</div>
+        <div class="card-block">
+          <dl class="info-dl">
+            <dt>SKU Number</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.skuNo || '-' }}</dd>
+            <dt>Service Type</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.service || '-' }}</dd>
+            <dt>No. of Items</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.numberOfItems || '-' }}</dd>
+            <dt>Description</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.goodsDescription || '-' }}</dd>
+            <dt>Goods Value</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.goodsValue || '-' }}</dd>
+            <dt>Customs Value</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.customsValue || '-' }}</dd>
+            <dt>Weight</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.weight }} {{ shipment?.shipment?.shipmentInformation?.weightUnits }}</dd>
+            <dt>Cubic Weight</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.cubicWeight || '-' }}</dd>
+            <dt>COD Amount</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.codAmount || '-' }}</dd>
+            <dt>Currency</dt>
+            <dd>{{ shipment?.shipment?.shipmentInformation?.currency || '-' }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</ng-container>

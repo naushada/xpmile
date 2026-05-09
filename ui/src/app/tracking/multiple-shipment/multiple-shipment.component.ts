@@ -305,8 +305,140 @@ export class MultipleShipmentComponent implements OnInit, OnDestroy {
     return canvas.toDataURL("image/png");
   }
 
+  // ── A2 Label (4" × 6" shipping label) ─────────────────────────────────────
+
+  A2LabelContentsBody: Array<object> = new Array<object>();
+
+  docDefinitionA2: any = {
+    info: { title: 'Shipping Label', author: 'Xpmile Logistics', subject: 'AWB Label', keywords: 'shipping label' },
+    pageSize: { width: 288, height: 432 },   // 4" × 6" in points (1 pt = 1/72")
+    pageMargins: [8, 8, 8, 8],
+    content: this.A2LabelContentsBody,
+    defaultStyle: { fontSize: 8 },
+    styles: {
+      brand:        { fontSize: 11, bold: true, color: '#ffffff' },
+      awbTitle:     { fontSize: 7,  bold: true, color: '#b8d4e8', alignment: 'right' as const },
+      sectionLabel: { fontSize: 6.5, bold: true, color: '#1b5a7d', margin: [0, 0, 0, 1] },
+      fromName:     { fontSize: 8.5, bold: true },
+      toName:       { fontSize: 12,  bold: true },
+      fieldLabel:   { fontSize: 6.5, bold: true, color: '#555' },
+      fieldValue:   { fontSize: 8.5 },
+    }
+  };
+
+  buildA2ContentsBody() {
+    this.A2LabelContentsBody.length = 0;
+
+    this.rowsSelected?.forEach((elm: Shipment) => {
+      const altRefNo  = elm.shipment.altRefNo?.toString() || 'default';
+      const activity0 = elm.shipment.shipmentInformation.activity[0];
+      const si        = elm.shipment.shipmentInformation;
+      const sender    = elm.shipment.senderInformation;
+      const receiver  = elm.shipment.receiverInformation;
+
+      const altRefRow = elm.shipment.altRefNo ? [{
+        stack: [
+          { text: 'REF: ' + altRefNo, fontSize: 7, alignment: 'center' as const },
+          { image: this.textToBase64Barcode(altRefNo, 38), width: 240, alignment: 'center' as const }
+        ],
+        margin: [0, 2, 0, 0]
+      }] : [];
+
+      const ent = [{
+        table: {
+          widths: ['*'],
+          body: [
+            // ── Header ──────────────────────────────────────────────────────
+            [{
+              columns: [
+                { text: 'XPMILE LOGISTICS', style: 'brand',    width: '*'    },
+                { text: 'AIR WAYBILL',      style: 'awbTitle', width: 'auto' }
+              ],
+              fillColor: '#1b5a7d',
+              margin: [6, 5, 6, 5]
+            }],
+            // ── AWB number ──────────────────────────────────────────────────
+            [{
+              text: elm.shipment.awbno,
+              fontSize: 11, bold: true, alignment: 'center' as const,
+              margin: [0, 4, 0, 2]
+            }],
+            // ── Barcode ─────────────────────────────────────────────────────
+            [{
+              image: this.textToBase64Barcode(elm.shipment.awbno, 55),
+              width: 255, alignment: 'center' as const, margin: [0, 0, 0, 4]
+            }],
+            // ── Service / Date / Account ─────────────────────────────────────
+            [{
+              columns: [
+                { stack: [{ text: 'SERVICE', style: 'fieldLabel' }, { text: si.service, style: 'fieldValue' }], width: '*' },
+                { stack: [{ text: 'DATE', style: 'fieldLabel' }, { text: activity0?.date || '', style: 'fieldValue' }], width: '*', alignment: 'center' as const },
+                { stack: [{ text: 'ACCT', style: 'fieldLabel' }, { text: sender.accountNo || '', style: 'fieldValue' }], width: '*', alignment: 'right' as const }
+              ],
+              fillColor: '#eef2f6', margin: [6, 4, 6, 4]
+            }],
+            // ── FROM ────────────────────────────────────────────────────────
+            [{
+              stack: [
+                { text: 'FROM', style: 'sectionLabel' },
+                { text: sender.name, style: 'fromName' },
+                { text: (sender.address ? sender.address + '\n' : '') +
+                        (sender.city    ? sender.city + ', '   : '') + sender.country,
+                  fontSize: 8 },
+                { text: 'Tel: ' + sender.contact, fontSize: 7, color: '#666' }
+              ],
+              fillColor: '#f6f8fb', margin: [6, 4, 6, 4]
+            }],
+            // ── TO ──────────────────────────────────────────────────────────
+            [{
+              stack: [
+                { text: 'SHIP TO', style: 'sectionLabel' },
+                { text: receiver.name, style: 'toName' },
+                { text: receiver.address || '', fontSize: 9 },
+                { text: (receiver.city    ? receiver.city    + ', ' : '') +
+                        (receiver.state   ? receiver.state   + ', ' : '') +
+                        receiver.country,
+                  fontSize: 10, bold: true },
+                { text: 'Tel: ' + receiver.contact +
+                        (receiver.phone ? '   Alt: ' + receiver.phone : ''),
+                  fontSize: 8 }
+              ],
+              margin: [6, 5, 6, 5]
+            }],
+            // ── Weight / Items / COD ─────────────────────────────────────────
+            [{
+              columns: [
+                { stack: [{ text: 'WEIGHT', style: 'fieldLabel' }, { text: si.weight + ' ' + si.weightUnits, style: 'fieldValue' }], width: '*' },
+                { stack: [{ text: 'ITEMS',  style: 'fieldLabel' }, { text: String(si.numberOfItems), style: 'fieldValue' }], width: '*', alignment: 'center' as const },
+                { stack: [{ text: 'COD',    style: 'fieldLabel' }, { text: si.currency + ' ' + si.codAmount, style: 'fieldValue', bold: true }], width: '*', alignment: 'right' as const }
+              ],
+              fillColor: '#eef2f6', margin: [6, 4, 6, 4]
+            }],
+            // ── Description ──────────────────────────────────────────────────
+            [{
+              text: [{ text: 'DESC: ', style: 'fieldLabel' }, { text: si.goodsDescription || '', fontSize: 8 }],
+              margin: [6, 3, 6, 4]
+            }],
+            // ── Alt-ref barcode (conditional) ────────────────────────────────
+            ...altRefRow.map(r => [r])
+          ]
+        },
+        layout: {
+          hLineWidth: (i: number, node: any) => (i === 0 || i === node.table.body.length) ? 1 : 0.5,
+          vLineWidth: () => 1,
+          hLineColor: () => '#c8d6e0',
+          vLineColor: () => '#c8d6e0'
+        },
+        pageBreak: 'after'
+      }];
+
+      this.A2LabelContentsBody.push(ent);
+    });
+  }
+
   onCreateA2Label() {
-    this.rowsSelected?.forEach(elm => {alert(JSON.stringify(elm))});
+    this.buildA2ContentsBody();
+    pdfMake.createPdf(this.docDefinitionA2).download('A2-label');
   }
 
   onCreateA4Label() {
