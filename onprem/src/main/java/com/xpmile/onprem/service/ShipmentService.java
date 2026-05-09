@@ -3,8 +3,9 @@ package com.xpmile.onprem.service;
 import com.xpmile.onprem.config.BackendConfig;
 import com.xpmile.onprem.model.BulkResult;
 import com.xpmile.onprem.model.Shipment;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -32,9 +33,14 @@ public class ShipmentService {
         if (accountCode != null && !accountCode.isBlank()) {
             builder.queryParam("accountCode", accountCode);
         }
-        Shipment[] result = restTemplate.getForObject(builder.toUriString(), Shipment[].class);
-        if (result == null) return Collections.emptyList();
-        return Arrays.asList(result);
+        try {
+            Shipment[] result = restTemplate.getForObject(builder.toUriString(), Shipment[].class);
+            if (result == null) return Collections.emptyList();
+            return Arrays.asList(result);
+        } catch (HttpClientErrorException e) {
+            // backend returns 400 when no shipments match — treat as empty result
+            return Collections.emptyList();
+        }
     }
 
     public String createShipment(Shipment shipment) {
@@ -70,8 +76,12 @@ public class ShipmentService {
                 .fromHttpUrl(backendConfig.getBaseUrl() + "/api/v1/shipment/shipping")
                 .queryParam("awbNo", awbno)
                 .toUriString();
-        Shipment[] result = restTemplate.getForObject(url, Shipment[].class);
-        if (result == null || result.length == 0) return null;
-        return result[0];
+        try {
+            Shipment[] result = restTemplate.getForObject(url, Shipment[].class);
+            if (result == null || result.length == 0) return null;
+            return result[0];
+        } catch (HttpClientErrorException e) {
+            return null;
+        }
     }
 }
