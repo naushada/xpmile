@@ -27,6 +27,7 @@ The following issues were encountered and fixed during initial bring-up. Documen
 | Tomcat context failed to start | `vaadin.allowed-packages` is not a valid Vaadin 24 property | Removed from `application.properties` |
 | Vaadin frontend not built | `production` profile was missing `build-frontend` goal | Profile added with both `prepare-frontend` and `build-frontend` |
 | Theme directory missing | `@Theme("onprem")` requires `frontend/themes/onprem/` to exist | Created with `theme.json` (parent: lumo) and `styles.css` |
+| Theme not found in Docker | Dockerfile only copied `src/`; `frontend/` was never in the image | Added `COPY frontend ./frontend` to Dockerfile builder stage |
 
 ---
 
