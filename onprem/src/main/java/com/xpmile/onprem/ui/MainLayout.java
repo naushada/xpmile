@@ -82,10 +82,10 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
     }
 
     private void scheduleStatusRefresh(UI ui, Div agentBadge, Div dbBadge) {
-        Thread.ofVirtual().start(() -> {
+        new Thread(() -> {
             BackendStatus status = statusService.check();
             ui.access(() -> applyStatus(agentBadge, dbBadge, status));
-        });
+        }).start();
     }
 
     private static void applyStatus(Div agentBadge, Div dbBadge, BackendStatus status) {
