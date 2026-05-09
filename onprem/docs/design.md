@@ -35,7 +35,7 @@ The default is `http://localhost:8080`. `RestTemplate` supports both `http://` a
 |--------|-----------|
 | Local stack | `http://localhost:8080` |
 | On-prem remote machine | `http://<ip-or-hostname>:8080` |
-| Heroku (deployed app) | `https://marvel.herokuapp.com` |
+| Heroku (deployed app) | `https://marvel-3a78bd953f5f.herokuapp.com` |
 
 Override with one of:
 
@@ -45,7 +45,7 @@ Override with one of:
 export XPMILE_BACKEND_BASE_URL=http://localhost:8080
 
 # Heroku
-export XPMILE_BACKEND_BASE_URL=https://marvel.herokuapp.com
+export XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com
 
 mvn spring-boot:run
 ```
@@ -53,13 +53,13 @@ mvn spring-boot:run
 **Option B — command-line property:**
 ```sh
 # Heroku
-mvn spring-boot:run -Dspring-boot.run.arguments="--xpmile.backend.base-url=https://marvel.herokuapp.com"
+mvn spring-boot:run -Dspring-boot.run.arguments="--xpmile.backend.base-url=https://marvel-3a78bd953f5f.herokuapp.com"
 ```
 
 **Option C — edit `application.properties`:**
 ```properties
 # Heroku
-xpmile.backend.base-url=https://marvel.herokuapp.com
+xpmile.backend.base-url=https://marvel-3a78bd953f5f.herokuapp.com
 ```
 
 > **Note:** Heroku uses a valid CA-signed TLS certificate so HTTPS works with the default JVM trust store. No extra SSL configuration is needed.

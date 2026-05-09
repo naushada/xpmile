@@ -36,7 +36,7 @@ cd ..
 |--------|-----|
 | Local stack | `http://localhost:8080` |
 | On-prem remote machine | `http://<ip-or-hostname>:8080` |
-| Heroku (deployed app) | `https://marvel.herokuapp.com` |
+| Heroku (deployed app) | `https://marvel-3a78bd953f5f.herokuapp.com` |
 
 Override in one of three ways:
 
@@ -46,19 +46,19 @@ Override in one of three ways:
 export XPMILE_BACKEND_BASE_URL=http://localhost:8080
 
 # Heroku
-export XPMILE_BACKEND_BASE_URL=https://marvel.herokuapp.com
+export XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com
 
 mvn spring-boot:run
 ```
 
 **Option B — command-line property:**
 ```sh
-mvn spring-boot:run -Dspring-boot.run.arguments="--xpmile.backend.base-url=https://marvel.herokuapp.com"
+mvn spring-boot:run -Dspring-boot.run.arguments="--xpmile.backend.base-url=https://marvel-3a78bd953f5f.herokuapp.com"
 ```
 
 **Option C — edit `src/main/resources/application.properties`:**
 ```properties
-xpmile.backend.base-url=https://marvel.herokuapp.com
+xpmile.backend.base-url=https://marvel-3a78bd953f5f.herokuapp.com
 ```
 
 > Heroku uses a valid CA-signed TLS certificate — HTTPS works with the default JVM trust store, no extra SSL config needed.
