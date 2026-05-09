@@ -59,7 +59,10 @@ services:
       - xpmile-net
 
   # ------------------------------------------------------------------
-  # On-prem Java/Vaadin UI — talks to the backend over the shared network
+  # On-prem Java/Vaadin UI
+  # Backend URL is configurable — local stack or remote (Heroku etc.)
+  # No depends_on: start independently with a remote URL, or run
+  # `podman-compose up --build` (no service name) for the full local stack.
   # ------------------------------------------------------------------
   onprem-ui:
     pull_policy: never
@@ -69,10 +72,7 @@ services:
     image: xpmile-onprem:latest
     container_name: xpmile-onprem-ui
     restart: unless-stopped
-    depends_on:
-      - app
     environment:
-      # "app" resolves to the backend container on the shared network
       XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-http://app:8080}"
     ports:
       - "${ONPREM_PORT:-8090}:8090"
