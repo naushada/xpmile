@@ -15,6 +15,7 @@
 
 #include "dbproto.hpp"
 #include "mongodbc.hpp"
+#include "onprem_agent.hpp"
 
 /**
  * @brief WebSocket DB agent — runs on the MongoDB machine and connects
@@ -31,6 +32,11 @@
  * On disconnect the agent waits @p backoff_secs seconds and reconnects.
  * Call stop() to request a clean exit; the current backoff sleep will be
  * interrupted and run() returns.
+ *
+ * When @p local_ws_port > 0, a LocalWsListener is started on that port
+ * alongside the cloud WSS session.  It accepts plain WebSocket connections
+ * from a co-located uniservice and dispatches directly to the same
+ * IMongodbClient.
  */
 class WsDbAgent {
 public:
@@ -41,10 +47,18 @@ public:
    * @param db_uri      MongoDB connection URI.
    * @param db_pool     Connection pool size (as string, passed to MongodbClient).
    * @param db_name     Database name.
+   * @param local_ws_port Local WebSocket listener port (-1 = disabled, 0 = ephemeral).
    */
   WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
             std::string db_uri, std::string db_pool, std::string db_name,
-            std::string tls_ca = {}, std::string tls_cert = {}, std::string tls_key = {});
+            std::string tls_ca = {}, std::string tls_cert = {}, std::string tls_key = {},
+            int local_ws_port = -1);
+
+  /// Test-only constructor — takes a pre-built IMongodbClient.
+  WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
+            IMongodbClient& db, std::string db_name,
+            int local_ws_port = -1);
+
   ~WsDbAgent();
 
   /**
@@ -55,6 +69,9 @@ public:
 
   /// Signal run() to exit after the current session ends (or backoff wait).
   void stop();
+
+  /// Port the local WS listener is bound to (0 if disabled).
+  std::uint16_t local_ws_port() const;
 
 private:
   bool connect_and_handshake();
@@ -88,7 +105,11 @@ private:
   ACE_SOCK_Stream     m_plain_stream;
   ACE_SSL_SOCK_Stream m_ssl_stream;
 
-  std::unique_ptr<MongodbClient> m_db;
+  std::unique_ptr<MongodbClient> m_db_owned;
+  IMongodbClient*    m_db = nullptr;
+
+  int                          m_local_ws_port = -1;
+  std::unique_ptr<LocalWsListener> m_local_listener;
 };
 
 #endif // WSDBAGENT_HPP

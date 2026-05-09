@@ -57,28 +57,65 @@ std::string random_ws_key()
 
 WsDbAgent::WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
                      std::string db_uri, std::string db_pool, std::string db_name,
-                     std::string tls_ca, std::string tls_cert, std::string tls_key)
+                     std::string tls_ca, std::string tls_cert, std::string tls_key,
+                     int local_ws_port)
   : m_host(std::move(host))
   , m_port(port)
   , m_ssl(use_ssl)
   , m_tls_ca(std::move(tls_ca))
   , m_tls_cert(std::move(tls_cert))
   , m_tls_key(std::move(tls_key))
+  , m_local_ws_port(local_ws_port)
 {
   ACE_UNUSED_ARG(db_pool);
   m_db_name = db_name;
-  m_db = std::make_unique<MongodbClient>(db_uri);
-  if (!db_name.empty()) m_db->set_database(db_name);
+  m_db_owned = std::make_unique<MongodbClient>(db_uri);
+  if (!db_name.empty()) m_db_owned->set_database(db_name);
+  m_db = m_db_owned.get();
 }
 
-WsDbAgent::~WsDbAgent() { stop(); }
+WsDbAgent::WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
+                     IMongodbClient& db, std::string db_name,
+                     int local_ws_port)
+  : m_host(std::move(host))
+  , m_port(port)
+  , m_ssl(use_ssl)
+  , m_db(&db)
+  , m_local_ws_port(local_ws_port)
+{
+  m_db_name = std::move(db_name);
+}
+
+WsDbAgent::~WsDbAgent() {
+  stop();
+  if (m_local_listener) m_local_listener->stop();
+}
 
 void WsDbAgent::stop() { m_stop.store(true); }
+
+std::uint16_t WsDbAgent::local_ws_port() const {
+    return m_local_listener ? m_local_listener->port() : 0;
+}
 
 // ── run ───────────────────────────────────────────────────────────────────────
 
 void WsDbAgent::run(int backoff_secs)
 {
+  if (m_local_ws_port >= 0) {
+    m_local_listener = std::make_unique<LocalWsListener>(
+        static_cast<std::uint16_t>(m_local_ws_port), *m_db, m_db_name);
+    if (!m_local_listener->start()) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbAgent] LocalWsListener failed to start on port %u\n"),
+                 m_local_ws_port));
+      m_local_listener.reset();
+    } else {
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WsDbAgent] LocalWsListener on port %u\n"),
+                 m_local_listener->port()));
+    }
+  }
+
   while (!m_stop.load()) {
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WsDbAgent] connecting to %s:%u (ssl=%d)\n"),

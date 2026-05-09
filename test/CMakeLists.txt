@@ -16,6 +16,8 @@ include_directories(../modules/module/whatsapp/inc)
 include_directories(../modules/module/thirdparty)
 include_directories(../modules/module/wsdbproxy/inc)
 include_directories(../modules/module/wsdbproxy/test)
+include_directories(../modules/module/wsdbagent/inc)
+include_directories(../modules/module/wsdbagent/test)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
 
 link_directories(/usr/local/ACE_TAO-7.0.0/lib)
@@ -39,7 +41,11 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/wsdbproxy/test/dbproto_test.cc"
     "../modules/module/wsdbproxy/test/wsframe_test.cc"
     "../modules/module/wsdbproxy/test/wsdbserver_test.cc"
-    "../modules/module/wsdbproxy/test/wsproxy_test.cc")
+    "../modules/module/wsdbproxy/test/wsproxy_test.cc"
+    "../modules/module/wsdbagent/src/onprem_agent.cpp"
+    "../modules/module/wsdbagent/test/onprem_agent_test.cc"
+    "../modules/module/wsdbagent/src/wsdbagent.cpp"
+    "../modules/module/wsdbagent/test/onprem_agent_phase2_test.cc")
 
 enable_testing()
 

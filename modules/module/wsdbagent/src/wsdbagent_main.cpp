@@ -19,6 +19,7 @@ void print_usage(const char *prog)
                       "  --mongo-db-uri <uri>    MongoDB connection URI\n"
                       "  --mongo-db-connection-pool <n>  Pool size (default: 10)\n"
                       "  --mongo-db-name <name>  Database name\n"
+                      "  --local-ws-port <n>     Local WebSocket listener port (default: disabled)\n"
                       "  --backoff      <secs>   Reconnect wait in seconds (default: 5)\n"
                       "  --help                  Show this help\n"),
              prog));
@@ -42,8 +43,9 @@ int main(int argc, char *argv[])
   std::string tls_ca;
   std::string tls_cert;
   std::string tls_key;
+  int         local_ws_port = -1;
 
-  ACE_Get_Opt args(argc, argv, ACE_TEXT("H:p:U:C:D:b:A:E:K:nh"), 1);
+  ACE_Get_Opt args(argc, argv, ACE_TEXT("H:p:U:C:D:b:A:E:K:L:nh"), 1);
   args.long_option(ACE_TEXT("server-host"),              'H', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-port"),              'p', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("mongo-db-uri"),             'U', ACE_Get_Opt::ARG_REQUIRED);
@@ -54,6 +56,7 @@ int main(int argc, char *argv[])
   args.long_option(ACE_TEXT("tls-cert"),                 'E', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("tls-key"),                  'K', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("no-ssl"),                   'n', ACE_Get_Opt::NO_ARG);
+  args.long_option(ACE_TEXT("local-ws-port"),            'L', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("help"),                     'h', ACE_Get_Opt::NO_ARG);
 
   int c;
@@ -68,7 +71,8 @@ int main(int argc, char *argv[])
     case 'A': tls_ca      = args.opt_arg(); break;
     case 'E': tls_cert    = args.opt_arg(); break;
     case 'K': tls_key     = args.opt_arg(); break;
-    case 'n': use_ssl     = false; break;
+    case 'n': use_ssl        = false; break;
+    case 'L': local_ws_port   = std::stoi(args.opt_arg()); break;
     case 'h': print_usage(argv[0]); return 0;
     case '?': print_usage(argv[0]); return -1;
     default: break;
@@ -100,7 +104,8 @@ int main(int argc, char *argv[])
   WsDbAgent agent(server_host,
                   static_cast<std::uint16_t>(server_port),
                   use_ssl,
-                  db_uri, db_pool, db_name);
+                  db_uri, db_pool, db_name, tls_ca, tls_cert, tls_key,
+                  local_ws_port);
   agent.run(backoff);
   return 0;
 }
