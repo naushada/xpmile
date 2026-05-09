@@ -53,6 +53,19 @@ class AuthServiceTest {
     }
 
     @Test
+    void successfulLoginWithSingleObjectReturnsAccount() {
+        wireMock.stubFor(get(urlPathEqualTo("/api/v1/account/account"))
+                .withQueryParam("userId", equalTo("admin"))
+                .withQueryParam("password", equalTo("pass"))
+                .willReturn(okJson("{\"loginCredentials\":{\"accountCode\":\"admin\"}}")));
+
+        Account account = authService.login("admin", "pass");
+
+        assertThat(account).isNotNull();
+        assertThat(account.getLoginCredentials().getAccountCode()).isEqualTo("admin");
+    }
+
+    @Test
     void wrongPasswordThrowsAuthException() {
         // backend returns error object, not an array, on bad credentials
         wireMock.stubFor(get(urlPathEqualTo("/api/v1/account/account"))
