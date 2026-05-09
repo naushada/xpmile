@@ -108,7 +108,10 @@
               <classpathScope>test</classpathScope>
               <workingDirectory>${project.basedir}</workingDirectory>
               <systemProperties>
-                <fixtures.dir>${project.build.testOutputDirectory}/fixtures</fixtures.dir>
+                <systemProperty>
+                  <key>fixtures.dir</key>
+                  <value>${project.build.testOutputDirectory}/fixtures</value>
+                </systemProperty>
               </systemProperties>
             </configuration>
           </execution>
