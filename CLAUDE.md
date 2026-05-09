@@ -39,10 +39,28 @@ The `app` service is the only service name relevant for rebuilds. `mongodb` has 
 
 ### Heroku deployment
 
+Use `deploy-heroku.sh` (wraps podman + heroku CLI):
+
+```sh
+./deploy-heroku.sh login          # authenticate with registry.heroku.com (once per session)
+./deploy-heroku.sh deploy         # rebuild Angular only + push + release  (typical redeploy)
+./deploy-heroku.sh deploy full    # full C++ + Angular build + push + release
+./deploy-heroku.sh build          # full build only (no push)
+./deploy-heroku.sh build-ui       # Angular-only rebuild (no push)
+./deploy-heroku.sh push           # push previously built image
+./deploy-heroku.sh release        # release (activate) the pushed image
+./deploy-heroku.sh logs           # tail live Heroku logs
+./deploy-heroku.sh open           # open the app in the browser
+```
+
+Default app is `marvel`. Override with `HEROKU_APP=<name> ./deploy-heroku.sh deploy`.
+
+Raw equivalents (if needed):
+
 ```sh
 heroku auth:token | podman login --username=_ --password-stdin registry.heroku.com
-podman-compose -f docker-compose.heroku.yml build   # linux/amd64, set UI_BUST to re-build Angular only
-podman-compose -f docker-compose.heroku.yml push
+HEROKU_APP=marvel UI_BUST=$(date +%s) podman-compose -f docker-compose.heroku.yml build
+podman push --format=v2s2 registry.heroku.com/marvel/web
 heroku container:release web --app marvel
 ```
 
