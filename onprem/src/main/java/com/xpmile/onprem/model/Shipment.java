@@ -1,9 +1,11 @@
 package com.xpmile.onprem.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Shipment {
+    @JsonProperty("isAutoGenerate")
     private boolean isAutoGenerate;
     private String awbno;
     private String altRefNo;

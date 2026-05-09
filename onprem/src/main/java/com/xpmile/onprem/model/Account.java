@@ -1,9 +1,11 @@
 package com.xpmile.onprem.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Account {
+    @JsonProperty("isAccountCodeAutoGen")
     private boolean isAccountCodeAutoGen;
     private String awbPrefix;
     private LoginCredentials loginCredentials;

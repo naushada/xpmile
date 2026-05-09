@@ -14,6 +14,8 @@ class AuthServiceTest {
 
     static WireMockServer wireMock;
     AuthService authService;
+    // captured once per setUp so getBaseUrl() never calls wireMock.port() on a stopped server
+    int wireMockPort;
 
     @BeforeAll
     static void startWireMock() {
@@ -29,9 +31,10 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         wireMock.resetAll();
+        wireMockPort = wireMock.port();
         BackendConfig config = new BackendConfig() {
             @Override
-            public String getBaseUrl() { return "http://localhost:" + wireMock.port(); }
+            public String getBaseUrl() { return "http://localhost:" + wireMockPort; }
         };
         authService = new AuthService(new RestTemplate(), config);
     }

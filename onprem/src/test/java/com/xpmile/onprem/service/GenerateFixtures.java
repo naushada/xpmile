@@ -12,9 +12,11 @@ import java.io.IOException;
  */
 public class GenerateFixtures {
 
-    private static final String BASE = "src/test/resources/fixtures/";
+    private static final String BASE = System.getProperty("fixtures.dir",
+            "src/test/resources/fixtures") + "/";
 
     public static void main(String[] args) throws IOException {
+        new java.io.File(BASE).mkdirs();
         generate3Rows();
         generateEmpty();
         generateMissingAwb();

@@ -106,8 +106,10 @@
               <includeProjectDependencies>true</includeProjectDependencies>
               <includePluginDependencies>false</includePluginDependencies>
               <classpathScope>test</classpathScope>
-              <!-- GenerateFixtures writes relative to the project basedir -->
               <workingDirectory>${project.basedir}</workingDirectory>
+              <systemProperties>
+                <fixtures.dir>${project.build.testOutputDirectory}/fixtures</fixtures.dir>
+              </systemProperties>
             </configuration>
           </execution>
         </executions>
