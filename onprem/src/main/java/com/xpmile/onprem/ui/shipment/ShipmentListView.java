@@ -51,7 +51,7 @@ public class ShipmentListView extends VerticalLayout {
                 accountCode.getValue()));
 
         HorizontalLayout filters = new HorizontalLayout(fromDate, toDate, accountCode, search);
-        filters.setDefaultVerticalComponentAlignment(Alignment.BOTTOM);
+        filters.setDefaultVerticalComponentAlignment(Alignment.BASELINE);
 
         configureGrid();
 

@@ -37,7 +37,7 @@ public class ModifyShipmentView extends VerticalLayout implements HasUrlParamete
         save.addClickListener(e -> save());
 
         HorizontalLayout lookup = new HorizontalLayout(awbLookup, loadBtn);
-        lookup.setDefaultVerticalComponentAlignment(Alignment.BOTTOM);
+        lookup.setDefaultVerticalComponentAlignment(Alignment.BASELINE);
 
         HorizontalLayout actions = new HorizontalLayout(save);
 
