@@ -54,12 +54,13 @@ class AuthServiceTest {
 
     @Test
     void wrongPasswordThrowsAuthException() {
+        // backend returns error object, not an array, on bad credentials
         wireMock.stubFor(get(urlPathEqualTo("/api/v1/account/account"))
-                .willReturn(okJson("[]")));
+                .willReturn(okJson("{\"cause\":\"Invalid Credentials\",\"error\":404,\"status\":\"failure\"}")));
 
         assertThatThrownBy(() -> authService.login("admin", "wrong"))
                 .isInstanceOf(AuthException.class)
-                .hasMessageContaining("Invalid credentials");
+                .hasMessageContaining("Invalid Credentials");
     }
 
     @Test
