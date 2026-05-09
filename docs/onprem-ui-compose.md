@@ -14,6 +14,22 @@
 
 ---
 
+## Build prerequisites (already in place)
+
+The following issues were encountered and fixed during initial bring-up. Documented here so the build is understood end-to-end:
+
+| Issue | Root cause | Fix |
+|-------|-----------|-----|
+| `Alignment.BOTTOM` compile error | `FlexComponent.Alignment` has no `BOTTOM` in Vaadin 24 | Changed to `BASELINE` |
+| WireMock test failure | `wireMock.port()` called lazily inside `getBaseUrl()`, hitting a stopped server | Port captured eagerly in `setUp()` |
+| Excel fixtures not found | Files written to `src/test/resources/` after Maven resource processing; never on classpath | Write directly to `target/test-classes/fixtures/` via system property |
+| `isAutoGenerate` serialised as `autoGenerate` | Jackson strips `is` prefix from boolean getters | `@JsonProperty("isAutoGenerate")` added to model fields |
+| Tomcat context failed to start | `vaadin.allowed-packages` is not a valid Vaadin 24 property | Removed from `application.properties` |
+| Vaadin frontend not built | `production` profile was missing `build-frontend` goal | Profile added with both `prepare-frontend` and `build-frontend` |
+| Theme directory missing | `@Theme("onprem")` requires `frontend/themes/onprem/` to exist | Created with `theme.json` (parent: lumo) and `styles.css` |
+
+---
+
 ## Scenario A — On-prem UI only, backend on Heroku
 
 Builds and starts only the Vaadin UI container. The C++ backend is not touched.
