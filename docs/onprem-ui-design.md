@@ -127,12 +127,14 @@ Open **http://localhost:8090** after the container starts.
 
 See `docker-compose.onprem.yml` in the repo root for a compose file that brings up both the xpmile backend (MongoDB + uniservice) and the on-prem UI together.
 
+Run from the `xpmile/` repo root:
+
 ```sh
 # Start everything (backend + on-prem UI)
 podman-compose -f docker-compose.onprem.yml up --build
 
-# On-prem UI only (backend already running separately)
-podman-compose -f docker-compose.onprem.yml up --build onprem-ui
+# On-prem UI only against Heroku (single line — no backslash)
+XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com podman-compose -f docker-compose.onprem.yml up --build onprem-ui
 
 # Stop
 podman-compose -f docker-compose.onprem.yml down

@@ -1,4 +1,4 @@
-# Running the On-Prem UI locally with Docker Compose
+# Running the On-Prem UI locally with Podman Compose
 
 `docker-compose.onprem.yml` starts the full local stack:
 
@@ -10,11 +10,13 @@
 
 All three share the `xpmile-net` bridge network so the on-prem UI reaches the backend by service name (`http://app:8080`).
 
+> **All commands must be run from the repo root (`xpmile/`), not from inside `onprem/`.**
+
 ---
 
 ## Prerequisites
 
-- Docker (or Podman with `podman-compose`) installed
+- `podman` and `podman-compose` installed
 - Repo cloned at `xpmile/`
 
 ---
@@ -22,7 +24,7 @@ All three share the `xpmile-net` bridge network so the on-prem UI reaches the ba
 ## Quick start
 
 ```sh
-# From the repo root
+cd xpmile
 podman-compose -f docker-compose.onprem.yml up --build
 ```
 
@@ -35,8 +37,10 @@ First run takes 30–40 min (C++ + Maven build). Subsequent runs reuse the cache
 
 ## Common operations
 
+All commands below assume you are in the `xpmile/` repo root.
+
 ```sh
-# Start (build if needed)
+# Start everything (build if needed)
 podman-compose -f docker-compose.onprem.yml up --build
 
 # Start in background
@@ -64,9 +68,10 @@ podman-compose -f docker-compose.onprem.yml down -v
 
 ## Pointing the on-prem UI at Heroku instead of local backend
 
+Run this from the `xpmile/` repo root as a single command:
+
 ```sh
-XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com \
-  podman-compose -f docker-compose.onprem.yml up --build onprem-ui
+XPMILE_BACKEND_BASE_URL=https://marvel-3a78bd953f5f.herokuapp.com podman-compose -f docker-compose.onprem.yml up --build onprem-ui
 ```
 
 Only the `onprem-ui` service starts; MongoDB and `app` are skipped.
@@ -86,6 +91,6 @@ ONPREM_PORT=9090 podman-compose -f docker-compose.onprem.yml up -d
 
 ---
 
-## Note on Podman
+## Note
 
-All commands above use `podman-compose`. If you have `docker-compose` installed instead, the commands are identical — just substitute `docker-compose` for `podman-compose`.
+All commands use `podman-compose`. If you have `docker-compose` installed instead, the commands are identical — just substitute `docker-compose` for `podman-compose`.
