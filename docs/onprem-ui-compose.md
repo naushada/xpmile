@@ -28,6 +28,8 @@ The following issues were encountered and fixed during initial bring-up. Documen
 | Vaadin frontend not built | `production` profile was missing `build-frontend` goal | Profile added with both `prepare-frontend` and `build-frontend` |
 | Theme directory missing | `@Theme("onprem")` requires `frontend/themes/onprem/` to exist | Created with `theme.json` (parent: lumo) and `styles.css` |
 | Theme not found in Docker | Dockerfile only copied `src/`; `frontend/` was never in the image | Added `COPY frontend ./frontend` to Dockerfile builder stage |
+| Login — "backend unavailable" | Backend returns `{"cause":"Invalid Credentials","error":404}` on bad credentials, not `[]`; `RestTemplate` failed to deserialize it as `Account[]` throwing `HttpMessageNotReadableException` caught as "unavailable" | `AuthService` now parses raw JSON as `JsonNode` first — array = success, object = reads `cause` field |
+| Login — no request reaching Heroku | Backend requires client identification headers on every request | `RestTemplate` interceptor added — injects `onprem-ui: onprem-ui` and `client: onprem-xpmil-v.0.1` on all outgoing calls |
 
 ---
 
