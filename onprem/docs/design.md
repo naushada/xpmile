@@ -10,6 +10,63 @@ A standalone Java/Vaadin web application that provides the on-premises UI for xp
 
 ---
 
+## Running against your backend
+
+### Prerequisites
+
+| Tool | Version |
+|------|---------|
+| Java | 17+ |
+| Maven | 3.9+ |
+
+### 1. Start your backend
+
+```sh
+cd xpmile
+./run.sh start
+# or start it on a remote machine and note its IP
+```
+
+### 2. Configure the backend URL
+
+The default is `http://localhost:8080`. Override with one of:
+
+**Option A — environment variable (recommended):**
+```sh
+export XPMILE_BACKEND_BASE_URL=http://<your-backend-host>:8080
+mvn spring-boot:run
+```
+
+**Option B — command-line property:**
+```sh
+mvn spring-boot:run -Dspring-boot.run.arguments="--xpmile.backend.base-url=http://<host>:8080"
+```
+
+**Option C — edit `application.properties`:**
+```properties
+xpmile.backend.base-url=http://<your-backend-host>:8080
+```
+
+### 3. Start the UI
+
+```sh
+cd onprem
+mvn spring-boot:run
+```
+
+Open **http://localhost:8090** and log in with any account from your backend.
+
+### Running tests (no backend needed)
+
+```sh
+cd onprem
+mvn test
+```
+
+WireMock stubs replace the backend. Excel fixtures are generated automatically before the test phase.
+
+---
+
 ## Scope (Phase 1)
 
 | # | View | API endpoints used |
