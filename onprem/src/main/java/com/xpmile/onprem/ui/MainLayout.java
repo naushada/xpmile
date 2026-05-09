@@ -33,26 +33,42 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
     public MainLayout(StatusService statusService) {
         this.statusService = statusService;
 
-        addToNavbar(new DrawerToggle());
+        // Dark branded navbar
+        getStyle().set("--lumo-app-layout-bar-background", "#0f2744");
+
+        DrawerToggle toggle = new DrawerToggle();
+        toggle.getStyle().set("color", "white");
+        addToNavbar(toggle);
 
         H2 appName = new H2("xpmile");
-        appName.getStyle().set("font-size", "var(--lumo-font-size-l)").set("margin", "0");
+        appName.getStyle()
+                .set("font-size", "var(--lumo-font-size-l)")
+                .set("margin", "0")
+                .set("color", "white")
+                .set("font-weight", "700")
+                .set("letter-spacing", "-0.3px");
 
         Account account = (Account) VaadinSession.getCurrent().getAttribute("account");
         String userName = account != null && account.getLoginCredentials() != null
                 ? account.getLoginCredentials().getAccountCode()
                 : "";
 
-        Span userSpan = new Span("Logged in as: " + userName);
+        Span userSpan = new Span(userName);
         userSpan.getStyle()
                 .set("font-size", "var(--lumo-font-size-s)")
-                .set("color", "var(--lumo-secondary-text-color)");
+                .set("color", "rgba(255,255,255,0.7)")
+                .set("background", "rgba(255,255,255,0.12)")
+                .set("padding", "3px 10px")
+                .set("border-radius", "12px");
 
         Div agentBadge = createBadge("Agent");
         Div dbBadge    = createBadge("DB");
 
         Button logoutButton = new Button("Logout");
-        logoutButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_ERROR);
+        logoutButton.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        logoutButton.getStyle()
+                .set("color", "rgba(255,255,255,0.8)")
+                .set("border", "1px solid rgba(255,255,255,0.3)");
         logoutButton.addClickListener(e -> {
             VaadinSession.getCurrent().close();
             UI.getCurrent().navigate("");
@@ -62,7 +78,9 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
         header.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
         header.setWidthFull();
         header.expand(appName);
-        header.getStyle().set("padding", "0 var(--lumo-space-m)");
+        header.getStyle()
+                .set("padding", "0 var(--lumo-space-m)")
+                .set("background", "#0f2744");
         addToNavbar(header);
 
         SideNav nav = new SideNav();
@@ -77,7 +95,6 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
         ui.setPollInterval(POLL_INTERVAL_MS);
         ui.addPollListener(e -> scheduleStatusRefresh(ui, agentBadge, dbBadge));
 
-        // initial check runs off the UI thread so it doesn't block first render
         scheduleStatusRefresh(ui, agentBadge, dbBadge);
     }
 
@@ -100,23 +117,29 @@ public class MainLayout extends AppLayout implements BeforeEnterObserver {
                 .set("width", "8px")
                 .set("height", "8px")
                 .set("border-radius", "50%")
-                .set("background", "var(--lumo-disabled-text-color)")
-                .set("margin-right", "4px");
+                .set("background", "rgba(255,255,255,0.3)")
+                .set("flex-shrink", "0");
 
         Span text = new Span(label);
         text.getStyle()
                 .set("font-size", "var(--lumo-font-size-xs)")
-                .set("color", "var(--lumo-secondary-text-color)");
+                .set("color", "rgba(255,255,255,0.7)");
 
         Div badge = new Div(dot, text);
-        badge.getStyle().set("display", "flex").set("align-items", "center").set("gap", "2px");
+        badge.getStyle()
+                .set("display", "flex")
+                .set("align-items", "center")
+                .set("gap", "5px")
+                .set("background", "rgba(255,255,255,0.08)")
+                .set("padding", "3px 8px")
+                .set("border-radius", "10px");
         return badge;
     }
 
     private static void setDotColor(Div badge, boolean ok) {
         badge.getChildren().findFirst().ifPresent(dot ->
                 dot.getElement().getStyle().set("background",
-                        ok ? "var(--lumo-success-color)" : "var(--lumo-error-color)"));
+                        ok ? "#48bb78" : "#fc8181"));
     }
 
     @Override

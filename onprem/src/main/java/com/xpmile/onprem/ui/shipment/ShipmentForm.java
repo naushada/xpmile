@@ -1,8 +1,10 @@
 package com.xpmile.onprem.ui.shipment;
 
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.formlayout.FormLayout;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.NumberField;
@@ -68,35 +70,52 @@ public class ShipmentForm extends VerticalLayout {
         senderName.setId("senderName");
         senderName.setRequiredIndicatorVisible(true);
 
-        FormLayout awbSection = section("AWB",
+        Div awbSection = section("AWB",
                 autoGenerate, awbno, altRefNo);
 
-        FormLayout senderSection = section("Sender Information",
+        Div senderSection = section("Sender Information",
                 senderAccountNo, senderName, senderCompany, senderCountry,
                 senderCity, senderState, senderAddress, senderPostal,
                 senderContact, senderPhone, senderEmail, senderTaxId);
 
-        FormLayout infoSection = section("Shipment Information",
+        Div infoSection = section("Shipment Information",
                 skuNo, service, numberOfItems, goodsDescription,
                 weight, weightUnits, codAmount, currency, customsValue, hsCode);
 
-        FormLayout receiverSection = section("Receiver Information",
+        Div receiverSection = section("Receiver Information",
                 receiverName, receiverCountry, receiverCity, receiverState,
                 receiverAddress, receiverPostal, receiverContact, receiverPhone, receiverEmail);
 
         setPadding(false);
+        setSpacing(false);
         add(awbSection, senderSection, infoSection, receiverSection);
     }
 
-    private FormLayout section(String title, com.vaadin.flow.component.Component... fields) {
+    static Div section(String title, Component... fields) {
+        H4 header = new H4(title);
+        header.getStyle()
+                .set("margin", "0 0 var(--lumo-space-m)")
+                .set("padding-left", "var(--lumo-space-s)")
+                .set("border-left", "4px solid var(--lumo-primary-color)")
+                .set("font-size", "var(--lumo-font-size-m)")
+                .set("color", "var(--lumo-primary-text-color)");
+
         FormLayout form = new FormLayout();
-        form.getElement().insertChild(0, new H4(title).getElement());
         form.add(fields);
         form.setResponsiveSteps(
                 new FormLayout.ResponsiveStep("0", 1),
                 new FormLayout.ResponsiveStep("500px", 2),
                 new FormLayout.ResponsiveStep("900px", 3));
-        return form;
+
+        Div card = new Div(header, form);
+        card.getStyle()
+                .set("background", "var(--lumo-base-color)")
+                .set("border", "1px solid var(--lumo-contrast-10pct)")
+                .set("border-radius", "var(--lumo-border-radius-l)")
+                .set("padding", "var(--lumo-space-l)")
+                .set("box-shadow", "0 2px 8px rgba(0,0,0,0.06)")
+                .set("margin-bottom", "var(--lumo-space-m)");
+        return card;
     }
 
     public void populate(Shipment s) {
