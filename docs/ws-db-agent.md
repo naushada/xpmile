@@ -264,57 +264,37 @@ MongoDB machine (behind NAT)
 
 ### Quick start — build and run both containers (Heroku)
 
-Run every command from the **repo root** on the MongoDB machine.
+Use `run-agent.sh` from the **repo root** on the MongoDB machine. It wraps
+`podman-compose`, handles `.env` setup, and waits for the MongoDB healthcheck.
 
-#### 1. Configure
+```
+./run-agent.sh build    # build both images (20–30 min on first run)
+./run-agent.sh start    # start MongoDB + wsdbagent
+./run-agent.sh stop     # stop containers (data volume preserved)
+./run-agent.sh restart  # stop then start
+./run-agent.sh logs     # follow live logs from both containers
+./run-agent.sh status   # show container status
+./run-agent.sh clean    # stop containers AND delete the MongoDB data volume
+```
+
+#### First run
 
 ```sh
-cp .env.agent .env
+# 1. Make the script executable (once)
+chmod +x run-agent.sh
+
+# 2. Build both images
+./run-agent.sh build
+#   → prompts for SERVER_HOST if .env is missing, then copies .env.agent → .env
+
+# 3. Start
+./run-agent.sh start
+#   → waits for MongoDB to become healthy, then prints container status
 ```
 
-Open `.env` and set at minimum:
+#### What to look for
 
-```
-SERVER_HOST=marvel.herokuapp.com   # your Heroku app hostname
-```
-
-All other variables have sensible defaults. Change MongoDB credentials if you
-need non-default values:
-
-```
-MONGO_ROOT_USER=root
-MONGO_ROOT_PASS=changeme
-MONGO_APP_USER=xpmile
-MONGO_APP_PASS=xpmile_pass
-MONGO_DB=xpmile
-```
-
-#### 2. Build both images
-
-```sh
-podman-compose -f docker-compose.agent.yml build
-```
-
-This compiles wsdbagent (ACE/TAO + mongo-cxx-driver) and tags the custom
-MongoDB image with the init script. The build takes 20–30 minutes on first
-run; subsequent builds use the layer cache.
-
-#### 3. Start both containers
-
-```sh
-podman-compose -f docker-compose.agent.yml up -d
-```
-
-`wsdbagent` depends on `mongodb` with `condition: service_healthy`, so it
-will not start until MongoDB passes the ping healthcheck.
-
-#### 4. Verify both are running
-
-```sh
-podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
-```
-
-Expected output (both should show `Up`):
+After `start`, both containers should show `Up`:
 
 ```
 NAMES              STATUS                   IMAGE
@@ -322,43 +302,36 @@ agent-mongo        Up X minutes (healthy)   xpmile-mongo:latest
 agent-wsdbagent    Up X minutes             wsdbagent:latest
 ```
 
-#### 5. Watch the logs
-
-```sh
-# Both containers together
-podman-compose -f docker-compose.agent.yml logs -f
-
-# MongoDB only
-podman logs -f agent-mongo
-
-# wsdbagent only (confirm it connected to Heroku)
-podman logs -f agent-wsdbagent
-```
-
-A successful wsdbagent startup looks like:
+In the wsdbagent log (`./run-agent.sh logs` or `podman logs -f agent-wsdbagent`):
 
 ```
 [WsDbAgent] connecting to marvel.herokuapp.com:443 (ssl=1)
 [WsDbAgent] session started
 ```
 
-And on the Heroku side (`heroku logs --tail --app marvel`):
+On the Heroku side (`heroku logs --tail --app marvel`):
 
 ```
 [WsDbServer] agent connected
 ```
 
-#### 6. Stop
+#### Environment variables
 
-```sh
-podman-compose -f docker-compose.agent.yml down
-```
+`run-agent.sh build` / `start` will prompt for `SERVER_HOST` if `.env` is
+missing or still set to the placeholder. To set everything non-interactively,
+edit `.env` directly (copy from `.env.agent`):
 
-MongoDB data is preserved in the `mongo-data` named volume. To wipe it:
-
-```sh
-podman volume rm mongo-data
-```
+| Variable | Default | Description |
+|---|---|---|
+| `SERVER_HOST` | *(required)* | Heroku hostname, e.g. `marvel.herokuapp.com` |
+| `SERVER_PORT` | `443` | Port to connect to |
+| `MONGO_ROOT_USER` | `root` | MongoDB root username |
+| `MONGO_ROOT_PASS` | `changeme` | MongoDB root password |
+| `MONGO_APP_USER` | `xpmile` | App DB username |
+| `MONGO_APP_PASS` | `xpmile_pass` | App DB password |
+| `MONGO_DB` | `xpmile` | Database name |
+| `MONGO_POOL` | `10` | MongoDB connection pool size |
+| `BACKOFF` | `5` | Reconnect wait in seconds |
 
 ---
 
