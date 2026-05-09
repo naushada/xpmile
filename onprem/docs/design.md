@@ -29,23 +29,40 @@ cd xpmile
 
 ### 2. Configure the backend URL
 
-The default is `http://localhost:8080`. Override with one of:
+The default is `http://localhost:8080`. `RestTemplate` supports both `http://` and `https://` — no code changes needed for either.
+
+| Target | URL format |
+|--------|-----------|
+| Local stack | `http://localhost:8080` |
+| On-prem remote machine | `http://<ip-or-hostname>:8080` |
+| Heroku (deployed app) | `https://marvel.herokuapp.com` |
+
+Override with one of:
 
 **Option A — environment variable (recommended):**
 ```sh
-export XPMILE_BACKEND_BASE_URL=http://<your-backend-host>:8080
+# local
+export XPMILE_BACKEND_BASE_URL=http://localhost:8080
+
+# Heroku
+export XPMILE_BACKEND_BASE_URL=https://marvel.herokuapp.com
+
 mvn spring-boot:run
 ```
 
 **Option B — command-line property:**
 ```sh
-mvn spring-boot:run -Dspring-boot.run.arguments="--xpmile.backend.base-url=http://<host>:8080"
+# Heroku
+mvn spring-boot:run -Dspring-boot.run.arguments="--xpmile.backend.base-url=https://marvel.herokuapp.com"
 ```
 
 **Option C — edit `application.properties`:**
 ```properties
-xpmile.backend.base-url=http://<your-backend-host>:8080
+# Heroku
+xpmile.backend.base-url=https://marvel.herokuapp.com
 ```
+
+> **Note:** Heroku uses a valid CA-signed TLS certificate so HTTPS works with the default JVM trust store. No extra SSL configuration is needed.
 
 ### 3. Start the UI
 
