@@ -36,10 +36,10 @@ Each account document gains one field and eventually drops another:
 ```json
 {
   "loginCredentials": {
-    "accountCode": "admin",
-    "accountPassword": "admin@123"   // ← KEPT during migration, REMOVED after
+    "accountCode": "admin"
+    // "accountPassword" removed — only passwordHash is stored
   },
-  "passwordHash": "$pbkdf2-sha256$i=600000$abc123...$def456..."
+  "passwordHash": "$pbkdf2-sha256$i=600000$<salt>$<hash>"
 }
 ```
 

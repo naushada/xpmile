@@ -740,9 +740,11 @@ std::string MicroService::handle_account_login_POST(std::string &in,
   bool authenticated = false;
   try {
     auto account = json::parse(record);
-    if (account.contains("passwordHash") && account["passwordHash"].is_string()) {
+    auto &lc = account["loginCredentials"];
+    if (lc.is_object() && lc.contains("passwordHash") &&
+        lc["passwordHash"].is_string()) {
       authenticated = MongodbClient::verify_password(
-          password, account["passwordHash"].get<std::string>());
+          password, lc["passwordHash"].get<std::string>());
     }
   } catch (...) {}
 
@@ -754,9 +756,10 @@ std::string MicroService::handle_account_login_POST(std::string &in,
   // Strip sensitive fields from the response
   try {
     auto account = json::parse(record);
-    account.erase("passwordHash");
-    if (account.contains("loginCredentials"))
+    if (account.contains("loginCredentials") && account["loginCredentials"].is_object()) {
+      account["loginCredentials"].erase("passwordHash");
       account["loginCredentials"].erase("accountPassword");
+    }
     return build_responseOK(account.dump());
   } catch (...) {
     json err = {{"status", "failure"}, {"cause", "Internal error"}, {"error", 500}};
