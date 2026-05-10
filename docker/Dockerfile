@@ -70,11 +70,20 @@ COPY modules/ /src/modules/
 COPY test/ /src/test/
 COPY docker/mongo-init.js /src/docker/
 
-# Generate self-signed test certificates for inner-TLS tests
+# Copy repo certs and generate Heroku server cert from the same CA.
+# The CA (ca.crt / ca.key) lives in the repo so wsdbagent can verify the
+# server using a committed trust anchor.
+COPY certs/ /tmp/repo-certs/
 RUN mkdir -p /src/certs && \
-    openssl req -x509 -newkey rsa:2048 -keyout /src/certs/server.key \
-    -out /src/certs/server.crt -days 365 -nodes \
-    -subj "/C=IN/ST=Test/L=Test/O=Xpmile/CN=localhost"
+    openssl genrsa -out /src/certs/server.key 2048 && \
+    openssl req -new -key /src/certs/server.key \
+        -out /src/certs/server.csr \
+        -subj "/O=xpmile/CN=marvel.xpmile.com" && \
+    openssl x509 -req -days 365 -in /src/certs/server.csr \
+        -CA /tmp/repo-certs/ca.crt -CAkey /tmp/repo-certs/ca.key -CAcreateserial \
+        -out /src/certs/server.crt && \
+    cp /tmp/repo-certs/ca.crt /src/certs/ca.crt && \
+    rm -f /src/certs/server.csr /src/certs/ca.srl /tmp/repo-certs/ca.key
 
 WORKDIR /src/build
 RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
@@ -148,7 +157,7 @@ WORKDIR /opt/xAPP/granada
 # CMD_ARGS: --server-ip <ip> --server-port <port> --server-worker <n>
 #           --mongo-db-name <name> --mongo-db-connection-pool <n> --mongo-db-uri <uri>
 # Set REMOTE_DB=1 in the container environment to enable --remote-db mode.
-ENV ARGS="--server-worker 5 --tls-cert /opt/xAPP/granada/certs/server.crt --tls-key /opt/xAPP/granada/certs/server.key"
+ENV ARGS="--server-worker 5 --tls-cert /opt/xAPP/granada/certs/server.crt --tls-key /opt/xAPP/granada/certs/server.key --tls-ca /opt/xAPP/granada/certs/ca.crt"
 ENV PORT=8080
 ENV REMOTE_DB=""
 
