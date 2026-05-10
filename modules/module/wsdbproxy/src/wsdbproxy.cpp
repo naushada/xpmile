@@ -253,10 +253,10 @@ bool WsDbServer::on_agent_connected(ACE_HANDLE handle)
 bool WsDbServer::setup_inner_tls()
 {
   if (m_innerCert.empty() || m_innerKey.empty()) {
-    ACE_ERROR((LM_ERROR,
+    ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                        "inner TLS cert/key not configured — refusing connection\n")));
-    return false;
+                        "inner TLS cert/key not configured — skipping inner TLS\n")));
+    return true;
   }
 
   auto send_frame = [this](const std::vector<std::uint8_t>& payload,

@@ -134,6 +134,10 @@ RUN ldconfig
 RUN mkdir -p /opt/xAPP/granada
 COPY --from=cpp-builder /src/build/uniservice /opt/xAPP/granada/uniservice
 
+# Self-signed certs for inner TLS (generated in cpp-builder stage)
+RUN mkdir -p /opt/xAPP/granada/certs
+COPY --from=cpp-builder /src/certs/ /opt/xAPP/granada/certs/
+
 # Angular distribution
 RUN mkdir -p /opt/xAPP/webgui
 COPY --from=ui-builder /ui/dist/webui /opt/xAPP/webgui/webui
@@ -144,7 +148,7 @@ WORKDIR /opt/xAPP/granada
 # CMD_ARGS: --server-ip <ip> --server-port <port> --server-worker <n>
 #           --mongo-db-name <name> --mongo-db-connection-pool <n> --mongo-db-uri <uri>
 # Set REMOTE_DB=1 in the container environment to enable --remote-db mode.
-ENV ARGS="--server-worker 5"
+ENV ARGS="--server-worker 5 --tls-cert /opt/xAPP/granada/certs/server.crt --tls-key /opt/xAPP/granada/certs/server.key"
 ENV PORT=8080
 ENV REMOTE_DB=""
 

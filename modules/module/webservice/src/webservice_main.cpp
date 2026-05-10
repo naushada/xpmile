@@ -154,11 +154,11 @@ int main(int argc, char *argv[]) {
                           "Heroku mode with inner TLS (cert=%s)\n"),
                  tlsCert.c_str()));
     } else {
-      ACE_ERROR((LM_ERROR,
+      ACE_ERROR((LM_WARNING,
                  ACE_TEXT("%D [WebServer:%t] %M %N:%l "
-                          "--remote-db requires --tls-cert and --tls-key "
-                          "for inner TLS\n")));
-      return -1;
+                          "--tls-cert/--tls-key not set — inner TLS disabled "
+                          "(agent traffic will not be encrypted)\n")));
+      wsServer = std::make_unique<WsDbServer>();
     }
 
     auto proxy = std::make_unique<WsMongodbProxy>(*wsServer);
