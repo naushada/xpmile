@@ -165,6 +165,9 @@ public:
    */
   std::string build_responseOK(std::string http_body,
                                std::string content_type = "application/json");
+  std::string build_responseOK(std::string http_body,
+                               std::string content_type,
+                               const std::string &cache_control);
 
   /// Build a @c 201 Created response with no body.
   std::string build_responseCreated();
@@ -175,6 +178,7 @@ public:
    * @return Corresponding MIME type, or @c "text/html" as a fallback.
    */
   std::string get_contentType(std::string _ext);
+  std::string get_cache_control(std::string fileName, std::string ext);
 
   /**
    * @brief Build an HTTP error response.

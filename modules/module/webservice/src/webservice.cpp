@@ -18,6 +18,7 @@ struct WorkCtx {
 std::string http_build_created() {
   std::string hdr = "HTTP/1.1 201 Created\r\n"
                     "Connection: keep-alive\r\n"
+                    "Keep-Alive: timeout=5, max=100\r\n"
                     "Access-Control-Allow-Origin: *\r\n"
                     "Content-Length: 0\r\n"
                     "\r\n";
@@ -28,15 +29,20 @@ std::string http_build_created() {
   return hdr;
 }
 
-std::string http_build_ok(std::string body, const std::string &contentType) {
+std::string http_build_ok(std::string body, const std::string &contentType,
+                          const std::string &cacheControl = "") {
   std::string hdr = "HTTP/1.1 200 OK\r\n"
                     "Connection: keep-alive\r\n"
+                    "Keep-Alive: timeout=5, max=100\r\n"
                     "Access-Control-Allow-Origin: *\r\n";
   if (!body.empty()) {
     hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
     hdr += "Content-Type: " + contentType + "\r\n";
   } else {
     hdr += "Content-Length: 0\r\n";
+  }
+  if (!cacheControl.empty()) {
+    hdr += "Cache-Control: " + cacheControl + "\r\n";
   }
   hdr += "\r\n";
   ACE_DEBUG((LM_DEBUG,
@@ -49,6 +55,7 @@ std::string http_build_error(std::string body, const std::string &status) {
   std::string hdr = "HTTP/1.1 " + status +
                     " \r\n"
                     "Connection: keep-alive\r\n"
+                    "Keep-Alive: timeout=5, max=100\r\n"
                     "Access-Control-Allow-Origin: *\r\n";
   if (!body.empty()) {
     hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
@@ -228,6 +235,31 @@ std::string MicroService::get_contentType(std::string ext) {
     cntType = "text/html";
   }
   return (cntType);
+}
+
+std::string MicroService::get_cache_control(std::string fileName,
+                                             std::string ext) {
+  // index.html must never be cached — it's the Angular shell
+  if (fileName.find("index.html") != std::string::npos) {
+    return "no-cache";
+  }
+
+  // Angular content-hashed bundles: 1 year immutable
+  if (!ext.compare("js") || !ext.compare("css")) {
+    return "public, max-age=31536000, immutable";
+  }
+
+  // Fonts and images: 1 week
+  if (!ext.compare("woff") || !ext.compare("woff2") ||
+      !ext.compare("ttf") || !ext.compare("otf") ||
+      !ext.compare("eot") || !ext.compare("svg") ||
+      !ext.compare("png") || !ext.compare("jpg") ||
+      !ext.compare("gif") || !ext.compare("ico")) {
+    return "public, max-age=604800";
+  }
+
+  // Other static content: 1 day
+  return "public, max-age=86400";
 }
 
 /**
@@ -962,7 +994,8 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
 
       _str << ifs.rdbuf();
       ifs.close();
-      return (build_responseOK(_str.str(), cntType));
+      return (build_responseOK(_str.str(), cntType,
+                               get_cache_control(fileName, ext)));
     } else {
       std::string newFile = "../webgui/webui/index.html";
       // ACE_DEBUG((LM_DEBUG,
@@ -984,7 +1017,7 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
       _str << ifs.rdbuf();
       ifs.close();
 
-      return (build_responseOK(_str.str(), cntType));
+      return (build_responseOK(_str.str(), cntType, "no-cache"));
     }
   } else if (!uri.compare(0, 8, "/assets/")) {
     std::string ext;
@@ -1004,7 +1037,8 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
                             "successfully.\n"),
                    uri.c_str()));
         _str << ifs.rdbuf();
-        return (build_responseOK(_str.str(), get_contentType(ext)));
+        return (build_responseOK(_str.str(), get_contentType(ext),
+                                 get_cache_control(uri, ext)));
       }
     }
   } else if (!uri.compare(0, 1, "/")) {
@@ -1023,7 +1057,7 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
       return build_responseERROR(err.dump(), "400 Bad Request");
     }
     _str << ifs.rdbuf();
-    return (build_responseOK(_str.str(), "text/html"));
+    return (build_responseOK(_str.str(), "text/html", "no-cache"));
   }
 
   return (build_responseOK(std::string()));
@@ -1428,7 +1462,13 @@ std::string MicroService::build_responseCreated() {
 
 std::string MicroService::build_responseOK(std::string httpBody,
                                            std::string contentType) {
-  return http_build_ok(std::move(httpBody), contentType);
+  return http_build_ok(std::move(httpBody), contentType, "");
+}
+
+std::string MicroService::build_responseOK(std::string httpBody,
+                                           std::string contentType,
+                                           const std::string &cacheControl) {
+  return http_build_ok(std::move(httpBody), contentType, cacheControl);
 }
 
 std::string MicroService::build_responseERROR(std::string httpBody,
