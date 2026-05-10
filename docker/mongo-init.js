@@ -20,7 +20,7 @@ db.account.insertOne({
   awbPrefix: "AWB",
   loginCredentials: {
     accountCode: "admin",
-    accountPassword: "admin@123"
+    passwordHash: "$pbkdf2-sha256$i=600000$jikaUK2A+Sqzyn4S5QrJtA==$o2sULiR0v3WmF0J8qLbZu2c5TrexkV0Bs8pK/3Bfy2I="
   },
   personalInfo: {
     role: "Admin",
@@ -43,4 +43,4 @@ db.account.insertOne({
     iban: ""
   }
 });
-print("Bootstrap admin document created — accountCode: admin / accountPassword: admin@123");
+print("Bootstrap admin document created — accountCode: admin (passwordHash: pbkdf2-sha256)");

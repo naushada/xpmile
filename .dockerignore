@@ -5,3 +5,4 @@ ui/node_modules/
 ui/dist/
 ui/.angular/
 docker/
+!docker/mongo-init.js

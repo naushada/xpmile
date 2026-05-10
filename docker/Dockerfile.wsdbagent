@@ -98,9 +98,7 @@ COPY --from=cpp-builder /src/build/wsdbagent /opt/wsdbagent/wsdbagent
 WORKDIR /opt/wsdbagent
 
 # Required: --server-host, --mongo-db-uri, --mongo-db-name
-# Optional: --server-port (443 SSL / 8080 plain), --no-ssl, --mongo-db-connection-pool, --backoff
-# Set NO_SSL=1 in the container environment to use plain TCP (local dev / non-TLS server).
+# Optional: --server-port (default: 443, TLS mandatory), --mongo-db-connection-pool, --backoff
 ENV ARGS=""
-ENV NO_SSL=""
 
-CMD /opt/wsdbagent/wsdbagent ${ARGS} ${NO_SSL:+--no-ssl}
+CMD /opt/wsdbagent/wsdbagent ${ARGS}

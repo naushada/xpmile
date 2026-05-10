@@ -655,7 +655,10 @@ std::string MicroService::handle_account_POST(std::string &in,
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l Request uri:%s\n"),
              http.uri().c_str()));
 
-  if (!uri.compare("/api/v1/account/account")) {
+  if (!uri.compare("/api/v1/account/login")) {
+    return (handle_account_login_POST(in, dbInst));
+
+  } else if (!uri.compare("/api/v1/account/account")) {
     std::string collectionName("account");
     /*We need newly created account Code */
     std::string projection("{\"_id\" : false, \"accountCode\" : true}");
@@ -666,6 +669,22 @@ std::string MicroService::handle_account_POST(std::string &in,
                content.length(), content.c_str()));
 
     if (content.length()) {
+        // Hash plain-text password if present before storing
+        try {
+          auto body = json::parse(content);
+          if (body.contains("loginCredentials") && body["loginCredentials"].is_object()) {
+            auto &lc = body["loginCredentials"];
+            if (lc.contains("accountPassword") && lc["accountPassword"].is_string()) {
+              std::string plain = lc["accountPassword"].get<std::string>();
+              lc["passwordHash"] = MongodbClient::hash_password(plain);
+              lc.erase("accountPassword");
+              content = body.dump();
+            }
+          }
+        } catch (...) {
+          // If JSON parsing fails, store the raw body unchanged
+        }
+
       std::string oid = dbInst.create_document(dbInst.get_database(),
                                                collectionName, content);
 
@@ -679,6 +698,73 @@ std::string MicroService::handle_account_POST(std::string &in,
     }
   }
   return (std::string());
+}
+
+std::string MicroService::handle_account_login_POST(std::string &in,
+                                                     IMongodbClient &dbInst) {
+  Http http(in);
+  std::string content = http.body();
+
+  if (content.empty()) {
+    json err = {{"status", "failure"}, {"cause", "Missing credentials"}, {"error", 400}};
+    return build_responseERROR(err.dump(), "400 Bad Request");
+  }
+
+  std::string userId, password;
+  try {
+    auto body = json::parse(content);
+    if (body.contains("userId") && body["userId"].is_string())
+      userId = body["userId"].get<std::string>();
+    if (body.contains("password") && body["password"].is_string())
+      password = body["password"].get<std::string>();
+  } catch (...) {
+    json err = {{"status", "failure"}, {"cause", "Invalid JSON"}, {"error", 400}};
+    return build_responseERROR(err.dump(), "400 Bad Request");
+  }
+
+  if (userId.empty() || password.empty()) {
+    json err = {{"status", "failure"}, {"cause", "Missing userId or password"}, {"error", 400}};
+    return build_responseERROR(err.dump(), "400 Bad Request");
+  }
+
+  json query    = {{"loginCredentials.accountCode", userId}};
+  json projection = {{"_id", false}};
+  std::string record =
+      dbInst.get_document("account", query.dump(), projection.dump());
+
+  if (record.empty()) {
+    json err = {{"status", "failure"}, {"cause", "Invalid Credentials"}, {"error", 401}};
+    return build_responseERROR(err.dump(), "401 Unauthorized");
+  }
+
+  bool authenticated = false;
+  try {
+    auto account = json::parse(record);
+    auto &lc = account["loginCredentials"];
+    if (lc.is_object() && lc.contains("passwordHash") &&
+        lc["passwordHash"].is_string()) {
+      authenticated = MongodbClient::verify_password(
+          password, lc["passwordHash"].get<std::string>());
+    }
+  } catch (...) {}
+
+  if (!authenticated) {
+    json err = {{"status", "failure"}, {"cause", "Invalid Credentials"}, {"error", 401}};
+    return build_responseERROR(err.dump(), "401 Unauthorized");
+  }
+
+  // Strip sensitive fields from the response
+  try {
+    auto account = json::parse(record);
+    if (account.contains("loginCredentials") && account["loginCredentials"].is_object()) {
+      account["loginCredentials"].erase("passwordHash");
+      account["loginCredentials"].erase("accountPassword");
+    }
+    return build_responseOK(account.dump());
+  } catch (...) {
+    json err = {{"status", "failure"}, {"cause", "Internal error"}, {"error", 500}};
+    return build_responseERROR(err.dump(), "500 Internal Server Error");
+  }
 }
 
 std::string MicroService::handle_inventory_POST(std::string &in,
@@ -1281,11 +1367,23 @@ std::string MicroService::handle_account_PUT(std::string &in,
   const auto content = http.body();
   const auto accCode = http.get_element("userId");
 
+  json body = json::parse(content);
+
+  // Hash plain-text password if present in the update body
+  if (body.contains("loginCredentials") && body["loginCredentials"].is_object()) {
+    auto &lc = body["loginCredentials"];
+    if (lc.contains("accountPassword") && lc["accountPassword"].is_string()) {
+      std::string plain = lc["accountPassword"].get<std::string>();
+      lc["passwordHash"] = MongodbClient::hash_password(plain);
+      lc.erase("accountPassword");
+    }
+  }
+
   json query = json::object();
   if (!accCode.empty())
     query = {{"loginCredentials.accountCode", accCode}};
 
-  json doc = {{"$set", json::parse(content)}};
+  json doc = {{"$set", body}};
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l doc:%s query:%s\n"),
              doc.dump().c_str(), query.dump().c_str()));

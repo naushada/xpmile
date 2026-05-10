@@ -1,9 +1,49 @@
 #include <vector>
 
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/crypto.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
+
 #include "json.hpp"
 #include "mongodbc.hpp"
 
 namespace {
+
+constexpr int kPbkdf2Iterations = 600000;
+constexpr int kPbkdf2KeyLen      = 32;  // SHA-256 output
+
+std::string base64_encode(const unsigned char *data, std::size_t len)
+{
+  BIO *bmem  = BIO_new(BIO_s_mem());
+  BIO *b64   = BIO_new(BIO_f_base64());
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+  BIO *chain = BIO_push(b64, bmem);
+  BIO_write(chain, data, static_cast<int>(len));
+  BIO_flush(chain);
+  BUF_MEM *ptr = nullptr;
+  BIO_get_mem_ptr(chain, &ptr);
+  std::string result(ptr->data, ptr->length);
+  BIO_free_all(chain);
+  return result;
+}
+
+std::vector<unsigned char> base64_decode(const std::string &encoded)
+{
+  if (encoded.empty()) return {};
+  BIO *bmem  = BIO_new_mem_buf(encoded.data(), static_cast<int>(encoded.size()));
+  BIO *b64   = BIO_new(BIO_f_base64());
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+  BIO *chain = BIO_push(b64, bmem);
+  std::vector<unsigned char> buf(encoded.size());
+  int len = BIO_read(chain, buf.data(), static_cast<int>(buf.size()));
+  BIO_free_all(chain);
+  if (len <= 0) return {};
+  buf.resize(static_cast<std::size_t>(len));
+  return buf;
+}
+
 // Serialise every document in cursor as a JSON array.
 // Returns an empty string (not "[]") when the cursor has no results,
 // preserving the existing contract that callers check for empty.
@@ -18,6 +58,7 @@ std::string cursor_to_json_array(mongocxx::cursor &cursor) {
   out.back() = ']';
   return out;
 }
+
 } // namespace
 
 MongodbClient::MongodbClient(const std::string &uri_str) : m_uri(uri_str) {
@@ -627,4 +668,118 @@ JsonExtract MongodbClient::from_json(const std::string &json_obj,
                       "unsupported BSON type\n"),
              key.c_str()));
   return std::monostate{};
+}
+
+// ── Password hashing ───────────────────────────────────────────────────────────
+
+std::string MongodbClient::hash_password(const std::string &password)
+{
+  unsigned char salt[16];
+  RAND_bytes(salt, sizeof(salt));
+
+  unsigned char key[kPbkdf2KeyLen];
+  PKCS5_PBKDF2_HMAC(password.c_str(), static_cast<int>(password.size()),
+                    salt, static_cast<int>(sizeof(salt)),
+                    kPbkdf2Iterations,
+                    EVP_sha256(),
+                    kPbkdf2KeyLen, key);
+
+  std::string salt_b64 = base64_encode(salt, sizeof(salt));
+  std::string key_b64  = base64_encode(key, sizeof(key));
+
+  std::ostringstream oss;
+  oss << "$pbkdf2-sha256$i=" << kPbkdf2Iterations
+      << "$" << salt_b64 << "$" << key_b64;
+  return oss.str();
+}
+
+bool MongodbClient::verify_password(const std::string &password,
+                                    const std::string &stored_hash)
+{
+  if (stored_hash.empty()) return false;
+
+  // Split by '$' — format: $pbkdf2-sha256$i=<n>$<salt-b64>$<hash-b64>
+  std::vector<std::string> parts;
+  std::size_t pos = 0;
+  while (pos < stored_hash.size()) {
+    std::size_t next = stored_hash.find('$', pos);
+    if (next == std::string::npos) {
+      parts.push_back(stored_hash.substr(pos));
+      break;
+    }
+    if (next > pos)
+      parts.push_back(stored_hash.substr(pos, next - pos));
+    pos = next + 1;
+  }
+
+  if (parts.size() < 4) return false;
+  if (parts[0] != "pbkdf2-sha256") return false;
+
+  int iterations = kPbkdf2Iterations;
+  if (parts[1].find("i=") == 0)
+    iterations = std::stoi(parts[1].substr(2));
+
+  auto salt_bytes = base64_decode(parts[2]);
+  auto hash_bytes = base64_decode(parts[3]);
+  if (salt_bytes.empty() || hash_bytes.empty()) return false;
+
+  unsigned char key[kPbkdf2KeyLen];
+  PKCS5_PBKDF2_HMAC(password.c_str(), static_cast<int>(password.size()),
+                    salt_bytes.data(), static_cast<int>(salt_bytes.size()),
+                    iterations,
+                    EVP_sha256(),
+                    kPbkdf2KeyLen, key);
+
+  return CRYPTO_memcmp(key, hash_bytes.data(), hash_bytes.size()) == 0;
+}
+
+int migrate_account_passwords(IMongodbClient &db) {
+  std::string result = db.get_documents("account", "{}");
+  if (result.empty())
+    return 0;
+
+  nlohmann::json docs;
+  try {
+    docs = nlohmann::json::parse(result);
+  } catch (...) {
+    return 0;
+  }
+
+  if (!docs.is_array())
+    return 0;
+
+  int count = 0;
+  for (auto &doc : docs) {
+    if (!doc.contains("loginCredentials") || !doc["loginCredentials"].is_object())
+      continue;
+
+    auto &lc = doc["loginCredentials"];
+
+    // Already has a hash — skip
+    if (lc.contains("passwordHash"))
+      continue;
+
+    // No plain-text password to migrate — skip
+    if (!lc.contains("accountPassword") || !lc["accountPassword"].is_string())
+      continue;
+
+    std::string plain = lc["accountPassword"].get<std::string>();
+    if (plain.empty())
+      continue;
+
+    std::string hash = MongodbClient::hash_password(plain);
+
+    nlohmann::json filter = nlohmann::json::object();
+    if (lc.contains("accountCode") && lc["accountCode"].is_string())
+      filter = {{"loginCredentials.accountCode", lc["accountCode"].get<std::string>()}};
+
+    nlohmann::json update = {
+        {"$set", {{"loginCredentials.passwordHash", hash}}},
+        {"$unset", {{"loginCredentials.accountPassword", ""}}}};
+
+    if (db.update_collection("account", filter.dump(), update.dump()))
+      count++;
+  }
+
+  return count;
 }

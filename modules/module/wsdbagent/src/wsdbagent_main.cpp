@@ -11,8 +11,8 @@ void print_usage(const char *prog)
   ACE_ERROR((LM_ERROR,
              ACE_TEXT("Usage: %s [OPTIONS]\n\n"
                       "  --server-host  <host>   Heroku hostname (e.g. myapp.herokuapp.com)\n"
-                      "  --server-port  <n>      Port (default: 443 with SSL, 8080 without)\n"
-                      "  --no-ssl                Use plain TCP instead of TLS\n"
+                      "  --server-port  <n>      Port (default: 443, TLS mandatory)\n"
+                      ""
                       "  --tls-ca   <path>       CA certificate for verifying server cert (mTLS)\n"
                       "  --tls-cert <path>       Client certificate (mTLS)\n"
                       "  --tls-key  <path>       Client private key (mTLS)\n"
@@ -34,7 +34,6 @@ int main(int argc, char *argv[])
 
   std::string server_host;
   int         server_port  = 0;
-  bool        use_ssl      = true;
   std::string db_uri;
   std::string db_pool      = "10";
   std::string db_name;
@@ -68,7 +67,10 @@ int main(int argc, char *argv[])
     case 'A': tls_ca      = args.opt_arg(); break;
     case 'E': tls_cert    = args.opt_arg(); break;
     case 'K': tls_key     = args.opt_arg(); break;
-    case 'n': use_ssl     = false; break;
+    case 'n':
+      ACE_ERROR((LM_ERROR, ACE_TEXT("--no-ssl is no longer supported. "
+                                    "SSL/TLS is mandatory.\n")));
+      return -1;
     case 'h': print_usage(argv[0]); return 0;
     case '?': print_usage(argv[0]); return -1;
     default: break;
@@ -91,15 +93,15 @@ int main(int argc, char *argv[])
     return -1;
   }
 
-  if (server_port == 0) server_port = use_ssl ? 443 : 8080;
+  if (server_port == 0) server_port = 443;
 
   ACE_DEBUG((LM_DEBUG,
-             ACE_TEXT("%D [WsDbAgent] host=%s port=%d ssl=%d db=%s\n"),
-             server_host.c_str(), server_port, (int)use_ssl, db_name.c_str()));
+             ACE_TEXT("%D [WsDbAgent] host=%s port=%d ssl=1 db=%s\n"),
+             server_host.c_str(), server_port, db_name.c_str()));
 
   WsDbAgent agent(server_host,
                   static_cast<std::uint16_t>(server_port),
-                  use_ssl,
+                  true,  // SSL is mandatory
                   db_uri, db_pool, db_name);
   agent.run(backoff);
   return 0;

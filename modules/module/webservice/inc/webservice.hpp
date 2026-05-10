@@ -68,6 +68,7 @@ enum class CommandArgumentName : std::uint32_t {
   TLS_CERT,
   TLS_KEY,
   TLS_CA,
+  MIGRATE_PASSWORDS,
   MAX_CMD_ARG
 };
 
@@ -142,6 +143,7 @@ public:
   std::string handle_POST(std::string &in, IMongodbClient &dbInst);
   std::string handle_shipment_POST(std::string &in, IMongodbClient &dbInst);
   std::string handle_account_POST(std::string &in, IMongodbClient &dbInst);
+  std::string handle_account_login_POST(std::string &in, IMongodbClient &dbInst);
   std::string handle_inventory_POST(std::string &in, IMongodbClient &dbInst);
   std::string handle_email_POST(std::string &in, IMongodbClient &dbInst);
   std::string handle_document_POST(std::string &in, IMongodbClient &dbInst);
