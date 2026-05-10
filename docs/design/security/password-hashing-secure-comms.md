@@ -440,6 +440,15 @@ These must be enforced in implementation:
 - Remove fallback comparison from login handler
 - Remove `accountPassword` from mongo-init.js
 
+### Step 10: CN (hostname) verification for inner TLS ✅ (complete)
+- `InnerTlsClient::verify_hostname()` uses `X509_check_host()` (RFC 6125) to verify server cert CN/SAN
+- `InnerTlsClient::set_cert()` loads client cert + key for mTLS
+- wsdbagent calls `set_cert()` in `setup_inner_tls()` when `--tls-cert` is provided
+- wsdbagent calls `verify_hostname()` after handshake when `--tls-hostname` is set
+- `--tls-hostname` arg added to wsdbagent (optional — skips CN check if omitted, CA chain still verified)
+- `docker-compose.agent.yml` mounts `certs/` read-only and passes `--tls-ca`, `--tls-cert`, `--tls-key`
+- `.env.agent` documents `TLS_HOSTNAME` variable
+
 ---
 
 ## 5. Files summary
@@ -451,17 +460,20 @@ These must be enforced in implementation:
 | `modules/module/webservice/inc/webservice.hpp` | Declare `handle_account_login_POST` |
 | `modules/module/webservice/src/webservice.cpp` | New login handler; hash on create/update; dual-read fallback |
 | `modules/module/webservice/test/webservice_test.cc` | Tests for hash/verify |
-| `modules/module/security/inc/innertls.hpp` | ITransport, InnerTlsClient, InnerTlsServer (smart pointers) |
-| `modules/module/security/src/innertls.cpp` | OpenSSL memory BIO TLS implementation |
+| `modules/module/security/inc/innertls.hpp` | ITransport, InnerTlsClient (set_cert, verify_hostname), InnerTlsServer |
+| `modules/module/security/src/innertls.cpp` | OpenSSL memory BIO TLS; X509_check_host CN verification |
 | `modules/module/security/inc/wstransport.hpp` | WebSocketTransport adapter — ITransport over WS frames |
 | `modules/module/security/test/innertls_test.cc` | 7 tests with MockTransport double |
-| `modules/module/wsdbagent/inc/wsdbagent.hpp` | Add InnerTlsClient member, setup_inner_tls() declaration |
-| `modules/module/wsdbagent/src/wsdbagent.cpp` | Inner TLS handshake after WS upgrade; run_session over inner TLS |
-| `modules/module/wsdbagent/src/wsdbagent_main.cpp` | Remove `--no-ssl` |
+| `modules/module/wsdbagent/inc/wsdbagent.hpp` | InnerTlsClient member, m_tls_hostname, setup_inner_tls() |
+| `modules/module/wsdbagent/src/wsdbagent.cpp` | Inner TLS handshake + CN verify + client cert load after WS upgrade |
+| `modules/module/wsdbagent/src/wsdbagent_main.cpp` | Remove `--no-ssl`; add `--tls-hostname` arg |
 | `modules/module/wsdbproxy/inc/wsdbproxy.hpp` | Inner TLS cert/key/ca params, InnerTlsServer member, ready flag |
 | `modules/module/wsdbproxy/src/wsdbproxy.cpp` | Inner TLS accept after agent connect; dispatch/recv over inner TLS |
 | `modules/module/webservice/src/webservice_main.cpp` | Pass TLS certs to WsDbServer in Heroku mode; require certs for --remote-db |
 | `CMakeLists.txt` | Already links security/innertls to uniservice and wsdbagent targets |
+| `docker/Dockerfile` | CA-signed server cert (CN=marvel.xpmile.com) with repo CA |
+| `docker-compose.agent.yml` | Mount certs read-only; pass --tls-ca, --tls-cert, --tls-key, --tls-hostname |
+| `.env.agent` | Document TLS_HOSTNAME, CERTS_DIR variables |
 | `docker/mongo-init.js` | Hash bootstrap password |
 | `ui/src/common/httpsvc.service.ts` | POST-based login |
 | `ui/src/app/login/login.component.ts` | Update login call |

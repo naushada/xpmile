@@ -13,9 +13,10 @@ void print_usage(const char *prog)
                       "  --server-host  <host>   Heroku hostname (e.g. myapp.herokuapp.com)\n"
                       "  --server-port  <n>      Port (default: 443, TLS mandatory)\n"
                       ""
-                      "  --tls-ca   <path>       CA certificate for verifying server cert (mTLS)\n"
-                      "  --tls-cert <path>       Client certificate (mTLS)\n"
-                      "  --tls-key  <path>       Client private key (mTLS)\n"
+                      "  --tls-ca       <path>   CA certificate for verifying server cert (mTLS)\n"
+                      "  --tls-cert     <path>   Client certificate (mTLS)\n"
+                      "  --tls-key      <path>   Client private key (mTLS)\n"
+                      "  --tls-hostname <name>   Expected server CN (default: --server-host)\n"
                       "  --mongo-db-uri <uri>    MongoDB connection URI\n"
                       "  --mongo-db-connection-pool <n>  Pool size (default: 10)\n"
                       "  --mongo-db-name <name>  Database name\n"
@@ -41,8 +42,9 @@ int main(int argc, char *argv[])
   std::string tls_ca;
   std::string tls_cert;
   std::string tls_key;
+  std::string tls_hostname;
 
-  ACE_Get_Opt args(argc, argv, ACE_TEXT("H:p:U:C:D:b:A:E:K:nh"), 1);
+  ACE_Get_Opt args(argc, argv, ACE_TEXT("H:p:U:C:D:b:A:E:K:N:nh"), 1);
   args.long_option(ACE_TEXT("server-host"),              'H', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-port"),              'p', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("mongo-db-uri"),             'U', ACE_Get_Opt::ARG_REQUIRED);
@@ -52,6 +54,7 @@ int main(int argc, char *argv[])
   args.long_option(ACE_TEXT("tls-ca"),                   'A', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("tls-cert"),                 'E', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("tls-key"),                  'K', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("tls-hostname"),             'N', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("no-ssl"),                   'n', ACE_Get_Opt::NO_ARG);
   args.long_option(ACE_TEXT("help"),                     'h', ACE_Get_Opt::NO_ARG);
 
@@ -67,6 +70,7 @@ int main(int argc, char *argv[])
     case 'A': tls_ca      = args.opt_arg(); break;
     case 'E': tls_cert    = args.opt_arg(); break;
     case 'K': tls_key     = args.opt_arg(); break;
+    case 'N': tls_hostname = args.opt_arg(); break;
     case 'n':
       ACE_ERROR((LM_ERROR, ACE_TEXT("--no-ssl is no longer supported. "
                                     "SSL/TLS is mandatory.\n")));
@@ -102,7 +106,9 @@ int main(int argc, char *argv[])
   WsDbAgent agent(server_host,
                   static_cast<std::uint16_t>(server_port),
                   true,  // SSL is mandatory
-                  db_uri, db_pool, db_name);
+                  db_uri, db_pool, db_name,
+                  tls_ca, tls_cert, tls_key,
+                  tls_hostname);
   agent.run(backoff);
   return 0;
 }

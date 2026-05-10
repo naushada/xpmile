@@ -58,6 +58,13 @@ public:
   /// Enable certificate verification (CA path for server cert).
   void set_ca(const std::string &ca_path);
 
+  /// Load client certificate and key for mTLS (presented to server).
+  bool set_cert(const std::string &cert_path, const std::string &key_path);
+
+  /// Verify the server certificate's CN/SAN matches @p hostname.
+  /// Must be called after a successful handshake.
+  bool verify_hostname(const std::string &hostname);
+
 private:
   ITransport &m_transport;
   SslCtxPtr   m_ctx;

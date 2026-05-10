@@ -81,13 +81,12 @@ services:
         --mongo-db-name ${MONGO_DB:-xpmile}
         --mongo-db-connection-pool ${MONGO_POOL:-10}
         --backoff ${BACKOFF:-5}
-    # Uncomment and set CERTS_DIR to enable mTLS (self-hosted uniservice only):
-    # volumes:
-    #   - ${CERTS_DIR:-./certs}:/certs:ro
-    # Then append to ARGS:
-    #   --tls-ca   /certs/ca.crt
-    #   --tls-cert /certs/client.crt
-    #   --tls-key  /certs/client.key
+        --tls-ca /certs/ca.crt
+        --tls-cert /certs/client.crt
+        --tls-key /certs/client.key
+        ${TLS_HOSTNAME:+--tls-hostname ${TLS_HOSTNAME}}
+    volumes:
+      - ${CERTS_DIR:-./certs}:/certs:ro
     networks:
       - agent-net
 

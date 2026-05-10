@@ -136,11 +136,11 @@ Required:
   --mongo-db-name <name>   Database name
 
 Optional:
-  --server-port  <n>       Port (default: 443 with SSL, 8080 without)
-  --no-ssl                 Use plain TCP instead of TLS
-  --tls-ca   <path>        CA certificate — enables server cert verification
-  --tls-cert <path>        Client certificate (mTLS)
-  --tls-key  <path>        Client private key  (mTLS)
+  --server-port  <n>       Port (default: 443)
+  --tls-ca       <path>    CA certificate — enables server cert verification
+  --tls-cert     <path>    Client certificate (inner TLS mTLS)
+  --tls-key      <path>    Client private key  (inner TLS mTLS)
+  --tls-hostname <name>    Expected server CN/SAN (default: skip CN check; CA chain still verified)
   --mongo-db-connection-pool <n>  Pool size (default: 10)
   --backoff  <secs>        Reconnect wait in seconds (default: 5)
   --help
@@ -398,12 +398,17 @@ podman run -d --name mongodb \
 
 #### Run wsdbagent
 
-**Heroku (Heroku-edge TLS, no mTLS):**
+**Heroku (Heroku-edge TLS, inner TLS with CA verification):**
 
 ```sh
 podman run -d --name wsdbagent \
   --network host \
+  -v /path/to/certs:/certs:ro \
   -e ARGS="--server-host myapp.herokuapp.com \
+           --tls-ca /certs/ca.crt \
+           --tls-cert /certs/client.crt \
+           --tls-key /certs/client.key \
+           --tls-hostname marvel.xpmile.com \
            --mongo-db-uri mongodb://root:changeme@localhost:27017 \
            --mongo-db-name xpmile" \
   wsdbagent
@@ -420,6 +425,7 @@ podman run -d --name wsdbagent \
            --tls-ca   /certs/ca.crt \
            --tls-cert /certs/client.crt \
            --tls-key  /certs/client.key \
+           --tls-hostname myserver.example.com \
            --mongo-db-uri mongodb://root:changeme@localhost:27017 \
            --mongo-db-name xpmile" \
   wsdbagent

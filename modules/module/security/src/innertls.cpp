@@ -2,6 +2,7 @@
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
+#include <openssl/x509v3.h>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // InnerTlsClient
@@ -68,6 +69,26 @@ bool InnerTlsClient::handshake()
             return false;
         }
     }
+}
+
+bool InnerTlsClient::set_cert(const std::string &cert_path, const std::string &key_path)
+{
+    if (SSL_CTX_use_certificate_file(m_ctx.get(), cert_path.c_str(), SSL_FILETYPE_PEM) != 1)
+        return false;
+    if (SSL_CTX_use_PrivateKey_file(m_ctx.get(), key_path.c_str(), SSL_FILETYPE_PEM) != 1)
+        return false;
+    return SSL_CTX_check_private_key(m_ctx.get()) == 1;
+}
+
+bool InnerTlsClient::verify_hostname(const std::string &hostname)
+{
+    X509 *cert = SSL_get_peer_certificate(m_ssl.get());
+    if (!cert) return false;
+
+    int ok = X509_check_host(cert, hostname.c_str(), hostname.size(),
+                              X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS, nullptr);
+    X509_free(cert);
+    return ok == 1;
 }
 
 bool InnerTlsClient::send(const std::vector<std::uint8_t> &plaintext)

@@ -46,7 +46,8 @@ public:
    */
   WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
             std::string db_uri, std::string db_pool, std::string db_name,
-            std::string tls_ca = {}, std::string tls_cert = {}, std::string tls_key = {});
+            std::string tls_ca = {}, std::string tls_cert = {}, std::string tls_key = {},
+            std::string tls_hostname = {});
   ~WsDbAgent();
 
   /**
@@ -87,6 +88,7 @@ private:
   std::string       m_tls_ca;
   std::string       m_tls_cert;
   std::string       m_tls_key;
+  std::string       m_tls_hostname;
 
   ACE_SOCK_Stream     m_plain_stream;
   ACE_SSL_SOCK_Stream m_ssl_stream;

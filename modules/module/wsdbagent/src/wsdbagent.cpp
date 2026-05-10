@@ -59,13 +59,15 @@ std::string random_ws_key()
 
 WsDbAgent::WsDbAgent(std::string host, std::uint16_t port, bool use_ssl,
                      std::string db_uri, std::string db_pool, std::string db_name,
-                     std::string tls_ca, std::string tls_cert, std::string tls_key)
+                     std::string tls_ca, std::string tls_cert, std::string tls_key,
+                     std::string tls_hostname)
   : m_host(std::move(host))
   , m_port(port)
   , m_ssl(use_ssl)
   , m_tls_ca(std::move(tls_ca))
   , m_tls_cert(std::move(tls_cert))
   , m_tls_key(std::move(tls_key))
+  , m_tls_hostname(std::move(tls_hostname))
 {
   ACE_UNUSED_ARG(db_pool);
   m_db_name = db_name;
@@ -94,6 +96,11 @@ void WsDbAgent::run(int backoff_secs)
       ACE_ERROR((LM_ERROR,
                  ACE_TEXT("%D [WsDbAgent] inner TLS setup failed, retry in %ds\n"),
                  backoff_secs));
+      disconnect();
+    } else if (!m_tls_hostname.empty() && !m_innerTls->verify_hostname(m_tls_hostname)) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbAgent] server CN mismatch (expected %s), retry in %ds\n"),
+                 m_tls_hostname.c_str(), backoff_secs));
       disconnect();
     } else {
       ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WsDbAgent] session started\n")));
@@ -211,7 +218,8 @@ bool WsDbAgent::setup_inner_tls()
       std::move(send_frame), std::move(recv_frame));
 
   m_innerTls = std::make_unique<InnerTlsClient>(*m_transport);
-  if (!m_tls_ca.empty()) m_innerTls->set_ca(m_tls_ca);
+  if (!m_tls_ca.empty())   m_innerTls->set_ca(m_tls_ca);
+  if (!m_tls_cert.empty()) m_innerTls->set_cert(m_tls_cert, m_tls_key);
 
   if (!m_innerTls->handshake()) {
     ACE_ERROR((LM_ERROR,
