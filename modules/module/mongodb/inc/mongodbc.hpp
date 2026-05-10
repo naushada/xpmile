@@ -323,6 +323,13 @@ public:
   bool delete_file(const std::string &oid) override;
   ///@}
 
+  /** @name Password hashing */
+  ///@{
+  static std::string hash_password(const std::string &password);
+  static bool verify_password(const std::string &password,
+                              const std::string &stored_hash);
+  ///@}
+
   /** @name JSON extraction utility */
   ///@{
   /**
@@ -351,5 +358,19 @@ private:
   std::unique_ptr<mongocxx::pool> m_pool;
   std::unique_ptr<mongocxx::instance> m_instance;
 };
+
+/**
+ * @brief Migrate plain-text passwords to PBKDF2 hashes in-place.
+ *
+ * Iterates all documents in the @c account collection.  For each document that
+ * has @c loginCredentials.accountPassword and does NOT already have
+ * @c loginCredentials.passwordHash, hashes the password via
+ * @c MongodbClient::hash_password() and atomically updates the document with
+ * @c $set and @c $unset.
+ *
+ * @param db  Any @c IMongodbClient implementation (real or mock).
+ * @return Number of documents successfully migrated.
+ */
+int migrate_account_passwords(IMongodbClient &db);
 
 #endif // MONGODBC_H

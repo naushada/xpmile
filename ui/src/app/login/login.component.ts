@@ -24,7 +24,7 @@ export class LoginComponent implements OnInit {
     return this.loginForm.value.password;
   }
 
-  constructor(private fb: FormBuilder, private rt: Router, private http: HttpsvcService, private on: PubsubsvcService) { 
+  constructor(private fb: FormBuilder, private rt: Router, private http: HttpsvcService, private on: PubsubsvcService) {
 
     this.loginForm = this.fb.group({
       corporatename: ['', Validators.required],
@@ -33,35 +33,25 @@ export class LoginComponent implements OnInit {
     });
 
   }
-  
+
   onChange(event:any) {
-    
+
   }
 
   ngOnInit(): void {
   }
 
-  getHash32 = (str: string) => {
-    let hash = 0
-    for (let i = 0; i < str.length; ++i)
-      hash = Math.imul(31, hash) + str.charCodeAt(i)
-  
-    return hash | 0
-  }
-
   onLogin() {
-    let cName = this.loginForm.get('corporatename')?.value;
     let passwd = this.loginForm.get('password')?.value;
     let id = this.loginForm.get('username')?.value;
-    //this.loginForm.get('password')?.setValue(this.getHash32(passwd));
 
     if(id.length && passwd.length) {
       this.http.getAccountInfo(id, passwd).subscribe(
         (rsp:Account) => {
           // Publish the Account Info of logged in user to subscribed widget
           this.on.emit_accountInfo(rsp);
-        }, 
-        error => {alert("Login Failed");}, 
+        },
+        error => {alert("Login Failed");},
         () => {this.rt.navigateByUrl('/main');});
     } else{
       alert("Please provide Username And Password");

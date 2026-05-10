@@ -30,7 +30,8 @@ void print_usage(const char *prog) {
                       "  --tls-cert               <path>  Server certificate (PEM, mTLS mode)\n"
                       "  --tls-key                <path>  Server private key  (PEM, mTLS mode)\n"
                       "  --tls-ca                 <path>  CA cert for verifying agent cert (PEM)\n"
-                      "  --help                           Show this help\n"),
+                      "  --migrate-passwords              Hash plain-text account passwords and exit\n"
+"  --help                           Show this help\n"),
              prog));
 }
 
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]) {
 
   std::array<std::string, N> opt{};
 
-  ACE_Get_Opt args(argc, argv, ACE_TEXT("s:p:w:u:c:d:n:i:o:a:e:k:q:rh"), 1);
+  ACE_Get_Opt args(argc, argv, ACE_TEXT("s:p:w:u:c:d:n:i:o:a:e:k:q:rhm"), 1);
   args.long_option(ACE_TEXT("server-ip"),               's', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-port"),             'p', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-worker"),           'w', ACE_Get_Opt::ARG_REQUIRED);
@@ -58,6 +59,7 @@ int main(int argc, char *argv[]) {
   args.long_option(ACE_TEXT("tls-cert"),                'e', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("tls-key"),                 'k', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("tls-ca"),                  'q', ACE_Get_Opt::ARG_REQUIRED);
+  args.long_option(ACE_TEXT("migrate-passwords"),       'm', ACE_Get_Opt::NO_ARG);
   args.long_option(ACE_TEXT("help"),                    'h', ACE_Get_Opt::NO_ARG);
 
   // Short-option char → enum key table
@@ -81,6 +83,7 @@ int main(int argc, char *argv[]) {
   while ((c = args()) != EOF) {
     if (c == 'h') { print_usage(argv[0]); return 0; }
     if (c == '?') { print_usage(argv[0]); return -1; }
+    if (c == 'm') { opt[idx(Arg::MIGRATE_PASSWORDS)] = "1"; continue; }
     if (c == 'r') { opt[idx(Arg::REMOTE_DB)] = "1"; continue; }
 
     for (auto &[ch, key] : kOptMap) {
@@ -96,6 +99,25 @@ int main(int argc, char *argv[]) {
   const int port      = opt_int(opt, Arg::SERVER_PORT,        8080);
   const int worker    = opt_int(opt, Arg::SERVER_WORKER_NODE, 10);
   const bool remoteDb = !opt[idx(Arg::REMOTE_DB)].empty();
+  const bool migrate  = !opt[idx(Arg::MIGRATE_PASSWORDS)].empty();
+
+  if (migrate) {
+    if (remoteDb) {
+      ACE_ERROR((LM_ERROR, ACE_TEXT("--migrate-passwords requires local MongoDB\n")));
+      return -1;
+    }
+    const std::string &uri = opt[idx(Arg::DB_URI)];
+    if (uri.empty()) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("--migrate-passwords requires --mongo-db-uri\n")));
+      return -1;
+    }
+    MongodbClient db(uri);
+    int migrated = migrate_account_passwords(db);
+    ACE_DEBUG((LM_DEBUG, ACE_TEXT("Migration complete: %d account(s) updated\n"),
+               migrated));
+    return 0;
+  }
 
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [WebServer:%t] %M %N:%l "

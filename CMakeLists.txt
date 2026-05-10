@@ -19,6 +19,7 @@ include_directories(modules/module/whatsapp/inc)
 include_directories(modules/module/thirdparty)
 include_directories(modules/module/wsdbproxy/inc)
 include_directories(modules/module/wsdbagent/inc)
+include_directories(modules/module/security/inc)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
 
 link_directories(/usr/local/ACE_TAO-7.0.0/lib)
@@ -31,6 +32,7 @@ file(GLOB MODULE_EMAIL_SOURCES      "modules/module/email/src/*.cpp")
 file(GLOB MODULE_OAUTH2_SOURCES     "modules/module/oauth2/src/*.cpp")
 file(GLOB MODULE_WHATSAPP_SOURCES   "modules/module/whatsapp/src/*.cpp")
 file(GLOB MODULE_WSDBPROXY_SOURCES  "modules/module/wsdbproxy/src/*.cpp")
+file(GLOB MODULE_SECURITY_SOURCES  "modules/module/security/src/*.cpp")
 
 add_executable(uniservice
     ${MODULE_WEBSERVICE_SOURCES}
@@ -39,6 +41,7 @@ add_executable(uniservice
     ${MODULE_OAUTH2_SOURCES}
     ${MODULE_WHATSAPP_SOURCES}
     ${MODULE_WSDBPROXY_SOURCES}
+    ${MODULE_SECURITY_SOURCES}
 )
 target_link_libraries(uniservice pthread)
 target_link_libraries(uniservice ACE)
@@ -53,6 +56,7 @@ add_executable(wsdbagent
     ${MODULE_WSDBAGENT_SOURCES}
     modules/module/wsdbproxy/src/dbproto.cpp
     modules/module/wsdbproxy/src/wsframe.cpp
+    modules/module/security/src/innertls.cpp
 )
 target_link_libraries(wsdbagent pthread)
 target_link_libraries(wsdbagent ACE)

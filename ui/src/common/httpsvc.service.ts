@@ -194,15 +194,11 @@ export class HttpsvcService {
    * @returns 
    */
   getAccountInfo(id:string, pwd?: string): Observable<Account> {
-    let param = `userId=${id}`;
-
-    if(pwd && pwd.length > 0) {
-      param += `&password=${pwd}`;
+    const body: any = { userId: id };
+    if (pwd && pwd.length > 0) {
+      body.password = pwd;
     }
-
-    const options = {params: new HttpParams({fromString: param})};
-
-    return this.http.get<Account>(this.getUri("from_web_account"), options);
+    return this.http.post<Account>(this.getUri("from_web_login"), body);
   }
 
   /**

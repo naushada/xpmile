@@ -10,15 +10,14 @@
 #   podman-compose -f docker-compose.agent.yml up --build -d
 #
 # Usage (local dev — against local uniservice):
-#   SERVER_HOST=host.containers.internal SERVER_PORT=8080 NO_SSL=1 \
+#   SERVER_HOST=host.containers.internal \
 #     podman-compose -f docker-compose.agent.yml up --build
 #   (uniservice must be running with REMOTE_DB=1 via docker-compose.yml)
 #
 # Environment variables (set in .env or export before running):
 #
 #   SERVER_HOST        Hostname to connect to (Heroku: marvel.herokuapp.com)
-#   SERVER_PORT        Port to connect to (default: 443; local: 8080)
-#   NO_SSL             Set to any non-empty value to use plain TCP (local dev)
+#   SERVER_PORT        Port to connect to (default: 443, TLS mandatory)
 #   MONGO_ROOT_USER    MongoDB root username          (default: root)
 #   MONGO_ROOT_PASS    MongoDB root password          (default: changeme)
 #   MONGO_APP_USER     MongoDB app username           (default: xpmile)
@@ -82,7 +81,6 @@ services:
         --mongo-db-name ${MONGO_DB:-xpmile}
         --mongo-db-connection-pool ${MONGO_POOL:-10}
         --backoff ${BACKOFF:-5}
-      NO_SSL: "${NO_SSL:-}"
     # Uncomment and set CERTS_DIR to enable mTLS (self-hosted uniservice only):
     # volumes:
     #   - ${CERTS_DIR:-./certs}:/certs:ro

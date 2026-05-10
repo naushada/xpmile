@@ -68,6 +68,14 @@ RUN cmake .. && make -j$(nproc) install && ldconfig
 COPY CMakeLists.txt /src/
 COPY modules/ /src/modules/
 COPY test/ /src/test/
+COPY docker/mongo-init.js /src/docker/
+
+# Generate self-signed test certificates for inner-TLS tests
+RUN mkdir -p /src/certs && \
+    openssl req -x509 -newkey rsa:2048 -keyout /src/certs/server.key \
+    -out /src/certs/server.crt -days 365 -nodes \
+    -subj "/C=IN/ST=Test/L=Test/O=Xpmile/CN=localhost"
+
 WORKDIR /src/build
 RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
 
