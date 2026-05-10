@@ -1,6 +1,7 @@
 #include "wsdbproxy.hpp"
 
 #include <cstring>
+#include <functional>
 #include <stdexcept>
 #include <sys/socket.h>
 
@@ -11,6 +12,7 @@
 #include "ace/SSL/SSL_Context.h"
 
 #include "json.hpp"
+#include "wstransport.hpp"
 #include "wsframe.hpp"
 
 #include <bsoncxx/json.hpp>
@@ -24,10 +26,21 @@ using nlohmann::json;
 WsDbServer::WsDbServer(int dispatch_timeout_s)
   : m_timeoutSecs(dispatch_timeout_s) {}
 
+WsDbServer::WsDbServer(std::string inner_cert, std::string inner_key,
+                       std::string inner_ca, int dispatch_timeout_s)
+  : m_timeoutSecs(dispatch_timeout_s)
+  , m_innerCert(std::move(inner_cert))
+  , m_innerKey(std::move(inner_key))
+  , m_innerCa(std::move(inner_ca))
+{}
+
 WsDbServer::WsDbServer(TlsConfig tls, int dispatch_timeout_s)
   : m_timeoutSecs(dispatch_timeout_s)
   , m_tls_mode(true)
   , m_tls(std::move(tls))
+  , m_innerCert(m_tls.cert)
+  , m_innerKey(m_tls.key)
+  , m_innerCa(m_tls.ca)
 {}
 
 WsDbServer::~WsDbServer() { close(0); }
@@ -70,6 +83,9 @@ int WsDbServer::open(void*)
 int WsDbServer::close(u_long)
 {
   m_running.store(false);
+  m_innerTlsReady.store(false);
+  m_innerTls.reset();
+  m_transport.reset();
 
   if (m_tls_mode) {
     m_ssl_acceptor.close();  // unblocks accept() in svc()
@@ -127,6 +143,15 @@ int WsDbServer::svc()
                    ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
                             "mTLS agent connected\n")));
       }
+      if (!setup_inner_tls()) {
+        ACE_ERROR((LM_ERROR,
+                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                            "inner TLS setup failed\n")));
+        m_connected.store(false);
+        m_ssl_agentStream.close();
+        m_agentHandle = ACE_INVALID_HANDLE;
+        continue;
+      }
       run_session();
     }
   } else {
@@ -138,6 +163,16 @@ int WsDbServer::svc()
         });
       }
       if (!m_running.load()) break;
+      if (!setup_inner_tls()) {
+        ACE_ERROR((LM_ERROR,
+                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                            "inner TLS setup failed\n")));
+        m_connected.store(false);
+        m_agentStream.close();
+        m_agentHandle = ACE_INVALID_HANDLE;
+        fail_all_pending("inner TLS setup failed");
+        continue;
+      }
       run_session();
     }
   }
@@ -213,6 +248,54 @@ bool WsDbServer::on_agent_connected(ACE_HANDLE handle)
   return true;
 }
 
+// ── setup_inner_tls ─────────────────────────────────────────────────────────────
+
+bool WsDbServer::setup_inner_tls()
+{
+  if (m_innerCert.empty() || m_innerKey.empty()) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "inner TLS cert/key not configured — refusing connection\n")));
+    return false;
+  }
+
+  auto send_frame = [this](const std::vector<std::uint8_t>& payload,
+                            std::uint8_t opcode) -> bool {
+    return ws_send(wsframe::encode(payload, opcode, false));
+  };
+  auto recv_frame = [this](std::uint8_t& opcode,
+                            std::vector<std::uint8_t>& payload) -> bool {
+    return ws_recv_frame(opcode, payload);
+  };
+
+  m_transport = std::make_unique<WebSocketTransport>(
+      std::move(send_frame), std::move(recv_frame));
+
+  try {
+    m_innerTls = std::make_unique<InnerTlsServer>(
+        *m_transport, m_innerCert, m_innerKey, m_innerCa);
+  } catch (const std::exception& e) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "failed to create InnerTlsServer: %s\n"), e.what()));
+    return false;
+  }
+
+  if (!m_innerTls->accept()) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "inner TLS accept failed\n")));
+    m_innerTls.reset();
+    m_transport.reset();
+    return false;
+  }
+
+  m_innerTlsReady.store(true);
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WsDbServer:%t] %M %N:%l inner TLS established\n")));
+  return true;
+}
+
 // ── run_session ───────────────────────────────────────────────────────────────
 
 void WsDbServer::run_session()
@@ -222,76 +305,63 @@ void WsDbServer::run_session()
                       "handle=%d\n"), (int)m_agentHandle));
 
   while (m_connected.load()) {
-    // Read one WebSocket frame from the agent.
-    std::uint8_t  opcode  = 0;
-    std::vector<std::uint8_t> payload;
-
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
                         "waiting for frame from agent\n")));
 
-    if (!ws_recv_frame(opcode, payload)) {
+    // Read decrypted plaintext through inner TLS.
+    std::vector<std::uint8_t> plaintext;
+    if (!m_innerTls->recv(plaintext)) {
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                          "ws_recv_frame failed — agent disconnected\n")));
+                          "inner TLS recv failed — agent disconnected\n")));
       break;
     }
+    if (plaintext.empty()) continue;  // ping/pong handled by transport, or SSL_WANT_READ
 
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                        "received frame opcode=0x%02x payload=%zu bytes\n"),
-               (unsigned)opcode, payload.size()));
+                        "received plaintext %zu bytes\n"),
+               plaintext.size()));
 
-    switch (opcode) {
-    case 0x02: {  // binary — BSON response envelope
-      dbproto::DbResponse rsp;
-      if (!dbproto::parse_response(payload, rsp)) {
-        ACE_ERROR((LM_ERROR,
-                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                            "malformed response BSON (payload %zu bytes)\n"),
-                   payload.size()));
-        continue;
-      }
-      ACE_DEBUG((LM_DEBUG,
+    // plaintext is the BSON-encoded DbResponse from the agent.
+    dbproto::DbResponse rsp;
+    if (!dbproto::parse_response(plaintext, rsp)) {
+      ACE_ERROR((LM_ERROR,
                  ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                          "response reqid=%d ok=%d\n"),
-                 rsp.reqid, (int)rsp.ok));
-      std::shared_ptr<PendingRequest> pending;
-      {
-        std::lock_guard<std::mutex> lock(m_pendingMu);
-        auto it = m_pending.find(rsp.reqid);
-        if (it != m_pending.end()) pending = it->second;
-      }
-      if (pending) {
-        std::lock_guard<std::mutex> lock(pending->mu);
-        pending->response = std::move(payload);
-        pending->ready    = true;
-        pending->cv.notify_one();
-      } else {
-        ACE_DEBUG((LM_DEBUG,
-                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                            "no pending request for reqid=%d\n"), rsp.reqid));
-      }
-      break;
+                          "malformed response BSON (payload %zu bytes)\n"),
+                 plaintext.size()));
+      continue;
     }
-    case 0x09:  // ping → pong
-      ws_send(wsframe::pong_frame(payload));
-      break;
-    case 0x08:  // close
-      goto done;
-    default:
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "response reqid=%d ok=%d\n"),
+               rsp.reqid, (int)rsp.ok));
+    std::shared_ptr<PendingRequest> pending;
+    {
+      std::lock_guard<std::mutex> lock(m_pendingMu);
+      auto it = m_pending.find(rsp.reqid);
+      if (it != m_pending.end()) pending = it->second;
+    }
+    if (pending) {
+      std::lock_guard<std::mutex> lock(pending->mu);
+      pending->response = std::move(plaintext);
+      pending->ready    = true;
+      pending->cv.notify_one();
+    } else {
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                          "ignoring frame opcode=0x%02x\n"), (unsigned)opcode));
-      break;
+                          "no pending request for reqid=%d\n"), rsp.reqid));
     }
   }
-done:
   ACE_DEBUG((LM_DEBUG,
              ACE_TEXT("%D [WsDbServer:%t] %M %N:%l run_session ended\n")));
   {
     std::lock_guard<std::mutex> lock(m_connectMu);
     m_connected.store(false);
+    m_innerTlsReady.store(false);
+    m_innerTls.reset();
+    m_transport.reset();
     if (m_tls_mode)
       m_ssl_agentStream.close();
     else
@@ -345,9 +415,8 @@ WsDbServer::dispatch(const std::vector<std::uint8_t>& bson)
     m_pending[req.reqid] = pending;
   }
 
-  // Send the WebSocket binary frame
-  auto frame = wsframe::encode(bson, 0x02, false);
-  if (!ws_send(frame)) {
+  // Encrypt and send through inner TLS.
+  if (!m_innerTlsReady.load() || !m_innerTls->send(bson)) {
     std::lock_guard<std::mutex> lock(m_pendingMu);
     m_pending.erase(req.reqid);
     return dbproto::make_error_response(req.reqid, "send failed");

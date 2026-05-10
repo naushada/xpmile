@@ -164,13 +164,16 @@ wsdbagent                          Heroku Router        WsDbServer
   │ === encrypted DB traffic ========= ║ ================== │
 ```
 
-**Implementation** (see `modules/module/security/`):
-- After WebSocket upgrade, wsdbagent creates an `InnerTlsClient` and calls `handshake()`
-- WsDbServer creates an `InnerTlsServer` and calls `accept()`
+**Implementation** (see `modules/module/security/` and `modules/module/wsdbproxy/`):
+- `WebSocketTransport` (`wstransport.hpp`) adapts WebSocket frame send/recv to the `ITransport` interface, transparently handling ping/pong
+- After WebSocket upgrade, `WsDbAgent::setup_inner_tls()` creates an `InnerTlsClient` wrapping the transport and calls `handshake()`
+- After agent connects, `WsDbServer::setup_inner_tls()` creates an `InnerTlsServer` wrapping the transport and calls `accept()`
 - Both use OpenSSL memory BIOs (`BIO_s_mem()`) layered over `ITransport`
 - `InnerTlsClient`/`InnerTlsServer` hold `std::unique_ptr<SSL_CTX>` and `std::unique_ptr<SSL>` with custom deleters — no raw owning pointers
-- Once the inner TLS handshake completes, all subsequent DB traffic is encrypted with this inner session
+- Once the inner TLS handshake completes (`m_innerTlsReady` flag set), all subsequent DB traffic is encrypted with this inner session
+- `dispatch()` (called from MicroService threads) encrypts requests via `InnerTlsServer::send()`; `run_session()` decrypts responses via `InnerTlsServer::recv()`
 - The inner TLS context reuses the same mTLS certificates already in `certs/`
+- In Heroku mode, `--tls-cert` and `--tls-key` are required when `--remote-db` is set
 
 **Advantages:**
 - No new infrastructure (no VPN server, no extra ports)
@@ -421,15 +424,18 @@ These must be enforced in implementation:
 - Add `--migrate-passwords` flag to uniservice
 - On startup, backfill all plain-text passwords to hashes
 
-### Step 7: Enforce SSL on agent link
+### Step 7: Enforce SSL on agent link ✅ (complete)
 - Remove `--no-ssl` from wsdbagent
 - Make TLS required
 
-### Step 8: TLS-over-WebSocket
-- Implement inner TLS handshake in wsdbagent and WsDbServer
+### Step 8: TLS-over-WebSocket ✅ (complete)
+- `WebSocketTransport` adapts WebSocket frame I/O to `ITransport` interface
+- `WsDbAgent::setup_inner_tls()` creates `InnerTlsClient` after WebSocket upgrade
+- `WsDbServer::setup_inner_tls()` creates `InnerTlsServer` after agent connects (both Heroku and mTLS modes)
+- `dispatch()` encrypts requests via inner TLS; `run_session()` decrypts responses
 - All DB frames encrypted with the inner session
 
-### Step 9: Remove plain-text fallback
+### Step 9: Remove plain-text fallback ✅ (complete)
 - Drop `accountPassword` field from all documents
 - Remove fallback comparison from login handler
 - Remove `accountPassword` from mongo-init.js
@@ -447,10 +453,15 @@ These must be enforced in implementation:
 | `modules/module/webservice/test/webservice_test.cc` | Tests for hash/verify |
 | `modules/module/security/inc/innertls.hpp` | ITransport, InnerTlsClient, InnerTlsServer (smart pointers) |
 | `modules/module/security/src/innertls.cpp` | OpenSSL memory BIO TLS implementation |
+| `modules/module/security/inc/wstransport.hpp` | WebSocketTransport adapter — ITransport over WS frames |
 | `modules/module/security/test/innertls_test.cc` | 7 tests with MockTransport double |
-| `modules/module/wsdbagent/src/wsdbagent.cpp` | Inner TLS handshake after WS upgrade |
+| `modules/module/wsdbagent/inc/wsdbagent.hpp` | Add InnerTlsClient member, setup_inner_tls() declaration |
+| `modules/module/wsdbagent/src/wsdbagent.cpp` | Inner TLS handshake after WS upgrade; run_session over inner TLS |
 | `modules/module/wsdbagent/src/wsdbagent_main.cpp` | Remove `--no-ssl` |
-| `modules/module/wsdbproxy/src/wsdbproxy.cpp` | Inner TLS accept in WsDbServer |
+| `modules/module/wsdbproxy/inc/wsdbproxy.hpp` | Inner TLS cert/key/ca params, InnerTlsServer member, ready flag |
+| `modules/module/wsdbproxy/src/wsdbproxy.cpp` | Inner TLS accept after agent connect; dispatch/recv over inner TLS |
+| `modules/module/webservice/src/webservice_main.cpp` | Pass TLS certs to WsDbServer in Heroku mode; require certs for --remote-db |
+| `CMakeLists.txt` | Already links security/innertls to uniservice and wsdbagent targets |
 | `docker/mongo-init.js` | Hash bootstrap password |
 | `ui/src/common/httpsvc.service.ts` | POST-based login |
 | `ui/src/app/login/login.component.ts` | Update login call |

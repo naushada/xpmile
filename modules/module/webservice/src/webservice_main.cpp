@@ -147,8 +147,18 @@ int main(int argc, char *argv[]) {
       ACE_DEBUG((LM_DEBUG,
                  ACE_TEXT("%D [WebServer:%t] %M %N:%l "
                           "mTLS agent acceptor on port %s\n"), agentPort.c_str()));
+    } else if (!tlsCert.empty() && !tlsKey.empty()) {
+      wsServer = std::make_unique<WsDbServer>(tlsCert, tlsKey, tlsCa);
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WebServer:%t] %M %N:%l "
+                          "Heroku mode with inner TLS (cert=%s)\n"),
+                 tlsCert.c_str()));
     } else {
-      wsServer = std::make_unique<WsDbServer>();
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WebServer:%t] %M %N:%l "
+                          "--remote-db requires --tls-cert and --tls-key "
+                          "for inner TLS\n")));
+      return -1;
     }
 
     auto proxy = std::make_unique<WsMongodbProxy>(*wsServer);

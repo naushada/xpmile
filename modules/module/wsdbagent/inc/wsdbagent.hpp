@@ -14,7 +14,9 @@
 #include "ace/SSL/SSL_SOCK_Stream.h"
 
 #include "dbproto.hpp"
+#include "innertls.hpp"
 #include "mongodbc.hpp"
+#include "wstransport.hpp"
 
 /**
  * @brief WebSocket DB agent — runs on the MongoDB machine and connects
@@ -58,6 +60,7 @@ public:
 
 private:
   bool connect_and_handshake();
+  bool setup_inner_tls();
   void run_session();
   void disconnect();
 
@@ -87,6 +90,9 @@ private:
 
   ACE_SOCK_Stream     m_plain_stream;
   ACE_SSL_SOCK_Stream m_ssl_stream;
+
+  std::unique_ptr<WebSocketTransport> m_transport;
+  std::unique_ptr<InnerTlsClient>     m_innerTls;
 
   std::unique_ptr<MongodbClient> m_db;
 };

@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstring>
+#include <functional>
 #include <poll.h>
 #include <random>
 #include <sstream>
@@ -19,6 +20,7 @@
 #include "ace/SSL/SSL_Context.h"
 
 #include "json.hpp"
+#include "wstransport.hpp"
 #include "wsframe.hpp"
 
 using nlohmann::json;
@@ -88,6 +90,11 @@ void WsDbAgent::run(int backoff_secs)
       ACE_ERROR((LM_ERROR,
                  ACE_TEXT("%D [WsDbAgent] connection failed, retry in %ds\n"),
                  backoff_secs));
+    } else if (!setup_inner_tls()) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbAgent] inner TLS setup failed, retry in %ds\n"),
+                 backoff_secs));
+      disconnect();
     } else {
       ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WsDbAgent] session started\n")));
       run_session();
@@ -186,6 +193,38 @@ bool WsDbAgent::connect_and_handshake()
   return true;
 }
 
+// ── setup_inner_tls ─────────────────────────────────────────────────────────────
+
+bool WsDbAgent::setup_inner_tls()
+{
+  // Build transport adapter over raw WebSocket frames.
+  auto send_frame = [this](const std::vector<std::uint8_t>& payload,
+                            std::uint8_t opcode) -> bool {
+    return ws_send(payload, opcode);
+  };
+  auto recv_frame = [this](std::uint8_t& opcode,
+                            std::vector<std::uint8_t>& payload) -> bool {
+    return ws_recv_frame(opcode, payload);
+  };
+
+  m_transport = std::make_unique<WebSocketTransport>(
+      std::move(send_frame), std::move(recv_frame));
+
+  m_innerTls = std::make_unique<InnerTlsClient>(*m_transport);
+  if (!m_tls_ca.empty()) m_innerTls->set_ca(m_tls_ca);
+
+  if (!m_innerTls->handshake()) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbAgent] inner TLS handshake failed\n")));
+    m_innerTls.reset();
+    m_transport.reset();
+    return false;
+  }
+
+  ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WsDbAgent] inner TLS established\n")));
+  return true;
+}
+
 // ── recv_ready ────────────────────────────────────────────────────────────────
 
 // Returns true if the socket has data available within timeout_secs seconds.
@@ -210,7 +249,7 @@ void WsDbAgent::run_session()
                    : static_cast<int>(m_plain_stream.get_handle());
 
     if (!recv_ready(fd, PING_INTERVAL_S)) {
-      // No frame for 30 s — send a ping to verify the connection is alive.
+      // No frame for 30 s — send a WebSocket-level ping.
       if (!ws_send({}, 0x09)) {
         ACE_DEBUG((LM_DEBUG,
                    ACE_TEXT("%D [WsDbAgent] server not responding, disconnecting\n")));
@@ -219,48 +258,32 @@ void WsDbAgent::run_session()
       continue;
     }
 
-    std::uint8_t opcode = 0;
-    std::vector<std::uint8_t> payload;
-
-    if (!ws_recv_frame(opcode, payload)) {
+    // Read decrypted plaintext through inner TLS.
+    std::vector<std::uint8_t> plaintext;
+    if (!m_innerTls->recv(plaintext)) {
       ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [WsDbAgent] server disconnected\n")));
+                 ACE_TEXT("%D [WsDbAgent] inner TLS recv failed — disconnecting\n")));
       break;
     }
+    if (plaintext.empty()) continue;  // ping/pong handled by transport, or SSL_WANT_READ
 
-    switch (opcode) {
-    case 0x02: {  // binary — BSON request envelope
-      dbproto::DbRequest req;
-      if (!dbproto::parse_request(payload, req)) {
-        ACE_ERROR((LM_ERROR,
-                   ACE_TEXT("%D [WsDbAgent] malformed request BSON\n")));
-        continue;
-      }
-      auto rsp_bson = dispatch(req);
-      bool sent = ws_send(rsp_bson);
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [WsDbAgent] ws_send reqid=%d size=%zu sent=%d\n"),
-                 req.reqid, rsp_bson.size(), (int)sent));
-      if (!sent) {
-        ACE_ERROR((LM_ERROR,
-                   ACE_TEXT("%D [WsDbAgent] ws_send failed, disconnecting\n")));
-        goto done;
-      }
-      break;
+    // plaintext is the BSON-encoded DbRequest.
+    dbproto::DbRequest req;
+    if (!dbproto::parse_request(plaintext, req)) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbAgent] malformed request BSON\n")));
+      continue;
     }
-    case 0x09:  // ping → pong
-      ws_send(payload, 0x0A);
-      break;
-    case 0x0A:  // pong — keepalive reply, nothing to do
-      break;
-    case 0x08:  // close
-      ws_send({}, 0x08);
-      goto done;
-    default:
+    auto rsp_bson = dispatch(req);
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WsDbAgent] dispatching reqid=%d rspSize=%zu\n"),
+               req.reqid, rsp_bson.size()));
+    if (!m_innerTls->send(rsp_bson)) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbAgent] inner TLS send failed, disconnecting\n")));
       break;
     }
   }
-done:
   disconnect();
 }
 
@@ -268,6 +291,8 @@ done:
 
 void WsDbAgent::disconnect()
 {
+  m_innerTls.reset();
+  m_transport.reset();
   stream_close();
 }
 

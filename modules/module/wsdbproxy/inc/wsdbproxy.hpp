@@ -16,7 +16,9 @@
 #include "ace/Task_T.h"
 
 #include "dbproto.hpp"
+#include "innertls.hpp"
 #include "mongodbc.hpp"
+#include "wstransport.hpp"
 
 /**
  * @brief Transport interface used by WsMongodbProxy.
@@ -62,7 +64,18 @@ public:
   /// @param dispatch_timeout_s Seconds before dispatch() gives up (default 60).
   explicit WsDbServer(int dispatch_timeout_s = 60);
 
+  /// Heroku mode with inner TLS (cert/key required for TLS-over-WebSocket).
+  /// @param inner_cert  PEM server certificate path for inner TLS.
+  /// @param inner_key   PEM server private key path for inner TLS.
+  /// @param inner_ca    PEM CA certificate path for client cert verification
+  ///                    (empty = no client cert required).
+  /// @param dispatch_timeout_s Seconds before dispatch() gives up (default 60).
+  explicit WsDbServer(std::string inner_cert, std::string inner_key,
+                      std::string inner_ca = {},
+                      int dispatch_timeout_s = 60);
+
   /// mTLS constructor: WsDbServer self-accepts on tls.port with mutual TLS.
+  /// Inner TLS reuses the same cert/key/ca from TlsConfig.
   explicit WsDbServer(TlsConfig tls, int dispatch_timeout_s = 60);
   virtual ~WsDbServer();
 
@@ -90,6 +103,7 @@ public:
 
 private:
   void run_session();
+  bool setup_inner_tls();
   void fail_all_pending(const std::string& reason);
 
   bool ws_upgrade_server();  // read WS upgrade request and send 101 (TLS mode)
@@ -118,6 +132,14 @@ private:
 
   std::mutex              m_connectMu;
   std::condition_variable m_connectCv;
+
+  // Inner TLS
+  std::string               m_innerCert;
+  std::string               m_innerKey;
+  std::string               m_innerCa;
+  std::unique_ptr<WebSocketTransport> m_transport;
+  std::unique_ptr<InnerTlsServer>      m_innerTls;
+  std::atomic<bool>                    m_innerTlsReady {false};
 
   std::mutex              m_writeMu;   // guards ws_send()
   std::mutex              m_pendingMu; // guards m_pending
