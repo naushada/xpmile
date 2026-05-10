@@ -21,6 +21,7 @@
 #include "mongodbc.hpp"
 #include "onprem_agent.hpp"
 #include "wsdbagent.hpp"
+#include "wsdbproxy.hpp"
 #include "wsframe.hpp"
 
 // ── helpers (duplicated from onprem_agent_test.cc — ok for separate test file) ──
@@ -302,4 +303,38 @@ TEST_F(OnpremAgentPhase2Test, BothPathsConcurrent) {
     cloud.close_client();
     agent.stop();
     agent_thread.join();
+}
+
+// ── Phase 4: WsDbServer connector mode end-to-end ──────────────────────────
+
+TEST_F(OnpremAgentPhase2Test, WsDbServerConnectorMode) {
+    // 1. Start a LocalWsListener with a stub DB
+    LocalWsListener listener(0, stub_, "testdb");
+    ASSERT_TRUE(listener.start());
+    ASSERT_GT(listener.port(), 0);
+
+    // 2. Stub returns a known value
+    stub_.sval = R"({"result":"from_connector"})";
+
+    // 3. Create WsDbServer in connector mode pointing at the listener
+    WsDbServer connector("127.0.0.1", listener.port(), "/ws/db", 5);
+    ASSERT_EQ(connector.open(), 0);
+
+    // 4. Wait for TCP connect + WS upgrade handshake
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    ASSERT_TRUE(connector.is_connected());
+
+    // 5. Dispatch a request and verify the response comes back
+    auto [reqid, bson] = dbproto::build_request(
+        DbOp::GET_DOCUMENT, "testdb", "shipping");
+    auto rsp_bson = connector.dispatch(bson);
+
+    dbproto::DbResponse rsp;
+    ASSERT_TRUE(dbproto::parse_response(rsp_bson, rsp));
+    EXPECT_TRUE(rsp.ok);
+    EXPECT_EQ(rsp.sval, R"({"result":"from_connector"})");
+
+    // 6. Clean up
+    connector.close(0);
+    listener.stop();
 }

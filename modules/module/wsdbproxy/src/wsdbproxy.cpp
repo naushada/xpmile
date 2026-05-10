@@ -1,13 +1,21 @@
 #include "wsdbproxy.hpp"
 
 #include <cstring>
+#include <random>
+#include <sstream>
 #include <stdexcept>
 #include <sys/socket.h>
 
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 #include <openssl/ssl.h>
 
+#include "ace/INET_Addr.h"
 #include "ace/Log_Msg.h"
 #include "ace/OS_NS_unistd.h"
+#include "ace/SOCK_Connector.h"
 #include "ace/SSL/SSL_Context.h"
 
 #include "json.hpp"
@@ -16,6 +24,34 @@
 #include <bsoncxx/json.hpp>
 
 using nlohmann::json;
+
+// ── helpers ────────────────────────────────────────────────────────────────────
+
+namespace {
+
+std::string base64_encode(const unsigned char *data, std::size_t len)
+{
+  BIO *bmem  = BIO_new(BIO_s_mem());
+  BIO *b64   = BIO_new(BIO_f_base64());
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+  BIO *chain = BIO_push(b64, bmem);
+  BIO_write(chain, data, static_cast<int>(len));
+  BIO_flush(chain);
+  BUF_MEM *ptr = nullptr;
+  BIO_get_mem_ptr(chain, &ptr);
+  std::string result(ptr->data, ptr->length);
+  BIO_free_all(chain);
+  return result;
+}
+
+std::string random_ws_key()
+{
+  unsigned char bytes[16];
+  RAND_bytes(bytes, sizeof(bytes));
+  return base64_encode(bytes, sizeof(bytes));
+}
+
+} // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WsDbServer
@@ -28,6 +64,15 @@ WsDbServer::WsDbServer(TlsConfig tls, int dispatch_timeout_s)
   : m_timeoutSecs(dispatch_timeout_s)
   , m_tls_mode(true)
   , m_tls(std::move(tls))
+{}
+
+WsDbServer::WsDbServer(const std::string& host, std::uint16_t port,
+                       const std::string& path, int dispatch_timeout_s)
+  : m_timeoutSecs(dispatch_timeout_s)
+  , m_connectorMode(true)
+  , m_connectHost(host)
+  , m_connectPort(port)
+  , m_connectPath(path)
 {}
 
 WsDbServer::~WsDbServer() { close(0); }
@@ -129,6 +174,10 @@ int WsDbServer::svc()
       }
       run_session();
     }
+  } else if (m_connectorMode) {
+    if (connect_and_handshake()) {
+      run_session();
+    }
   } else {
     while (m_running.load()) {
       {
@@ -175,6 +224,86 @@ bool WsDbServer::ws_upgrade_server()
 
   return m_ssl_agentStream.send_n(rsp.data(), rsp.size())
          == static_cast<ssize_t>(rsp.size());
+}
+
+// ── connect_and_handshake (connector mode) ────────────────────────────────────
+
+bool WsDbServer::connect_and_handshake()
+{
+  ACE_INET_Addr addr(m_connectPort, m_connectHost.c_str());
+
+  ACE_SOCK_Connector conn;
+  if (conn.connect(m_agentStream, addr) == -1) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "TCP connect to %s:%u failed\n"),
+               m_connectHost.c_str(), (unsigned)m_connectPort));
+    return false;
+  }
+
+  std::string key = random_ws_key();
+  std::ostringstream req;
+  req << "GET " << m_connectPath << " HTTP/1.1\r\n"
+      << "Host: " << m_connectHost << ":" << m_connectPort << "\r\n"
+      << "Upgrade: websocket\r\n"
+      << "Connection: Upgrade\r\n"
+      << "Sec-WebSocket-Key: " << key << "\r\n"
+      << "Sec-WebSocket-Version: 13\r\n"
+      << "\r\n";
+  std::string req_str = req.str();
+  if (m_agentStream.send_n(req_str.data(), req_str.size())
+        != static_cast<ssize_t>(req_str.size())) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "failed to send WS upgrade\n")));
+    m_agentStream.close();
+    return false;
+  }
+
+  // Read HTTP response headers until \r\n\r\n
+  std::string headers;
+  headers.reserve(512);
+  char c = 0;
+  while (headers.size() < 4096) {
+    if (m_agentStream.recv_n(&c, 1) != 1) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                          "lost connection during WS upgrade\n")));
+      m_agentStream.close();
+      return false;
+    }
+    headers += c;
+    if (headers.size() >= 4 &&
+        headers.substr(headers.size() - 4) == "\r\n\r\n")
+      break;
+  }
+
+  if (headers.find("101") == std::string::npos) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "server did not accept upgrade:\n%s\n"),
+               headers.c_str()));
+    m_agentStream.close();
+    return false;
+  }
+
+  std::string expected = wsframe::accept_key(key);
+  if (headers.find(expected) == std::string::npos) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                        "bad Sec-WebSocket-Accept\n")));
+    m_agentStream.close();
+    return false;
+  }
+
+  m_agentHandle = m_agentStream.get_handle();
+  m_connected.store(true);
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                      "connected to %s:%u%s\n"),
+             m_connectHost.c_str(), (unsigned)m_connectPort,
+             m_connectPath.c_str()));
+  return true;
 }
 
 // ── on_agent_connected ────────────────────────────────────────────────────────

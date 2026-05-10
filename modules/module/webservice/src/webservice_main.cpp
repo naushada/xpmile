@@ -25,7 +25,7 @@ void print_usage(const char *prog) {
                       "  --email-from-name        <name>  Outgoing email display name\n"
                       "  --email-from-id          <addr>  Outgoing email address\n"
                       "  --email-from-password    <pw>    Outgoing email password\n"
-                      "  --remote-db                      Use WebSocket DB proxy (ws-db-agent)\n"
+                      "  --remote-db              <url>   WebSocket DB proxy (1=server, ws://host:port=connector)\n"
                       "  --agent-port             <n>     Dedicated mTLS port for ws-db-agent\n"
                       "  --tls-cert               <path>  Server certificate (PEM, mTLS mode)\n"
                       "  --tls-key                <path>  Server private key  (PEM, mTLS mode)\n"
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
 
   std::array<std::string, N> opt{};
 
-  ACE_Get_Opt args(argc, argv, ACE_TEXT("s:p:w:u:c:d:n:i:o:a:e:k:q:rh"), 1);
+  ACE_Get_Opt args(argc, argv, ACE_TEXT("s:p:w:u:c:d:n:i:o:a:e:k:q:r:h"), 1);
   args.long_option(ACE_TEXT("server-ip"),               's', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-port"),             'p', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("server-worker"),           'w', ACE_Get_Opt::ARG_REQUIRED);
@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
   args.long_option(ACE_TEXT("email-from-name"),         'n', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("email-from-id"),           'i', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("email-from-password"),     'o', ACE_Get_Opt::ARG_REQUIRED);
-  args.long_option(ACE_TEXT("remote-db"),               'r', ACE_Get_Opt::NO_ARG);
+  args.long_option(ACE_TEXT("remote-db"),               'r', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("agent-port"),              'a', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("tls-cert"),                'e', ACE_Get_Opt::ARG_REQUIRED);
   args.long_option(ACE_TEXT("tls-key"),                 'k', ACE_Get_Opt::ARG_REQUIRED);
@@ -75,13 +75,13 @@ int main(int argc, char *argv[]) {
     {'e', Arg::TLS_CERT},
     {'k', Arg::TLS_KEY},
     {'q', Arg::TLS_CA},
+    {'r', Arg::REMOTE_DB},
   };
 
   int c;
   while ((c = args()) != EOF) {
     if (c == 'h') { print_usage(argv[0]); return 0; }
     if (c == '?') { print_usage(argv[0]); return -1; }
-    if (c == 'r') { opt[idx(Arg::REMOTE_DB)] = "1"; continue; }
 
     for (auto &[ch, key] : kOptMap) {
       if (c == ch) {
@@ -109,13 +109,39 @@ int main(int argc, char *argv[]) {
   SMTP::Account::instance().from_password(opt[idx(Arg::EMAIL_FROM_PASSWORD)]);
 
   if (remoteDb) {
-    const std::string &agentPort = opt[idx(Arg::AGENT_PORT)];
-    const std::string &tlsCert   = opt[idx(Arg::TLS_CERT)];
-    const std::string &tlsKey    = opt[idx(Arg::TLS_KEY)];
-    const std::string &tlsCa     = opt[idx(Arg::TLS_CA)];
+    const std::string &remoteDbVal = opt[idx(Arg::REMOTE_DB)];
+    const std::string &agentPort   = opt[idx(Arg::AGENT_PORT)];
+    const std::string &tlsCert     = opt[idx(Arg::TLS_CERT)];
+    const std::string &tlsKey      = opt[idx(Arg::TLS_KEY)];
+    const std::string &tlsCa       = opt[idx(Arg::TLS_CA)];
 
     std::unique_ptr<WsDbServer> wsServer;
-    if (!agentPort.empty() && !tlsCert.empty() && !tlsKey.empty() && !tlsCa.empty()) {
+
+    // Connector mode: --remote-db ws://host:port/path
+    if (remoteDbVal.find("ws://") == 0) {
+      std::string url = remoteDbVal.substr(5);  // strip "ws://"
+      std::string host;
+      std::uint16_t port = 8085;
+      std::string path = "/ws/db";
+
+      auto slash = url.find('/');
+      if (slash != std::string::npos) {
+        path = url.substr(slash);
+        url  = url.substr(0, slash);
+      }
+      auto colon = url.find(':');
+      if (colon != std::string::npos) {
+        host = url.substr(0, colon);
+        port = static_cast<std::uint16_t>(std::stoi(url.substr(colon + 1)));
+      } else {
+        host = url;
+      }
+      ACE_DEBUG((LM_DEBUG,
+                 ACE_TEXT("%D [WebServer:%t] %M %N:%l "
+                          "connector mode → %s:%u%s\n"),
+                 host.c_str(), (unsigned)port, path.c_str()));
+      wsServer = std::make_unique<WsDbServer>(host, port, path);
+    } else if (!agentPort.empty() && !tlsCert.empty() && !tlsKey.empty() && !tlsCa.empty()) {
       WsDbServer::TlsConfig tls;
       tls.port = static_cast<std::uint16_t>(std::stoi(agentPort));
       tls.cert = tlsCert;

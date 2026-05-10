@@ -74,6 +74,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    ports:
+      - "${LOCAL_WS_PORT:-8085}:8085"
     environment:
       ARGS: >-
         --server-host ${SERVER_HOST:?SERVER_HOST must be set}
@@ -82,6 +84,7 @@ services:
         --mongo-db-name ${MONGO_DB:-xpmile}
         --mongo-db-connection-pool ${MONGO_POOL:-10}
         --backoff ${BACKOFF:-5}
+        --local-ws-port 8085
       NO_SSL: "${NO_SSL:-}"
     # Uncomment and set CERTS_DIR to enable mTLS (self-hosted uniservice only):
     # volumes:

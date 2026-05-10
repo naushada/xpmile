@@ -30,7 +30,34 @@ services:
       start_period: 20s
 
   # ------------------------------------------------------------------
-  # xpmile C++ backend + Angular UI
+  # wsdbagent — connects to Heroku + accepts local WS on port 8085
+  # ------------------------------------------------------------------
+  wsdbagent:
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.wsdbagent
+    image: wsdbagent:latest
+    container_name: xpmile-wsdbagent
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      ARGS: >-
+        --server-host ${SERVER_HOST:?SERVER_HOST must be set}
+        --server-port ${SERVER_PORT:-443}
+        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin
+        --mongo-db-name ${MONGO_DB:-xpmile}
+        --mongo-db-connection-pool ${MONGO_POOL:-10}
+        --backoff ${BACKOFF:-5}
+        --local-ws-port 8085
+      NO_SSL: "${NO_SSL:-}"
+    networks:
+      - xpmile-net
+
+  # ------------------------------------------------------------------
+  # uniservice — connects to wsdbagent via WebSocket (connector mode)
   # ------------------------------------------------------------------
   app:
     pull_policy: never
@@ -45,14 +72,13 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      wsdbagent:
+        condition: service_started
     environment:
       PORT: "${PORT:-8080}"
       ARGS: >-
         --server-worker ${SERVER_WORKERS:-5}
-        --mongo-db-name ${MONGO_DB:-xpmile}
-        --mongo-db-connection-pool ${MONGO_POOL:-20}
-        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin&maxPoolSize=${MONGO_POOL:-20}
-      REMOTE_DB: "${REMOTE_DB:-}"
+      REMOTE_DB: "${REMOTE_DB:-ws://wsdbagent:8085/ws/db}"
     ports:
       - "${HOST_PORT:-8080}:${PORT:-8080}"
     networks:
@@ -61,8 +87,6 @@ services:
   # ------------------------------------------------------------------
   # On-prem Java/Vaadin UI
   # Backend URL is configurable — local stack or remote (Heroku etc.)
-  # No depends_on: start independently with a remote URL, or run
-  # `podman-compose up --build` (no service name) for the full local stack.
   # ------------------------------------------------------------------
   onprem-ui:
     pull_policy: never
@@ -73,7 +97,7 @@ services:
     container_name: xpmile-onprem-ui
     restart: unless-stopped
     environment:
-      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-http://app:8080}"   # set in .env for remote targets
+      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-http://app:8080}"
     ports:
       - "${ONPREM_PORT:-8090}:8090"
     networks:

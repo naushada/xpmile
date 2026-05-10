@@ -64,6 +64,14 @@ public:
 
   /// mTLS constructor: WsDbServer self-accepts on tls.port with mutual TLS.
   explicit WsDbServer(TlsConfig tls, int dispatch_timeout_s = 60);
+
+  /// Connector-mode constructor: connects outbound to a wsdbagent.
+  /// @param host  wsdbagent hostname (e.g. "wsdbagent")
+  /// @param port  wsdbagent local WS port (e.g. 8085)
+  /// @param path  WebSocket path (e.g. "/ws/db")
+  WsDbServer(const std::string& host, std::uint16_t port,
+             const std::string& path = "/ws/db",
+             int dispatch_timeout_s = 60);
   virtual ~WsDbServer();
 
   int open(void* args = nullptr) override;
@@ -89,6 +97,8 @@ public:
   dispatch(const std::vector<std::uint8_t>& bson) override;
 
 private:
+  // ── connector mode ──────────────────────────────────────────────────────
+  bool connect_and_handshake();  // TCP connect + client-side WS upgrade
   void run_session();
   void fail_all_pending(const std::string& reason);
 
@@ -112,6 +122,11 @@ private:
   TlsConfig             m_tls;
   ACE_SSL_SOCK_Acceptor m_ssl_acceptor;
   ACE_SSL_SOCK_Stream   m_ssl_agentStream;
+
+  bool                  m_connectorMode {false};
+  std::string           m_connectHost;
+  std::uint16_t         m_connectPort {0};
+  std::string           m_connectPath {"/ws/db"};
 
   std::atomic<bool>     m_connected {false};
   std::atomic<bool>     m_running   {false};
