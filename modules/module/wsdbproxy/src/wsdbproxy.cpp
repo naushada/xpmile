@@ -309,15 +309,33 @@ void WsDbServer::run_session()
                ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
                         "waiting for frame from agent\n")));
 
-    // Read decrypted plaintext through inner TLS.
     std::vector<std::uint8_t> plaintext;
-    if (!m_innerTls->recv(plaintext)) {
-      ACE_DEBUG((LM_DEBUG,
-                 ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
-                          "inner TLS recv failed — agent disconnected\n")));
-      break;
+
+    if (m_innerTls) {
+      // Read decrypted plaintext through inner TLS.
+      if (!m_innerTls->recv(plaintext)) {
+        ACE_DEBUG((LM_DEBUG,
+                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                            "inner TLS recv failed — agent disconnected\n")));
+        break;
+      }
+      if (plaintext.empty()) continue;  // ping/pong handled by transport, or SSL_WANT_READ
+    } else {
+      // No inner TLS — read raw WebSocket frames directly (unmasked).
+      std::uint8_t opcode;
+      if (!ws_recv_frame(opcode, plaintext)) {
+        ACE_DEBUG((LM_DEBUG,
+                   ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
+                            "ws recv failed — agent disconnected\n")));
+        break;
+      }
+      if (opcode == 0x09) {  // ping → pong
+        ws_send(wsframe::encode({}, 0x0A, false));
+        continue;
+      }
+      if (opcode == 0x0A) continue;  // pong (unsolicited)
+      if (opcode == 0x08) break;     // close
     }
-    if (plaintext.empty()) continue;  // ping/pong handled by transport, or SSL_WANT_READ
 
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WsDbServer:%t] %M %N:%l "
@@ -415,8 +433,14 @@ WsDbServer::dispatch(const std::vector<std::uint8_t>& bson)
     m_pending[req.reqid] = pending;
   }
 
-  // Encrypt and send through inner TLS.
-  if (!m_innerTlsReady.load() || !m_innerTls->send(bson)) {
+  // Send through inner TLS (or raw WebSocket frame if inner TLS not configured).
+  bool sent;
+  if (m_innerTls) {
+    sent = m_innerTlsReady.load() && m_innerTls->send(bson);
+  } else {
+    sent = ws_send(wsframe::encode(bson, 0x02, false));
+  }
+  if (!sent) {
     std::lock_guard<std::mutex> lock(m_pendingMu);
     m_pending.erase(req.reqid);
     return dbproto::make_error_response(req.reqid, "send failed");
