@@ -456,24 +456,28 @@ Port `8080` serves browser traffic; port `8443` is the dedicated mTLS agent port
 
 ---
 
-## Sequence diagram — mTLS connect
+## Sequence diagram — inner TLS connect
+
+The agent initiates the inner TLS handshake after the WebSocket upgrade.
+Inner TLS runs *inside* WebSocket frames — the agent is the TLS client, the
+server is the TLS acceptor.
 
 ```
-wsdbagent                        WsDbServer (self-hosted)
-    │                                     │
-    │  TCP connect to :8443               │
-    │────────────────────────────────────►│
-    │◄── TLS ServerHello + server.crt ────│
-    │  verify server.crt against ca.crt   │
-    │  send client.crt                   ►│
-    │                                     │  verify client.crt against ca.crt
-    │                                     │  (SSL_VERIFY_FAIL_IF_NO_PEER_CERT)
-    │       TLS handshake complete        │
-    │                                     │
-    │  GET /ws/db HTTP/1.1               ►│  ws_upgrade_server()
-    │◄── HTTP/1.1 101 ────────────────────│
-    │                                     │
-    │      (mTLS WebSocket session)       │
-    │◄── binary frame (DbRequest) ────────│
-    │─── binary frame (DbResponse) ──────►│
+wsdbagent (InnerTlsClient)              WsDbServer (InnerTlsServer)
+    │                                          │
+    │  (outer) TCP connect + TLS + WS upgrade  │  (ACE_SSL_SOCK_Acceptor or Heroku)
+    │─────────────────────────────────────────►│
+    │◄── HTTP/1.1 101 ─────────────────────────│
+    │                                          │
+    │  ═══ inner TLS handshake (agent initiates) ═══
+    │  SSL_connect()                           │
+    │  ── ClientHello (over WS frame) ────────►│  SSL_accept()
+    │◄── ServerHello + server.crt ─────────────│
+    │  verify server.crt against ca.crt        │
+    │  ── client.crt (if loaded) ────────────►│  verify against ca.crt
+    │                                          │  (SSL_VERIFY_PEER)
+    │  ═══ inner TLS established ═══════════════
+    │                                          │
+    │◄── binary frame (DbRequest, encrypted) ──│
+    │─── binary frame (DbResponse, encrypted)─►│
 ```
