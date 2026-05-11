@@ -185,9 +185,11 @@ InnerTlsServer::InnerTlsServer(ITransport &transport,
             }
             BIO_free(ca_bio);
         }
-        SSL_CTX_set_verify(m_ctx.get(),
-                           SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
-                           nullptr);
+        // SSL_VERIFY_PEER verifies the client cert if one is presented.
+        // We don't use SSL_VERIFY_FAIL_IF_NO_PEER_CERT — the agent's
+        // identity is already authenticated by the outer Heroku TLS +
+        // WebSocket upgrade; inner TLS provides encryption + server auth.
+        SSL_CTX_set_verify(m_ctx.get(), SSL_VERIFY_PEER, nullptr);
     }
 
     m_ssl.reset(SSL_new(m_ctx.get()));
