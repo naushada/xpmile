@@ -143,7 +143,7 @@ Optional:
   --tls-key      <path>    Client private key  (inner TLS mTLS)
   --tls-hostname <name>    Expected server CN/SAN (default: skip CN check; CA chain still verified)
   --mongo-db-connection-pool <n>  Pool size (default: 10)
-  --backoff  <secs>        Reconnect wait in seconds (default: 5)
+  --backoff  <secs>        Base reconnect wait in seconds (default: 5; doubles per consecutive failure, capped at 60 s)
   --help
 ```
 
@@ -172,20 +172,63 @@ them, `WsDbServer` falls back to the `on_agent_connected` path (Heroku mode).
 `WsDbAgent::run(backoff_secs)` loops indefinitely:
 
 1. Call `connect_and_handshake()`.
-2. On success → enter `run_session()`.
-3. On failure (including a `503` stale-eviction response) or session end → sleep `backoff_secs` seconds → retry.
+2. On success → `setup_inner_tls()` → `run_session()`.
+3. On failure (including a `503` stale-eviction response) or session end → sleep current backoff → retry.
 4. Exit only when `stop()` is called.
 
-**503 during reconnect:** If the agent reconnects while the server is still tearing down the previous stale session, the server replies `503 Retry-After: 2`. The agent treats this as a connect failure and retries after `backoff_secs`. Within one or two cycles the server's `run_session()` will have exited and the reconnect succeeds.
+**Connect timeout (10 s).** `ACE_SSL_SOCK_Connector::connect()` and the plain `ACE_SOCK_Connector::connect()` are called with an `ACE_Time_Value(10)`. Without this, a wedged Heroku dyno (router accepts the SYN, dyno never completes the TLS handshake) would block the connect syscall for ~3 minutes per attempt. The 10 s timeout makes every retry fail fast and lets the backoff schedule do its job. The error log includes `errno` so `ETIMEDOUT` (110) is distinguishable from `ECONNREFUSED`, `EHOSTUNREACH`, etc.
+
+**Exponential backoff.** The sleep between retries starts at `backoff_secs` (default 5 s) and **doubles after each consecutive failure**, capped at 60 s:
+
+| Attempt | Sleep before next try |
+|---------|-----------------------|
+| 1 (initial)         | 5 s  |
+| 2 (still failing)   | 10 s |
+| 3                   | 20 s |
+| 4                   | 40 s |
+| 5+                  | 60 s (capped) |
+
+A **successful session resets the backoff** to the base value before the next retry, so a single transient disconnect doesn't push the next reconnect to 60 s. Combined with the 10 s connect timeout, sustained outages settle into a steady ~70 s cycle (10 s connect timeout + 60 s sleep) instead of the unbounded ~3 min hang per attempt seen before.
+
+**503 during reconnect:** If the agent reconnects while the server is still tearing down the previous stale session, the server replies `503 Retry-After: 2`. The agent treats this as a connect failure (it counts toward the backoff schedule). Within one or two cycles the server's `run_session()` will have exited and the reconnect succeeds — at which point the backoff resets.
 
 ### Handshake (`connect_and_handshake`)
 
 1. Configure `ACE_SSL_Context` with CA / client cert / key (if provided).
-2. Open a TLS (or plain TCP) connection to `--server-host:--server-port`.
+2. Open a TLS (or plain TCP) connection to `--server-host:--server-port` **with a 10 s timeout**.
 3. Send a standard RFC 6455 upgrade request to `/ws/db`.
 4. Read the HTTP response headers until `\r\n\r\n`.
 5. Verify status `101` and `Sec-WebSocket-Accept`.
-6. Return `true` to enter the session loop.
+6. Return `true`, after which `setup_inner_tls()` performs the inner TLS handshake over WebSocket frames.
+
+### Reconnect path (when the dyno crashes or restarts)
+
+There is **no separate fallback transport** — every connection attempt uses the same outer-HTTPS-then-inner-TLS path. The recovery sequence when the remote dyno dies mid-session:
+
+```
+agent in run_session()
+      │
+      ▼
+recv_ready(fd, 30s) returns POLLIN on closed socket
+      │
+      ▼
+m_innerTls->recv() → m_transport.recv() reads 0 bytes (EOF)
+      │            or peer sent Close frame (opcode 0x08)
+      ▼
+"inner TLS recv failed — disconnecting"   ← logged
+      │
+      ▼
+disconnect()  →  stream_close()  →  break out of run_session()
+      │
+      ▼
+sleep(cur_backoff)   ← exponential schedule above
+      │
+      ▼
+fresh connect_and_handshake() over outer HTTPS (port 443)
+      │  ├─ if dyno still wedged: SSL connect times out in 10 s → next backoff slot
+      │  └─ if dyno is back:     101 Switching Protocols + inner TLS handshake → session resumes
+      ▼
+backoff resets to base after first successful session
 
 ### Session loop (`run_session`)
 
@@ -332,7 +375,7 @@ edit `.env` directly (copy from `.env.agent`):
 | `MONGO_APP_PASS` | `xpmile_pass` | App DB password |
 | `MONGO_DB` | `xpmile` | Database name |
 | `MONGO_POOL` | `10` | MongoDB connection pool size |
-| `BACKOFF` | `5` | Reconnect wait in seconds |
+| `BACKOFF` | `5` | Base reconnect wait in seconds. Doubles per consecutive failure (5 → 10 → 20 → 40 → 60), capped at 60 s. Resets to base after a successful session. |
 
 ---
 

@@ -1,5 +1,6 @@
 #include "wsdbagent.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstring>
 #include <functional>
@@ -83,33 +84,49 @@ void WsDbAgent::stop() { m_stop.store(true); }
 
 void WsDbAgent::run(int backoff_secs)
 {
+  const int base_backoff = backoff_secs > 0 ? backoff_secs : 5;
+  const int max_backoff  = 60;
+  int       cur_backoff  = base_backoff;
+
   while (!m_stop.load()) {
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [WsDbAgent] connecting to %s:%u (ssl=%d)\n"),
                m_host.c_str(), m_port, (int)m_ssl));
 
+    bool session_ran = false;
+
     if (!connect_and_handshake()) {
       ACE_ERROR((LM_ERROR,
                  ACE_TEXT("%D [WsDbAgent] connection failed, retry in %ds\n"),
-                 backoff_secs));
+                 cur_backoff));
     } else if (!setup_inner_tls()) {
       ACE_ERROR((LM_ERROR,
                  ACE_TEXT("%D [WsDbAgent] inner TLS setup failed, retry in %ds\n"),
-                 backoff_secs));
+                 cur_backoff));
       disconnect();
     } else if (!m_tls_hostname.empty() && !m_innerTls->verify_hostname(m_tls_hostname)) {
       ACE_ERROR((LM_ERROR,
                  ACE_TEXT("%D [WsDbAgent] server CN mismatch (expected %s), retry in %ds\n"),
-                 m_tls_hostname.c_str(), backoff_secs));
+                 m_tls_hostname.c_str(), cur_backoff));
       disconnect();
     } else {
       ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WsDbAgent] session started\n")));
       run_session();
       ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [WsDbAgent] session ended\n")));
+      session_ran = true;
     }
 
     if (m_stop.load()) break;
-    std::this_thread::sleep_for(std::chrono::seconds(backoff_secs));
+
+    // Reset backoff after a successful session so a single transient disconnect
+    // doesn't drag the next retry into the multi-second range.
+    if (session_ran) {
+      cur_backoff = base_backoff;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(cur_backoff));
+    if (!session_ran) {
+      cur_backoff = std::min(cur_backoff * 2, max_backoff);
+    }
   }
 }
 
@@ -118,6 +135,11 @@ void WsDbAgent::run(int backoff_secs)
 bool WsDbAgent::connect_and_handshake()
 {
   ACE_INET_Addr addr(m_port, m_host.c_str());
+
+  // Fail fast when Heroku's router accepts the SYN but the dyno is wedged
+  // or crashed and never completes the TLS handshake — without this the
+  // syscall blocks for ~3 minutes per retry.
+  ACE_Time_Value connect_timeout(10);
 
   // ── TCP connect ─────────────────────────────────────────────────────────────
   if (m_ssl) {
@@ -133,14 +155,18 @@ bool WsDbAgent::connect_and_handshake()
       SSL_CTX_set_verify(ctx->context(), SSL_VERIFY_PEER, nullptr);
 
     ACE_SSL_SOCK_Connector conn;
-    if (conn.connect(m_ssl_stream, addr) == -1) {
-      ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WsDbAgent] SSL connect failed\n")));
+    if (conn.connect(m_ssl_stream, addr, &connect_timeout) == -1) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbAgent] SSL connect failed (errno=%d)\n"),
+                 errno));
       return false;
     }
   } else {
     ACE_SOCK_Connector conn;
-    if (conn.connect(m_plain_stream, addr) == -1) {
-      ACE_ERROR((LM_ERROR, ACE_TEXT("%D [WsDbAgent] TCP connect failed\n")));
+    if (conn.connect(m_plain_stream, addr, &connect_timeout) == -1) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WsDbAgent] TCP connect failed (errno=%d)\n"),
+                 errno));
       return false;
     }
   }
