@@ -4,6 +4,7 @@
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
+#include <openssl/pem.h>
 #include <openssl/x509v3.h>
 
 namespace {
@@ -168,7 +169,22 @@ InnerTlsServer::InnerTlsServer(ITransport &transport,
     SSL_CTX_check_private_key(m_ctx.get());
 
     if (!ca_path.empty()) {
-        SSL_CTX_load_verify_locations(m_ctx.get(), ca_path.c_str(), nullptr);
+        if (SSL_CTX_load_verify_locations(m_ctx.get(), ca_path.c_str(), nullptr) != 1) {
+            std::fprintf(stderr, "[InnerTlsServer] failed to load CA: %s\n",
+                         ca_path.c_str());
+        }
+        // Explicitly load the CA cert into the client CA list — without this
+        // OpenSSL may send an empty CA list in the CertificateRequest and the
+        // client will not present its certificate.
+        BIO *ca_bio = BIO_new_file(ca_path.c_str(), "r");
+        if (ca_bio) {
+            X509 *ca = PEM_read_bio_X509(ca_bio, nullptr, nullptr, nullptr);
+            if (ca) {
+                SSL_CTX_add_client_CA(m_ctx.get(), ca);
+                X509_free(ca);
+            }
+            BIO_free(ca_bio);
+        }
         SSL_CTX_set_verify(m_ctx.get(),
                            SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
                            nullptr);
