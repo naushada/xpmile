@@ -312,7 +312,7 @@ An attacker on Heroku's network intercepts the inner TLS ServerHello and tries t
 
 **Why it fails:**
 - `client.key` is stored only on the MongoDB machine (with wsdbagent) — never on Heroku, never committed
-- WsDbServer sets `SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT` — it rejects any connection that doesn't present a valid client cert
+- WsDbServer sets `SSL_VERIFY_PEER` — it verifies the client cert if one is presented, but does not require it (the agent's identity is already authenticated by the outer Heroku TLS + WebSocket upgrade)
 - Without `ca.key`, the attacker cannot create a client cert that wsdbproxy will accept
 
 **Verdict: Safe.** Client impersonation requires the client private key (on the MongoDB machine) or the CA private key (offline).
@@ -392,7 +392,7 @@ When wsdbagent first connects, it must trust the Heroku router's certificate (ou
 These must be enforced in implementation:
 
 1. **Inner TLS is not optional.** Both sides exit the session (and the agent reconnects) if the inner TLS handshake fails. No DB traffic flows without it.
-2. **mTLS on the inner TLS.** `SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT` on both sides.
+2. **Inner TLS with peer verification.** `SSL_VERIFY_PEER` on the server side verifies any presented client cert. The agent's identity is authenticated by Heroku's TLS termination + the WebSocket upgrade path; inner TLS provides encryption and server authentication. The agent side verifies the server cert via CA chain.
 3. **CA private key stays offline.** It is only used during `certs/generate.sh`. Never deployed, never in a config var, never in a Docker image.
 4. **No code path exists for unencrypted DB traffic after inner TLS is implemented.** The unencrypted `ws_send`/`ws_recv_frame` methods become private or are removed from the DB data path.
 

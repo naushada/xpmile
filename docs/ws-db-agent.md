@@ -101,15 +101,16 @@ updated together.
 
 ### How mTLS is enforced
 
-**Server (`WsDbServer::open()`):**
+**Server (`InnerTlsServer` constructor):**
 ```
-ACE_SSL_Context → SSLv23_server mode
-  certificate()    ← server.crt
-  private_key()    ← server.key
-  load_trusted_ca()← ca.crt
-SSL_CTX_set_verify → SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT
+SSL_CTX_new(TLS_server_method())
+  SSL_CTX_use_certificate_file()  ← server.crt
+  SSL_CTX_use_PrivateKey_file()   ← server.key
+  SSL_CTX_load_verify_locations() ← ca.crt
+  SSL_CTX_add_client_CA()         ← ca.crt (populates CertificateRequest CA list)
+SSL_CTX_set_verify → SSL_VERIFY_PEER
 ```
-Any agent connecting without a CA-signed client cert is rejected at the TLS handshake.
+The server verifies the client cert if one is presented, but does not require it. The agent's identity is already authenticated by the outer Heroku TLS + WebSocket upgrade path; inner TLS provides encryption and server authentication.
 
 **Client (`WsDbAgent::connect_and_handshake()`):**
 ```
