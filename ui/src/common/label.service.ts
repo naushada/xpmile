@@ -21,20 +21,20 @@ export class LabelService {
     const safeSku = (sku ?? '').toString().trim() || 'default';
     const count   = Math.max(1, Math.floor(Number(qty) || 0));
 
+    // A10 landscape page = 37mm × 26mm → ~105pt × 74pt at 1pt/1mm * 72/25.4.
+    // Margins are 1pt each side, so the printable area is ~103pt × 72pt.
+    // We scale the barcode to fit that box exactly so there's no empty space
+    // at the bottom of each label.
+    const pageW = 105, pageH = 74, margin = 1;
+    const fitW  = pageW - 2 * margin;
+    const fitH  = pageH - 2 * margin;
+
     const content: any[] = [];
     for (let i = 0; i < count; i++) {
       content.push({
-        table: {
-          body: [[
-            {
-              image: this.barcodeDataUrl(safeSku, 70, 10),
-              bold: false,
-              alignment: 'left',
-              valign: 'top',
-              width: 90
-            }
-          ]]
-        },
+        image:     this.barcodeDataUrl(safeSku, 120, 14),
+        fit:       [fitW, fitH],
+        alignment: 'center',
         pageBreak: i < count - 1 ? 'after' : undefined
       });
     }
@@ -47,7 +47,7 @@ export class LabelService {
         keywords: 'A10 Label'
       },
       pageSize:        'A10',
-      pageMargins:     [1, 1, 1, 1],
+      pageMargins:     [margin, margin, margin, margin],
       pageOrientation: 'landscape',
       content
     };
