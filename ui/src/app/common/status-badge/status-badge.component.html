@@ -1,0 +1,17 @@
+<div class="status-strip">
+  <span class="status-pill"
+        [class.up]="(status.agent$ | async) === 'up'"
+        [class.down]="(status.agent$ | async) === 'down'"
+        [title]="'Agent ' + ((status.agent$ | async) ?? 'unknown') + ((status.lastChecked$ | async) ? (' · last checked ' + ((status.lastChecked$ | async) | date:'HH:mm:ss')) : '')">
+    <span class="dot"></span>
+    <span class="label">Agent</span>
+  </span>
+
+  <span class="status-pill"
+        [class.up]="(status.db$ | async) === 'up'"
+        [class.down]="(status.db$ | async) === 'down'"
+        [title]="'Database ' + ((status.db$ | async) ?? 'unknown') + ((status.lastChecked$ | async) ? (' · last checked ' + ((status.lastChecked$ | async) | date:'HH:mm:ss')) : '')">
+    <span class="dot"></span>
+    <span class="label">DB</span>
+  </span>
+</div>

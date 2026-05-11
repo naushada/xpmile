@@ -1,138 +1,163 @@
-<form [formGroup]="accountForm" clrForm clrLayout="compact" clrLabelSize="3">
+<form [formGroup]="accountForm" clrForm clrLayout="vertical" clrLabelSize="5" class="ca-page">
 
-  <!-- Action bar -->
-  <div class="action-bar">
-    <clr-checkbox-wrapper>
-      <input type="checkbox" clrCheckbox name="isAccountCodeAutoGen" formControlName="isAccountCodeAutoGen" />
-      <label>Autogenerate Account Code</label>
-    </clr-checkbox-wrapper>
-    <button type="button" class="btn btn-primary" (click)="createAccount()">Create Account</button>
-  </div>
+  <!-- Page header -->
+  <header class="ca-header">
+    <div class="ca-header-left">
+      <div class="ca-icon-tile" aria-hidden="true">
+        <clr-icon shape="user" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="ca-title">Create Account</h2>
+        <p class="ca-subtitle">Set up login credentials, personal details, and customer information for a new account.</p>
+      </div>
+    </div>
+    <div class="ca-header-right">
+      <span class="ca-step active"><span class="ca-step-no">1</span> Credentials</span>
+      <span class="ca-step active"><span class="ca-step-no">2</span> Personal</span>
+      <span class="ca-step active"><span class="ca-step-no">3</span> Customer</span>
+    </div>
+  </header>
 
-  <!-- Three-column body -->
-  <div class="clr-row form-body">
+  <!-- Auto-generate toggle card -->
+  <section class="ca-card ca-toggle-card">
+    <div class="ca-toggle-row">
+      <clr-checkbox-wrapper>
+        <input type="checkbox" clrCheckbox name="isAccountCodeAutoGen" formControlName="isAccountCodeAutoGen" />
+        <label>Autogenerate Account Code</label>
+      </clr-checkbox-wrapper>
+      <span class="ca-help-text">When on, the system assigns the next available account code on submit.</span>
+    </div>
+  </section>
+
+  <!-- Three section cards -->
+  <div class="ca-cards-grid">
 
     <!-- Login Credentials -->
-    <div class="clr-col-4">
-      <div class="card section-card">
-        <div class="card-header">
-          <cds-icon shape="key"></cds-icon> Login Credentials
-        </div>
-        <div class="card-block">
-          <div formGroupName="loginCredentials">
-            <clr-input-container>
-              <label>Account Code</label>
-              <input clrInput name="accountCode" formControlName="accountCode" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>Password</label>
-              <input clrInput type="password" name="accountPassword" formControlName="accountPassword" />
-            </clr-input-container>
-          </div>
+    <section class="ca-card">
+      <div class="ca-card-head">
+        <clr-icon shape="key" size="18"></clr-icon>
+        <h3>Login Credentials</h3>
+        <span class="ca-card-hint">Sign-in details</span>
+      </div>
+      <div class="ca-card-body">
+        <div formGroupName="loginCredentials">
           <clr-input-container>
-            <label>AWB Prefix</label>
-            <input clrInput name="awbPrefix" formControlName="awbPrefix" />
+            <label>Account Code</label>
+            <input clrInput name="accountCode" formControlName="accountCode" />
+          </clr-input-container>
+          <clr-input-container>
+            <label>Password</label>
+            <input clrInput type="password" name="accountPassword" formControlName="accountPassword" />
           </clr-input-container>
         </div>
+        <!-- awbPrefix is on the root form group -->
+        <clr-input-container>
+          <label>AWB Prefix</label>
+          <input clrInput name="awbPrefix" formControlName="awbPrefix" />
+        </clr-input-container>
       </div>
-    </div>
+    </section>
 
     <!-- Personal Info -->
-    <div class="clr-col-4">
-      <div class="card section-card">
-        <div class="card-header">
-          <cds-icon shape="user"></cds-icon> Personal Info
-        </div>
-        <div class="card-block">
-          <div formGroupName="personalInfo">
-            <clr-select-container>
-              <label>Role</label>
-              <select clrSelect name="role" formControlName="role">
-                <option *ngFor="let rl of defVal?.Role" [value]="rl">{{rl}}</option>
-              </select>
-            </clr-select-container>
-            <clr-input-container>
-              <label>Name</label>
-              <input clrInput name="name" formControlName="name" />
-            </clr-input-container>
-            <clr-select-container>
-              <label>Event Location</label>
-              <select clrSelect name="eventLocation" formControlName="eventLocation">
-                <option *ngFor="let evtLoc of defVal?.EventLocation" [value]="evtLoc">{{evtLoc}}</option>
-              </select>
-            </clr-select-container>
-            <clr-input-container>
-              <label>City</label>
-              <input clrInput name="city" formControlName="city" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>State</label>
-              <input clrInput name="state" formControlName="state" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>Address</label>
-              <input clrInput name="address" formControlName="address" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>Postal Code</label>
-              <input clrInput name="postalCode" formControlName="postalCode" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>Contact</label>
-              <input clrInput name="contact" formControlName="contact" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>E-Mail</label>
-              <input clrInput name="email" formControlName="email" />
-            </clr-input-container>
-          </div>
-        </div>
+    <section class="ca-card" formGroupName="personalInfo">
+      <div class="ca-card-head">
+        <clr-icon shape="id-badge" size="18"></clr-icon>
+        <h3>Personal Info</h3>
+        <span class="ca-card-hint">About the user</span>
       </div>
-    </div>
+      <div class="ca-card-body">
+        <clr-select-container>
+          <label>Role</label>
+          <select clrSelect name="role" formControlName="role">
+            <option *ngFor="let rl of defVal?.Role" [value]="rl">{{rl}}</option>
+          </select>
+        </clr-select-container>
+        <clr-input-container>
+          <label>Name</label>
+          <input clrInput name="name" formControlName="name" />
+        </clr-input-container>
+        <clr-select-container>
+          <label>Event Location</label>
+          <select clrSelect name="eventLocation" formControlName="eventLocation">
+            <option *ngFor="let evtLoc of defVal?.EventLocation" [value]="evtLoc">{{evtLoc}}</option>
+          </select>
+        </clr-select-container>
+        <clr-input-container>
+          <label>City</label>
+          <input clrInput name="city" formControlName="city" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>State</label>
+          <input clrInput name="state" formControlName="state" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Address</label>
+          <input clrInput name="address" formControlName="address" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Postal Code</label>
+          <input clrInput name="postalCode" formControlName="postalCode" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Contact</label>
+          <input clrInput name="contact" formControlName="contact" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>E-Mail</label>
+          <input clrInput name="email" formControlName="email" />
+        </clr-input-container>
+      </div>
+    </section>
 
     <!-- Customer Info -->
-    <div class="clr-col-4">
-      <div class="card section-card">
-        <div class="card-header">
-          <cds-icon shape="building"></cds-icon> Customer Info
-        </div>
-        <div class="card-block">
-          <div formGroupName="customerInfo">
-            <clr-input-container>
-              <label>Company Name</label>
-              <input clrInput name="companyName" formControlName="companyName" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>Quoted Amount</label>
-              <input clrInput name="quotedAmount" formControlName="quotedAmount" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>Trading License</label>
-              <input clrInput name="tradingLicense" formControlName="tradingLicense" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>VAT</label>
-              <input clrInput name="vat" formControlName="vat" />
-            </clr-input-container>
-            <clr-select-container>
-              <label>Currency</label>
-              <select clrSelect name="currency" formControlName="currency">
-                <option *ngFor="let currency of defVal?.Currency" [value]="currency">{{currency}}</option>
-              </select>
-            </clr-select-container>
-            <clr-input-container>
-              <label>Bank Account No.</label>
-              <input clrInput name="bankAccountNumber" formControlName="bankAccountNumber" />
-            </clr-input-container>
-            <clr-input-container>
-              <label>IBAN</label>
-              <input clrInput name="iban" formControlName="iban" />
-            </clr-input-container>
-          </div>
-        </div>
+    <section class="ca-card" formGroupName="customerInfo">
+      <div class="ca-card-head">
+        <clr-icon shape="building" size="18"></clr-icon>
+        <h3>Customer Info</h3>
+        <span class="ca-card-hint">Billing &amp; company</span>
       </div>
-    </div>
+      <div class="ca-card-body">
+        <clr-input-container>
+          <label>Company Name</label>
+          <input clrInput name="companyName" formControlName="companyName" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Quoted Amount</label>
+          <input clrInput name="quotedAmount" formControlName="quotedAmount" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Trading License</label>
+          <input clrInput name="tradingLicense" formControlName="tradingLicense" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>VAT</label>
+          <input clrInput name="vat" formControlName="vat" />
+        </clr-input-container>
+        <clr-select-container>
+          <label>Currency</label>
+          <select clrSelect name="currency" formControlName="currency">
+            <option *ngFor="let currency of defVal?.Currency" [value]="currency">{{currency}}</option>
+          </select>
+        </clr-select-container>
+        <clr-input-container>
+          <label>Bank Account No.</label>
+          <input clrInput name="bankAccountNumber" formControlName="bankAccountNumber" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>IBAN</label>
+          <input clrInput name="iban" formControlName="iban" />
+        </clr-input-container>
+      </div>
+    </section>
 
+  </div>
+
+  <!-- Sticky action bar -->
+  <div class="ca-action-bar">
+    <span class="ca-action-hint">All sections are required for a new account.</span>
+    <button type="button" class="btn btn-primary ca-create-btn" (click)="createAccount()">
+      <clr-icon shape="check" size="14"></clr-icon> Create Account
+    </button>
   </div>
 
 </form>

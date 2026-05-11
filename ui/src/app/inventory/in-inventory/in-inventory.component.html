@@ -1,69 +1,98 @@
-<form  clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="createInventoryForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="sku">SKU or Product ID</label>
-                <input type="text" clrInput formControlName="sku" name="sku">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="productDescription">Product Description</label>
-                <input type="text" clrInput formControlName="productDescription" name="productDescription">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="qty">Quantity</label>
-                <input type="number" clrInput formControlName="qty" name="qty" type="number">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-date-container>
-                <label for="currentDate">Current Date</label>
-                <input type="date" clrDate formControlName="currentDate" name="currentDate">
-            </clr-date-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="currentTime">Current Time</label>
-                <input type="time" clrInput formControlName="currentTime" name="currentTime" />
-            </clr-input-container>
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="createInventoryForm" class="ii-page">
 
-        </div>
-        
+  <!-- Page header -->
+  <header class="ii-header">
+    <div class="ii-header-left">
+      <div class="ii-icon-tile" aria-hidden="true">
+        <clr-icon shape="plus-circle" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="ii-title">Create Inventory</h2>
+        <p class="ii-subtitle">Register a new stock entry: SKU, quantity, location and audit info.</p>
+      </div>
     </div>
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="shelf">Shelf</label>
-                <input type="text" clrInput formControlName="shelf" name="shelf">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="rowNumber">Row Number</label>
-                <input type="text" clrInput formControlName="rowNumber" name="rowNumber">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="createdBy">Created By</label>
-                <input type="text" name="createdBy" clrInput formControlName="createdBy" [value]="this.loggedInUser?.personalInfo?.name">
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label for="accountCode">Account Code</label>
-                <select clrSelect formControlName="accountCode"  name="accountCode">
-                  <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
-                </select>
-            </clr-select-container>
-        </div>
+    <div class="ii-header-right">
+      <span class="ii-step active"><span class="ii-step-no">1</span> Product</span>
+      <span class="ii-step active"><span class="ii-step-no">2</span> Location</span>
     </div>
-    <div class="clr-row">
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary" (click)="createInventory()">Create Inventory</button>
+  </header>
+
+  <div class="ii-cards-grid">
+
+    <!-- Product card -->
+    <section class="ii-card">
+      <div class="ii-card-head">
+        <clr-icon shape="bundle" size="18"></clr-icon>
+        <h3>Product</h3>
+        <span class="ii-card-hint">What is coming in</span>
+      </div>
+      <div class="ii-card-body">
+        <clr-input-container>
+          <label for="sku">SKU or Product ID</label>
+          <input type="text" clrInput formControlName="sku" name="sku">
+        </clr-input-container>
+        <clr-input-container>
+          <label for="productDescription">Product Description</label>
+          <input type="text" clrInput formControlName="productDescription" name="productDescription">
+        </clr-input-container>
+        <clr-input-container>
+          <label for="qty">Quantity</label>
+          <input type="number" clrInput formControlName="qty" name="qty">
+        </clr-input-container>
+        <div class="ii-row-2">
+          <clr-date-container>
+            <label for="currentDate">Current Date</label>
+            <input type="date" clrDate formControlName="currentDate" name="currentDate">
+          </clr-date-container>
+          <clr-input-container>
+            <label for="currentTime">Current Time</label>
+            <input type="time" clrInput formControlName="currentTime" name="currentTime" />
+          </clr-input-container>
         </div>
-    </div>
+      </div>
+    </section>
+
+    <!-- Location & Audit card -->
+    <section class="ii-card">
+      <div class="ii-card-head">
+        <clr-icon shape="map-marker" size="18"></clr-icon>
+        <h3>Location &amp; Audit</h3>
+        <span class="ii-card-hint">Where it lives</span>
+      </div>
+      <div class="ii-card-body">
+        <div class="ii-row-2">
+          <clr-input-container>
+            <label for="shelf">Shelf</label>
+            <input type="text" clrInput formControlName="shelf" name="shelf">
+          </clr-input-container>
+          <clr-input-container>
+            <label for="rowNumber">Row Number</label>
+            <input type="text" clrInput formControlName="rowNumber" name="rowNumber">
+          </clr-input-container>
+        </div>
+        <clr-input-container>
+          <label for="createdBy">Created By</label>
+          <input type="text" name="createdBy" clrInput formControlName="createdBy" [value]="this.loggedInUser?.personalInfo?.name">
+        </clr-input-container>
+        <clr-select-container>
+          <label for="accountCode">Account Code</label>
+          <select clrSelect formControlName="accountCode" name="accountCode">
+            <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">
+              {{acc.loginCredentials.accountCode}}
+            </option>
+          </select>
+        </clr-select-container>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Sticky action bar -->
+  <div class="ii-action-bar">
+    <span class="ii-action-hint">Stock is added to the account's inventory and A10 barcode labels are auto-generated.</span>
+    <button type="button" class="btn btn-primary ii-create-btn" (click)="createInventory()">
+      <clr-icon shape="check" size="14"></clr-icon> Create Inventory
+    </button>
+  </div>
+
 </form>

@@ -1,7 +1,154 @@
 :host {
+  display: block;
+  padding: 6px 8px 60px;
+  background: linear-gradient(180deg, #f6f8fb 0%, #eef2f7 100%);
+  min-height: 100%;
 
-  .form-body {
-    align-items: flex-start;
+  // ── Page header ─────────────────────────────────────────────────────
+  .cs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 45, 82, 0.04);
+
+    .cs-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .cs-icon-tile {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1b4d8e 0%, #2563eb 100%);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(27, 77, 142, 0.25);
+    }
+    .cs-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f2d52;
+      letter-spacing: 0.01em;
+    }
+    .cs-subtitle {
+      margin: 2px 0 0;
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+    .cs-header-right {
+      display: flex;
+      gap: 6px;
+    }
+    .cs-step {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 4px 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #475569;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 999px;
+
+      .cs-step-no {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #ffffff;
+        color: #1b4d8e;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        border: 1px solid #cbd5e1;
+      }
+      &.active {
+        background: #eff6ff;
+        border-color: #93c5fd;
+        color: #1b4d8e;
+        .cs-step-no {
+          background: #1b4d8e;
+          color: #ffffff;
+          border-color: #1b4d8e;
+        }
+      }
+    }
+  }
+
+  // ── Cards ───────────────────────────────────────────────────────────
+  .cs-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 45, 82, 0.04);
+    overflow: hidden;
+  }
+  .cs-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+
+    clr-icon { color: #1b4d8e; }
+    h3 {
+      margin: 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #0f2d52;
+      letter-spacing: 0.01em;
+    }
+    .cs-card-hint {
+      margin-left: auto;
+      font-size: 0.65rem;
+      color: #94a3b8;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+  }
+  .cs-card-body {
+    padding: 8px 10px 4px;
+  }
+
+  // ── Three-card grid ─────────────────────────────────────────────────
+  .cs-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  // Two-column row inside a card
+  .cs-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  // ── Jobs card (datagrid wrapper) ────────────────────────────────────
+  .cs-jobs-card {
+    margin-top: 12px;
+  }
+  .cs-jobs-body {
+    padding: 6px 6px 6px;
+
+    // Trim the Clarity datagrid's default padding/margins
+    clr-datagrid {
+      margin: 0;
+    }
   }
 
   .action-cell {
@@ -17,36 +164,110 @@
     }
   }
 
-  // Compact spacing for all field types except textarea
-  clr-input-container,
-  clr-select-container,
-  clr-date-container {
-    margin-top: 0 !important;
-    margin-bottom: 6px !important;
+  // ── Sticky action bar ───────────────────────────────────────────────
+  .cs-action-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 -2px 6px rgba(15, 45, 82, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 
-    .clr-subtext-wrapper {
-      display: none;
+    .cs-action-hint {
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+    .cs-create-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
   }
 
-  // Textarea keeps its natural height but still removes top gap
-  clr-textarea-container {
+  // ── Vertical field styling ──────────────────────────────────────────
+  clr-input-container,
+  clr-select-container,
+  clr-date-container,
+  clr-textarea-container,
+  clr-checkbox-container {
     margin-top: 0 !important;
     margin-bottom: 6px !important;
-  }
+    width: 100%;
 
+    .clr-subtext-wrapper { display: none; }
+
+    .clr-control-container,
+    .clr-input-wrapper,
+    .clr-select-wrapper {
+      width: 100%;
+    }
+  }
   .clr-form-control {
     margin-top: 0 !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .clr-control-label {
+    display: block;
+    margin-bottom: 3px;
   }
 
   input.clr-input,
   select.clr-select {
-    height: 1.5rem;
-    font-size: 0.7rem;
+    height: 1.7rem;
+    width: 100%;
+    font-size: 0.74rem;
   }
 
+  // ── Date container: keep the calendar icon inside its own column ──
+  // Clarity packs the picker button as a sibling of the input. With
+  // `width: 100%` on the input the button gets pushed outside the column
+  // and overlaps the field next to it.
+  clr-date-container {
+    .clr-input-wrapper { position: relative; width: 100%; }
+    input[type="date"].clr-input {
+      width: 100% !important;
+      padding-right: 24px; // reserve room for the picker icon
+      box-sizing: border-box;
+    }
+    .clr-input-group-icon-action,
+    button.clr-input-group-icon-action {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      margin: 0;
+      padding: 2px;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      z-index: 1;
+
+      clr-icon { width: 14px; height: 14px; color: #1b4d8e; }
+    }
+  }
+  textarea.clr-textarea {
+    font-size: 0.74rem;
+    line-height: 1.4;
+    width: 100%;
+  }
   label {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     white-space: nowrap;
+    color: #475569;
+    font-weight: 600;
+  }
+
+  // ── Responsive ──────────────────────────────────────────────────────
+  @media (max-width: 1100px) {
+    .cs-cards-grid { grid-template-columns: 1fr; }
+    .cs-header-right { display: none; }
   }
 }

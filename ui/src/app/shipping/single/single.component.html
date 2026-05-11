@@ -1,42 +1,63 @@
-<form clrForm clrLayout="compact" clrLabelSize="5" [formGroup]="singleShipmentForm">
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="singleShipmentForm" class="ss-page">
 
-  <!-- AWB row -->
-  <div class="clr-row awb-row">
-    <div class="clr-col-auto">
-      <clr-checkbox-container>
-        <clr-checkbox-wrapper>
-          <input type="checkbox" formControlName="isAutoGenerate" clrToggle (change)="onAutoGenerate($event)"/>
-          <label>Autogenerate AWB No.</label>
-        </clr-checkbox-wrapper>
-      </clr-checkbox-container>
+  <!-- Page header -->
+  <header class="ss-header">
+    <div class="ss-header-left">
+      <div class="ss-icon-tile" aria-hidden="true">
+        <clr-icon shape="truck" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="ss-title">Create Single Shipment</h2>
+        <p class="ss-subtitle">Capture sender, shipment and receiver details to generate one Air Waybill.</p>
+      </div>
     </div>
-    <div class="clr-col-4">
-      <clr-input-container>
+    <div class="ss-header-right">
+      <span class="ss-step" [class.active]="true"><span class="ss-step-no">1</span> Sender</span>
+      <span class="ss-step" [class.active]="true"><span class="ss-step-no">2</span> Shipment</span>
+      <span class="ss-step" [class.active]="true"><span class="ss-step-no">3</span> Receiver</span>
+    </div>
+  </header>
+
+  <!-- AWB summary card -->
+  <section class="ss-card ss-awb-card">
+    <div class="ss-awb-grid">
+      <div class="ss-awb-toggle">
+        <clr-checkbox-container>
+          <clr-checkbox-wrapper>
+            <input type="checkbox" formControlName="isAutoGenerate" clrToggle (change)="onAutoGenerate($event)"/>
+            <label>Autogenerate AWB&nbsp;No.</label>
+          </clr-checkbox-wrapper>
+        </clr-checkbox-container>
+        <span class="ss-help-text">When on, the system assigns the next available number on submit.</span>
+      </div>
+      <clr-input-container class="ss-awb-field">
         <label>AWB No.</label>
-        <input clrInput name="awbno" formControlName="awbno" (clrDisable)="isAwbNoDisabled" />
+        <input clrInput name="awbno" formControlName="awbno" placeholder="—" (clrDisable)="isAwbNoDisabled" />
       </clr-input-container>
-    </div>
-    <div class="clr-col-4">
-      <clr-input-container>
+      <clr-input-container class="ss-awb-field">
         <label>Alt. Ref. No.</label>
-        <input clrInput name="altRefNo" formControlName="altRefNo" />
+        <input clrInput name="altRefNo" formControlName="altRefNo" placeholder="Optional reference" />
       </clr-input-container>
     </div>
-  </div>
+  </section>
 
-  <!-- Three-column form body -->
-  <div class="clr-row form-body">
+  <!-- Three section cards -->
+  <div class="ss-cards-grid">
 
-    <!-- Sender Information -->
-    <div class="clr-col-4">
-      <p class="section-head"><u><i>Sender Information</i></u></p>
-      <div formGroupName="senderInformation">
+    <!-- Sender -->
+    <section class="ss-card" formGroupName="senderInformation">
+      <div class="ss-card-head">
+        <clr-icon shape="user" size="18"></clr-icon>
+        <h3>Sender Information</h3>
+        <span class="ss-card-hint">Who is shipping</span>
+      </div>
+      <div class="ss-card-body">
 
         <clr-input-container *ngIf="'Customer' == this.loggedInUser?.personalInfo?.role">
           <label>Account No.</label>
           <input clrInput name="accountNo" formControlName="accountNo" />
         </clr-input-container>
-        <div class="acct-row" *ngIf="'Customer' != this.loggedInUser?.personalInfo?.role">
+        <div class="ss-acct-row" *ngIf="'Customer' != this.loggedInUser?.personalInfo?.role">
           <clr-select-container>
             <label>Account No.</label>
             <select clrSelect name="accountNo" formControlName="accountNo">
@@ -45,7 +66,9 @@
               </option>
             </select>
           </clr-select-container>
-          <button type="button" class="btn btn-sm acct-btn" (click)="retrieveAccountInfo()">Retrieve</button>
+          <button type="button" class="btn btn-sm btn-outline ss-retrieve-btn" (click)="retrieveAccountInfo()">
+            <clr-icon shape="refresh" size="12"></clr-icon> Retrieve
+          </button>
         </div>
 
         <clr-input-container>
@@ -99,120 +122,133 @@
           <input clrInput name="receivingTaxId" formControlName="receivingTaxId" />
         </clr-input-container>
       </div>
-    </div>
+    </section>
 
-    <!-- Shipment Information -->
-    <div class="clr-col-4" formGroupName="shipmentInformation">
-      <p class="section-head"><u><i>Shipment Information</i></u></p>
+    <!-- Shipment -->
+    <section class="ss-card" formGroupName="shipmentInformation">
+      <div class="ss-card-head">
+        <clr-icon shape="bundle" size="18"></clr-icon>
+        <h3>Shipment Information</h3>
+        <span class="ss-card-hint">What is shipping</span>
+      </div>
+      <div class="ss-card-body">
 
-      <clr-input-container>
-        <label>SKU No.</label>
-        <input clrInput name="skuNo" formControlName="skuNo" />
-      </clr-input-container>
-      <clr-select-container>
-        <label>Service</label>
-        <select clrSelect name="service" formControlName="service">
-          <option *ngFor="let svc of this.defValue?.ServiceType" [value]="svc">{{svc}}</option>
-        </select>
-      </clr-select-container>
-      <clr-input-container>
-        <label>No. of Items</label>
-        <input clrInput name="numberOfItems" class="mandatory" formControlName="numberOfItems" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Goods Desc.</label>
-        <input clrInput name="goodsDescription" formControlName="goodsDescription" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Goods Value</label>
-        <input clrInput name="goodsValue" formControlName="goodsValue" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Customs Value</label>
-        <input clrInput name="customsValue" formControlName="customsValue" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>COD Amount</label>
-        <input clrInput name="codAmount" formControlName="codAmount" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>VAT</label>
-        <input clrInput name="vat" formControlName="vat" />
-      </clr-input-container>
-      <clr-select-container>
-        <label>Currency</label>
-        <select clrSelect name="currency" formControlName="currency">
-          <option *ngFor="let currency of this.defValue?.Currency" [value]="currency">{{currency}}</option>
-        </select>
-      </clr-select-container>
-      <clr-input-container>
-        <label>Weight</label>
-        <input clrInput name="weight" formControlName="weight" />
-      </clr-input-container>
-      <clr-select-container>
-        <label>Weight Units</label>
-        <select clrSelect name="weightUnits" formControlName="weightUnits">
-          <option value="kg">KG</option>
-          <option value="gram">Gram</option>
-        </select>
-      </clr-select-container>
-      <clr-input-container>
-        <label>Cubic (LxBxH)</label>
-        <input clrInput name="cubicWeight" formControlName="cubicWeight" />
-      </clr-input-container>
-    </div>
+        <clr-input-container>
+          <label>SKU No.</label>
+          <input clrInput name="skuNo" formControlName="skuNo" />
+        </clr-input-container>
+        <clr-select-container>
+          <label>Service</label>
+          <select clrSelect name="service" formControlName="service">
+            <option *ngFor="let svc of this.defValue?.ServiceType" [value]="svc">{{svc}}</option>
+          </select>
+        </clr-select-container>
+        <clr-input-container class="ss-required">
+          <label>No. of Items <span class="ss-asterisk">*</span></label>
+          <input clrInput name="numberOfItems" formControlName="numberOfItems" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Goods Desc.</label>
+          <input clrInput name="goodsDescription" formControlName="goodsDescription" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Goods Value</label>
+          <input clrInput name="goodsValue" formControlName="goodsValue" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Customs Value</label>
+          <input clrInput name="customsValue" formControlName="customsValue" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>COD Amount</label>
+          <input clrInput name="codAmount" formControlName="codAmount" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>VAT</label>
+          <input clrInput name="vat" formControlName="vat" />
+        </clr-input-container>
+        <clr-select-container>
+          <label>Currency</label>
+          <select clrSelect name="currency" formControlName="currency">
+            <option *ngFor="let currency of this.defValue?.Currency" [value]="currency">{{currency}}</option>
+          </select>
+        </clr-select-container>
+        <clr-input-container>
+          <label>Weight</label>
+          <input clrInput name="weight" formControlName="weight" />
+        </clr-input-container>
+        <clr-select-container>
+          <label>Weight Units</label>
+          <select clrSelect name="weightUnits" formControlName="weightUnits">
+            <option value="kg">KG</option>
+            <option value="gram">Gram</option>
+          </select>
+        </clr-select-container>
+        <clr-input-container>
+          <label>Cubic (LxBxH)</label>
+          <input clrInput name="cubicWeight" formControlName="cubicWeight" />
+        </clr-input-container>
+      </div>
+    </section>
 
-    <!-- Receiver Information -->
-    <div class="clr-col-4" formGroupName="receiverInformation">
-      <p class="section-head"><u><i>Receiver Information</i></u></p>
+    <!-- Receiver -->
+    <section class="ss-card" formGroupName="receiverInformation">
+      <div class="ss-card-head">
+        <clr-icon shape="users" size="18"></clr-icon>
+        <h3>Receiver Information</h3>
+        <span class="ss-card-hint">Where it's going</span>
+      </div>
+      <div class="ss-card-body">
 
-      <clr-input-container>
-        <label>Name</label>
-        <input clrInput name="name" formControlName="name" />
-      </clr-input-container>
-      <clr-select-container>
-        <label>Country</label>
-        <select clrSelect name="country" formControlName="country">
-          <option *ngFor="let cuntry of this.defValue?.CountryName" [value]="cuntry">{{cuntry}}</option>
-        </select>
-      </clr-select-container>
-      <clr-input-container>
-        <label>City</label>
-        <input clrInput name="city" formControlName="city" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>State</label>
-        <input clrInput name="state" formControlName="state" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Postal Code</label>
-        <input clrInput name="postalCode" formControlName="postalCode" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Contact</label>
-        <input clrInput name="contact" formControlName="contact" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Address</label>
-        <input clrInput name="address" formControlName="address" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Phone</label>
-        <input clrInput name="phone" formControlName="phone" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>E-Mail</label>
-        <input clrInput name="email" formControlName="email" />
-      </clr-input-container>
-    </div>
+        <clr-input-container>
+          <label>Name</label>
+          <input clrInput name="name" formControlName="name" />
+        </clr-input-container>
+        <clr-select-container>
+          <label>Country</label>
+          <select clrSelect name="country" formControlName="country">
+            <option *ngFor="let cuntry of this.defValue?.CountryName" [value]="cuntry">{{cuntry}}</option>
+          </select>
+        </clr-select-container>
+        <clr-input-container>
+          <label>City</label>
+          <input clrInput name="city" formControlName="city" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>State</label>
+          <input clrInput name="state" formControlName="state" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Postal Code</label>
+          <input clrInput name="postalCode" formControlName="postalCode" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Contact</label>
+          <input clrInput name="contact" formControlName="contact" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Address</label>
+          <input clrInput name="address" formControlName="address" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Phone</label>
+          <input clrInput name="phone" formControlName="phone" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>E-Mail</label>
+          <input clrInput name="email" formControlName="email" />
+        </clr-input-container>
+      </div>
+    </section>
 
   </div>
 
-  <!-- Create button -->
-  <div class="clr-row">
-    <div class="clr-col">
-      <button type="button" class="btn btn-primary" (click)="onShipmentCreate()">Create Shipment</button>
-    </div>
+  <!-- Sticky action bar -->
+  <div class="ss-action-bar">
+    <span class="ss-action-hint"><span class="ss-asterisk">*</span> required</span>
+    <button type="button" class="btn btn-primary ss-create-btn" (click)="onShipmentCreate()">
+      <clr-icon shape="check" size="14"></clr-icon> Create Shipment
+    </button>
   </div>
 
 </form>

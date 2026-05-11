@@ -1,0 +1,181 @@
+:host {
+  display: block;
+  padding: 6px 8px 60px;
+  background: linear-gradient(180deg, #f6f8fb 0%, #eef2f7 100%);
+  min-height: 100%;
+
+  // ── Page header ─────────────────────────────────────────────────────
+  .us-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 45, 82, 0.04);
+
+    .us-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .us-icon-tile {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1b4d8e 0%, #2563eb 100%);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(27, 77, 142, 0.25);
+    }
+    .us-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f2d52;
+    }
+    .us-subtitle {
+      margin: 2px 0 0;
+      font-size: 0.72rem;
+      color: #64748b;
+    }
+  }
+
+  // ── Cards grid ──────────────────────────────────────────────────────
+  .us-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .us-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 45, 82, 0.04);
+    overflow: hidden;
+  }
+  .us-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+
+    clr-icon { color: #1b4d8e; }
+    h3 {
+      margin: 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #0f2d52;
+    }
+    .us-card-hint {
+      margin-left: auto;
+      font-size: 0.65rem;
+      color: #94a3b8;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+  }
+  .us-card-body {
+    padding: 8px 10px 4px;
+  }
+
+  // Two-column row inside a card
+  .us-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  // ── Sticky action bar ───────────────────────────────────────────────
+  .us-action-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 -2px 6px rgba(15, 45, 82, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    .us-action-hint {
+      font-size: 0.7rem;
+      color: #64748b;
+    }
+    .us-submit-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  }
+
+  // ── Compact field styling ───────────────────────────────────────────
+  clr-input-container,
+  clr-select-container,
+  clr-date-container,
+  clr-textarea-container {
+    margin-top: 0 !important;
+    margin-bottom: 6px !important;
+
+    .clr-subtext-wrapper { display: none; }
+  }
+  .clr-form-control { margin-top: 0 !important; }
+
+  input.clr-input,
+  select.clr-select {
+    height: 1.7rem;
+    font-size: 0.74rem;
+  }
+
+  // Keep Clarity's date-picker icon inside its own column.
+  clr-date-container {
+    .clr-input-wrapper { position: relative; width: 100%; }
+    input[type="date"].clr-input {
+      width: 100% !important;
+      padding-right: 24px;
+      box-sizing: border-box;
+    }
+    .clr-input-group-icon-action,
+    button.clr-input-group-icon-action {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      margin: 0;
+      padding: 2px;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      z-index: 1;
+
+      clr-icon { width: 14px; height: 14px; color: #1b4d8e; }
+    }
+  }
+  textarea.clr-textarea {
+    font-size: 0.74rem;
+    line-height: 1.4;
+  }
+  label {
+    font-size: 0.72rem;
+    color: #475569;
+    font-weight: 600;
+  }
+
+  // ── Responsive ──────────────────────────────────────────────────────
+  @media (max-width: 900px) {
+    .us-cards-grid { grid-template-columns: 1fr; }
+    .us-row-2 { grid-template-columns: 1fr; }
+  }
+}

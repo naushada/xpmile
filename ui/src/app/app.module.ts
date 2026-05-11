@@ -44,6 +44,7 @@ import { CreateDRSComponent } from './shipping/create-drs/create-drs.component';
 import { PasswordResetComponent } from './login/password-reset/password-reset.component';
 import { AltrefBulkComponent } from './shipping/altref-bulk/altref-bulk.component';
 import { CollectShipmentComponent } from './shipping/collect-shipment/collect-shipment.component';
+import { StatusBadgeComponent } from './common/status-badge/status-badge.component';
 import { DatePipe } from '@angular/common';
 
 
@@ -84,7 +85,7 @@ import { DatePipe } from '@angular/common';
     PasswordResetComponent,
     AltrefBulkComponent,
     CollectShipmentComponent,
-    
+    StatusBadgeComponent,
   ],
   imports: [
     BrowserModule,

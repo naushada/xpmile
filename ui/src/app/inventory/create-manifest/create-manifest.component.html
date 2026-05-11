@@ -1,23 +1,45 @@
-<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="manifestForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-input-container >
-                <label for="sku">SKU or Product ID</label>
-                <input clrInput name="sku" formControlName="sku" type="text"/>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container >
-                <label for="qty">Quantity</label>
-                <input clrInput name="qty" formControlName="qty" type="number"/>
-            </clr-input-container>
-                            
-        </div>
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="manifestForm" class="cm-page">
+
+  <!-- Page header -->
+  <header class="cm-header">
+    <div class="cm-header-left">
+      <div class="cm-icon-tile" aria-hidden="true">
+        <clr-icon shape="file-group" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="cm-title">Create Manifest</h2>
+        <p class="cm-subtitle">Generate an A2 label manifest for the given SKU and quantity.</p>
+      </div>
     </div>
-    
-    <div class="clr-row">
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary" (click)="onCreateA2Label()">Create Manifest</button>
-        </div>
+  </header>
+
+  <!-- Form card -->
+  <section class="cm-card cm-narrow">
+    <div class="cm-card-head">
+      <clr-icon shape="file" size="18"></clr-icon>
+      <h3>Manifest Details</h3>
+      <span class="cm-card-hint">What to print</span>
     </div>
+    <div class="cm-card-body">
+      <div class="cm-row-2">
+        <clr-input-container>
+          <label for="sku">SKU or Product ID</label>
+          <input clrInput name="sku" formControlName="sku" type="text" />
+        </clr-input-container>
+        <clr-input-container>
+          <label for="qty">Quantity</label>
+          <input clrInput name="qty" formControlName="qty" type="number" />
+        </clr-input-container>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sticky action bar -->
+  <div class="cm-action-bar">
+    <span class="cm-action-hint">Manifest will be generated as a PDF download.</span>
+    <button type="button" class="btn btn-primary cm-create-btn" (click)="onCreateA10Label()">
+      <clr-icon shape="printer" size="14"></clr-icon> Create Manifest
+    </button>
+  </div>
+
 </form>

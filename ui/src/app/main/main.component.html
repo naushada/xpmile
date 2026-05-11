@@ -41,47 +41,71 @@
     </clr-header>
     
     
-      <nav class="subnav">
-        <ul class="nav">
-          <li class="nav-item">
-            <span class="badge badge-purple">
-              Delivered 2
-              <!--<span class="clr-sr-only">items in an info badge</span>-->
-            </span>
-            <!--<a class="nav-link active" href="#" aria-current="page">Dashboard</a>-->.
-          </li>
-          <li class="nav-item">
-            <span class="badge badge-blue">
-              In  Scan 3
-              <!--<span class="clr-sr-only">items in a sucess badge</span>-->
-            </span>
-            <!--<a class="nav-link" href="#">Management</a>-->
-          </li>
-          <li class="nav-item">
+      <nav class="live-subnav" [class.flashing]="flashOn">
+        <div class="live-strip">
 
-            <span class="badge badge-orange">
-              Out For  Delivery 12
-              <!--<span class="clr-sr-only">items in a warning badge</span>-->
-            </span>
+          <div class="live-tag">
+            <span class="live-pulse"></span>
+            <span class="live-label">LIVE</span>
+          </div>
 
-            <!--<a class="nav-link" href="#">Cloud</a>-->
-          </li>
-          <li class="nav-item">
-            <span class="badge badge-light-blue">
-              Returned 15
-              <!--<span class="clr-sr-only">items in a danger badge</span>-->
-            </span>
-            <!--<a class="nav-link" href="#">Tenants</a>-->
-          </li>
-          <li class="nav-item">
-            <span class="badge badge-gray">
-              New 15
-              <!--<span class="clr-sr-only">items in a danger badge</span>-->
-            </span>
-            <!--<a class="nav-link" href="#">Tenants</a>-->
-          </li>
+          <div class="live-date-chip">
+            <clr-icon shape="calendar"></clr-icon>
+            <span>{{ today }}</span>
+          </div>
 
-        </ul>
+          <div class="stat-chip chip-delivered" title="Delivered today">
+            <div class="stat-icon"><clr-icon shape="check-circle"></clr-icon></div>
+            <div class="stat-meta">
+              <span class="stat-num">{{ (stats.stats$ | async)?.delivered ?? 0 }}</span>
+              <span class="stat-lbl">Delivered</span>
+            </div>
+          </div>
+
+          <div class="stat-chip chip-inscan" title="In Scan today">
+            <div class="stat-icon"><clr-icon shape="layers"></clr-icon></div>
+            <div class="stat-meta">
+              <span class="stat-num">{{ (stats.stats$ | async)?.inScan ?? 0 }}</span>
+              <span class="stat-lbl">In Scan</span>
+            </div>
+          </div>
+
+          <div class="stat-chip chip-out" title="Out For Delivery today">
+            <div class="stat-icon"><clr-icon shape="truck"></clr-icon></div>
+            <div class="stat-meta">
+              <span class="stat-num">{{ (stats.stats$ | async)?.outForDelivery ?? 0 }}</span>
+              <span class="stat-lbl">Out For Delivery</span>
+            </div>
+          </div>
+
+          <div class="stat-chip chip-returned" title="Returned today">
+            <div class="stat-icon"><clr-icon shape="undo"></clr-icon></div>
+            <div class="stat-meta">
+              <span class="stat-num">{{ (stats.stats$ | async)?.returned ?? 0 }}</span>
+              <span class="stat-lbl">Returned</span>
+            </div>
+          </div>
+
+          <div class="stat-chip chip-new" title="New today">
+            <div class="stat-icon"><clr-icon shape="plus-circle"></clr-icon></div>
+            <div class="stat-meta">
+              <span class="stat-num">{{ (stats.stats$ | async)?.new ?? 0 }}</span>
+              <span class="stat-lbl">New</span>
+            </div>
+          </div>
+
+          <button class="live-refresh-btn"
+                  (click)="stats.refresh()"
+                  [class.spinning]="(stats.loading$ | async)"
+                  title="Refresh now">
+            <clr-icon shape="sync"></clr-icon>
+          </button>
+
+          <div class="live-spacer"></div>
+
+          <app-status-badge></app-status-badge>
+
+        </div>
       </nav>
 
     

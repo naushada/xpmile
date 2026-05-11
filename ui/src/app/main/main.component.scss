@@ -1,2 +1,286 @@
 // Active top-nav highlight is handled globally in styles.scss.
-// Keep this file for any main-layout-specific overrides.
+
+// ── Live subnav (second navbar) ──────────────────────────────────────────────
+// Every chip/strip rule is nested under `.live-subnav` so it has higher
+// specificity than the redesigned page styles below, and Clarity's own
+// `.badge` / `.nav` rules can't bleed in.
+.live-subnav {
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  border-bottom: 1px solid #d6dee8;
+  position: relative;
+  display: block !important;
+  // Force-grow tall enough to fit a chip (44px) + strip padding (14px) +
+  // border. Clarity's default nav height was clipping the chip labels.
+  min-height: 64px !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0;
+  flex: 0 0 auto;
+
+  // shimmer along the bottom edge (positioned outside the strip so it can't
+  // clip the chip labels)
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(27, 77, 142, 0.0) 35%,
+      rgba(27, 77, 142, 0.55) 50%,
+      rgba(27, 77, 142, 0.0) 65%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-line 4s linear infinite;
+    pointer-events: none;
+  }
+
+  &.flashing .live-strip {
+    animation: flash-pulse 0.7s ease-out;
+  }
+
+  .live-strip {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px;
+    padding: 8px 14px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
+    min-height: 60px;
+  }
+
+  // ── LIVE tag ──────────────────────────────────────────────────────────────
+  .live-tag {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: #ffffff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.32),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+
+    .live-pulse {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.9);
+      animation: live-pulse 1.4s ease-out infinite;
+    }
+  }
+
+  // ── Date chip ─────────────────────────────────────────────────────────────
+  .live-date-chip {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1b4d8e;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+
+    clr-icon { width: 12px; height: 12px; color: #1b4d8e; }
+  }
+
+  // ── Stat chips ────────────────────────────────────────────────────────────
+  .stat-chip {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    align-self: center;
+    gap: 9px;
+    padding: 5px 14px 5px 5px;
+    min-height: 44px;
+    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(15, 45, 82, 0.06),
+                0 1px 2px rgba(15, 45, 82, 0.04);
+    cursor: default;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 40%;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 100%);
+      pointer-events: none;
+    }
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(15, 45, 82, 0.12),
+                  0 2px 4px rgba(15, 45, 82, 0.06);
+    }
+
+    .stat-icon {
+      flex: 0 0 32px !important;
+      width: 32px !important;
+      height: 32px !important;
+      border-radius: 8px;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      color: #ffffff;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25),
+                  0 1px 2px rgba(0, 0, 0, 0.08);
+
+      clr-icon { width: 16px !important; height: 16px !important; color: #ffffff !important; }
+    }
+
+    .stat-meta {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      justify-content: center !important;
+      line-height: 1;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .stat-num {
+      display: block !important;
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: #0f2d52;
+      font-variant-numeric: tabular-nums;
+      transition: color 0.25s ease;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .stat-lbl {
+      display: block !important;
+      font-size: 0.62rem;
+      font-weight: 700;
+      color: #475569;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      line-height: 1;
+    }
+
+    // ── Per-chip accent colors ─────────────────────────────────────────────
+    &.chip-delivered {
+      border-color: #c4b5fd;
+      background: linear-gradient(180deg, #ffffff 0%, #f5f3ff 100%);
+      .stat-icon { background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%); }
+      .stat-num  { color: #5b21b6; }
+    }
+    &.chip-inscan {
+      border-color: #93c5fd;
+      background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+      .stat-icon { background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%); }
+      .stat-num  { color: #1e40af; }
+    }
+    &.chip-out {
+      border-color: #fdba74;
+      background: linear-gradient(180deg, #ffffff 0%, #fff7ed 100%);
+      .stat-icon { background: linear-gradient(135deg, #ea580c 0%, #fb923c 100%); }
+      .stat-num  { color: #c2410c; }
+    }
+    &.chip-returned {
+      border-color: #67e8f9;
+      background: linear-gradient(180deg, #ffffff 0%, #ecfeff 100%);
+      .stat-icon { background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%); }
+      .stat-num  { color: #155e75; }
+    }
+    &.chip-new {
+      border-color: #cbd5e1;
+      background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+      .stat-icon { background: linear-gradient(135deg, #475569 0%, #64748b 100%); }
+      .stat-num  { color: #334155; }
+    }
+  }
+
+  // ── Refresh button ────────────────────────────────────────────────────────
+  .live-refresh-btn {
+    appearance: none;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer;
+    color: #1b4d8e;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    box-shadow: 0 1px 2px rgba(15, 45, 82, 0.05);
+
+    clr-icon { width: 14px; height: 14px; }
+
+    &:hover {
+      background: #eff6ff;
+      border-color: #93c5fd;
+    }
+    &:active { transform: scale(0.96); }
+
+    &.spinning clr-icon {
+      animation: live-spin 0.9s linear infinite;
+    }
+  }
+
+  .live-spacer {
+    flex: 1 1 auto;
+    min-width: 8px;
+  }
+}
+
+@keyframes flash-pulse {
+  0%   { background: linear-gradient(180deg, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0.04) 100%); }
+  100% { background: transparent; }
+}
+
+@keyframes live-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.9); transform: scale(1); }
+  70%  { box-shadow: 0 0 0 7px rgba(255, 255, 255, 0); transform: scale(1.05); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); transform: scale(1); }
+}
+
+@keyframes live-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer-line {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-subnav::after,
+  .live-subnav .live-pulse,
+  .live-subnav .live-refresh-btn.spinning clr-icon,
+  .live-subnav.flashing .live-strip {
+    animation: none !important;
+  }
+}

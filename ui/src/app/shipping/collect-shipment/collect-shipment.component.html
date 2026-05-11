@@ -1,178 +1,238 @@
-<form clrForm clrLayout="compact" clrLabelSize="5" [formGroup]="collectShipmentForm">
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="collectShipmentForm" class="cs-page">
 
-  <div class="clr-row form-body" formGroupName="from">
-
-    <!-- Left column -->
-    <div class="clr-col">
-      <clr-input-container>
-        <label>Station</label>
-        <input clrInput name="station" formControlName="station" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Customer</label>
-        <input clrInput name="customer" formControlName="customer" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Account Code</label>
-        <input clrInput name="accCode" formControlName="accCode" (keydown.Enter)="onEnter($event)" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Company</label>
-        <input clrInput name="company" formControlName="company" />
-      </clr-input-container>
-      <clr-textarea-container>
-        <label>Collection Address</label>
-        <textarea clrTextarea name="collectionAddress" formControlName="collectionAddress"></textarea>
-      </clr-textarea-container>
-      <clr-input-container>
-        <label>City/Place</label>
-        <input clrInput name="city" formControlName="city" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>State/Province</label>
-        <input clrInput name="state" formControlName="state" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Country</label>
-        <input clrInput name="country" formControlName="country" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Postcode</label>
-        <input clrInput name="postcode" formControlName="postcode" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Service</label>
-        <input clrInput name="service" formControlName="service" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Weight</label>
-        <input clrInput name="weight" formControlName="weight" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Number Of Shipment</label>
-        <input clrInput name="noOfShipment" formControlName="noOfShipments" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Number Of Items</label>
-        <input clrInput name="noOfItems" formControlName="noOfItems" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Destination</label>
-        <input clrInput name="dest" formControlName="dest" />
-      </clr-input-container>
+  <!-- Page header -->
+  <header class="cs-header">
+    <div class="cs-header-left">
+      <div class="cs-icon-tile" aria-hidden="true">
+        <clr-icon shape="layers" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="cs-title">Collect Shipment</h2>
+        <p class="cs-subtitle">Schedule a pickup: capture customer, shipment and schedule details to create a collection job.</p>
+      </div>
     </div>
-
-    <!-- Right column -->
-    <div class="clr-col">
-      <clr-input-container>
-        <label>Area</label>
-        <input clrInput name="area" formControlName="area" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Type</label>
-        <input clrInput name="type" formControlName="type" />
-      </clr-input-container>
-      <clr-date-container>
-        <label>Ready Date</label>
-        <input type="date" clrDate name="when" formControlName="when" />
-      </clr-date-container>
-      <clr-input-container>
-        <label>Ready Time</label>
-        <input type="time" clrInput name="readyTime" formControlName="readyTime" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Contact</label>
-        <input clrInput name="contact" formControlName="contact" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Telephone</label>
-        <input clrInput name="telephone" formControlName="telephone" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>E-mail</label>
-        <input clrInput name="email" formControlName="email" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Close</label>
-        <input type="time" clrInput name="close" formControlName="close" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Cash</label>
-        <input clrInput name="cash" formControlName="cash" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Order</label>
-        <input clrInput name="order" formControlName="order" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Pickup Location</label>
-        <input clrInput name="pickupLocation" formControlName="pickupLocation" />
-      </clr-input-container>
-      <clr-input-container>
-        <label>Transport</label>
-        <input clrInput name="transport" formControlName="transport" />
-      </clr-input-container>
-      <clr-textarea-container>
-        <label>Additional Info</label>
-        <textarea clrTextarea name="additionalInfo" formControlName="additionalInfo"></textarea>
-      </clr-textarea-container>
-      <clr-textarea-container>
-        <label>Special Instructions</label>
-        <textarea clrTextarea name="specialInstructions" formControlName="specialInstructions"></textarea>
-      </clr-textarea-container>
+    <div class="cs-header-right">
+      <span class="cs-step active"><span class="cs-step-no">1</span> Customer</span>
+      <span class="cs-step active"><span class="cs-step-no">2</span> Shipment</span>
+      <span class="cs-step active"><span class="cs-step-no">3</span> Schedule</span>
     </div>
+  </header>
+
+  <!-- Three section cards -->
+  <div class="cs-cards-grid" formGroupName="from">
+
+    <!-- Customer & Pickup -->
+    <section class="cs-card">
+      <div class="cs-card-head">
+        <clr-icon shape="user" size="18"></clr-icon>
+        <h3>Customer &amp; Pickup</h3>
+        <span class="cs-card-hint">Who and where</span>
+      </div>
+      <div class="cs-card-body">
+        <clr-input-container>
+          <label>Station</label>
+          <input clrInput name="station" formControlName="station" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Customer</label>
+          <input clrInput name="customer" formControlName="customer" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Account Code</label>
+          <input clrInput name="accCode" formControlName="accCode" (keydown.Enter)="onEnter($event)"
+                 placeholder="Type code and press Enter to retrieve" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Company</label>
+          <input clrInput name="company" formControlName="company" />
+        </clr-input-container>
+        <clr-textarea-container>
+          <label>Collection Address</label>
+          <textarea clrTextarea name="collectionAddress" formControlName="collectionAddress" rows="2"></textarea>
+        </clr-textarea-container>
+        <clr-input-container>
+          <label>City / Place</label>
+          <input clrInput name="city" formControlName="city" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>State / Province</label>
+          <input clrInput name="state" formControlName="state" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Country</label>
+          <input clrInput name="country" formControlName="country" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Postcode</label>
+          <input clrInput name="postcode" formControlName="postcode" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Pickup Location</label>
+          <input clrInput name="pickupLocation" formControlName="pickupLocation" />
+        </clr-input-container>
+      </div>
+    </section>
+
+    <!-- Shipment Details -->
+    <section class="cs-card">
+      <div class="cs-card-head">
+        <clr-icon shape="bundle" size="18"></clr-icon>
+        <h3>Shipment Details</h3>
+        <span class="cs-card-hint">What is shipping</span>
+      </div>
+      <div class="cs-card-body">
+        <clr-input-container>
+          <label>Service</label>
+          <input clrInput name="service" formControlName="service" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Weight</label>
+          <input clrInput name="weight" formControlName="weight" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Number of Shipments</label>
+          <input clrInput name="noOfShipment" formControlName="noOfShipments" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Number of Items</label>
+          <input clrInput name="noOfItems" formControlName="noOfItems" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Destination</label>
+          <input clrInput name="dest" formControlName="dest" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Area</label>
+          <input clrInput name="area" formControlName="area" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Type</label>
+          <input clrInput name="type" formControlName="type" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Transport</label>
+          <input clrInput name="transport" formControlName="transport" />
+        </clr-input-container>
+      </div>
+    </section>
+
+    <!-- Schedule & Contact -->
+    <section class="cs-card">
+      <div class="cs-card-head">
+        <clr-icon shape="clock" size="18"></clr-icon>
+        <h3>Schedule &amp; Contact</h3>
+        <span class="cs-card-hint">When and who to call</span>
+      </div>
+      <div class="cs-card-body">
+        <div class="cs-row-2">
+          <clr-date-container>
+            <label>Ready Date</label>
+            <input type="date" clrDate name="when" formControlName="when" />
+          </clr-date-container>
+          <clr-input-container>
+            <label>Ready Time</label>
+            <input type="time" clrInput name="readyTime" formControlName="readyTime" />
+          </clr-input-container>
+        </div>
+        <clr-input-container>
+          <label>Close</label>
+          <input type="time" clrInput name="close" formControlName="close" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Contact</label>
+          <input clrInput name="contact" formControlName="contact" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>Telephone</label>
+          <input clrInput name="telephone" formControlName="telephone" />
+        </clr-input-container>
+        <clr-input-container>
+          <label>E-Mail</label>
+          <input clrInput name="email" formControlName="email" />
+        </clr-input-container>
+        <div class="cs-row-2">
+          <clr-input-container>
+            <label>Cash</label>
+            <input clrInput name="cash" formControlName="cash" />
+          </clr-input-container>
+          <clr-input-container>
+            <label>Order</label>
+            <input clrInput name="order" formControlName="order" />
+          </clr-input-container>
+        </div>
+        <clr-textarea-container>
+          <label>Additional Info</label>
+          <textarea clrTextarea name="additionalInfo" formControlName="additionalInfo" rows="2"></textarea>
+        </clr-textarea-container>
+        <clr-textarea-container>
+          <label>Special Instructions</label>
+          <textarea clrTextarea name="specialInstructions" formControlName="specialInstructions" rows="2"></textarea>
+        </clr-textarea-container>
+      </div>
+    </section>
 
   </div>
 
-  <div class="clr-row" style="margin-top: 8px;">
-    <div class="clr-col">
-      <button type="button" class="btn btn-primary btn-sm" (click)="onJobCreate()">Create Job</button>
-    </div>
+  <!-- Sticky action bar -->
+  <div class="cs-action-bar">
+    <span class="cs-action-hint">A job will be created and listed in the table below.</span>
+    <button type="button" class="btn btn-primary cs-create-btn" (click)="onJobCreate()">
+      <clr-icon shape="check" size="14"></clr-icon> Create Job
+    </button>
   </div>
 
 </form>
 
-<!-- Data Grid -->
-<clr-datagrid [(clrDgSelected)]="selected" (clrDgSelectedChange)="onSelectionChanged($event)">
-  <clr-dg-column>Job #</clr-dg-column>
-  <clr-dg-column>Request Date</clr-dg-column>
-  <clr-dg-column>Code</clr-dg-column>
-  <clr-dg-column>Company Details</clr-dg-column>
-  <clr-dg-column>Contact</clr-dg-column>
-  <clr-dg-column>Ready/Close</clr-dg-column>
-  <clr-dg-column>Desp.</clr-dg-column>
-  <clr-dg-column>By</clr-dg-column>
-  <clr-dg-column>Detail(s)</clr-dg-column>
-  <clr-dg-column>Type</clr-dg-column>
-  <clr-dg-column>Status</clr-dg-column>
-  <clr-dg-column></clr-dg-column>
+<!-- Jobs datagrid wrapped in a card -->
+<section class="cs-card cs-jobs-card">
+  <div class="cs-card-head">
+    <clr-icon shape="view-list" size="18"></clr-icon>
+    <h3>Collection Jobs</h3>
+    <span class="cs-card-hint">Recent requests</span>
+  </div>
+  <div class="cs-card-body cs-jobs-body">
+    <clr-datagrid [(clrDgSelected)]="selected" (clrDgSelectedChange)="onSelectionChanged($event)">
+      <clr-dg-column>Job #</clr-dg-column>
+      <clr-dg-column>Request Date</clr-dg-column>
+      <clr-dg-column>Code</clr-dg-column>
+      <clr-dg-column>Company Details</clr-dg-column>
+      <clr-dg-column>Contact</clr-dg-column>
+      <clr-dg-column>Ready/Close</clr-dg-column>
+      <clr-dg-column>Desp.</clr-dg-column>
+      <clr-dg-column>By</clr-dg-column>
+      <clr-dg-column>Detail(s)</clr-dg-column>
+      <clr-dg-column>Type</clr-dg-column>
+      <clr-dg-column>Status</clr-dg-column>
+      <clr-dg-column></clr-dg-column>
 
-  <clr-dg-row *clrDgItems="let job of jobDetails" [clrDgItem]="job">
-    <clr-dg-cell>{{job.jobId}}</clr-dg-cell>
-    <clr-dg-cell>{{job.when}}</clr-dg-cell>
-    <clr-dg-cell>{{job.accCode}}</clr-dg-cell>
-    <clr-dg-cell>{{job.company}}</clr-dg-cell>
-    <clr-dg-cell>{{job.contact}}</clr-dg-cell>
-    <clr-dg-cell>Ready/Close</clr-dg-cell>
-    <clr-dg-cell>Desp.</clr-dg-cell>
-    <clr-dg-cell>By</clr-dg-cell>
-    <clr-dg-cell>Details</clr-dg-cell>
-    <clr-dg-cell>Status</clr-dg-cell>
-    <clr-dg-cell class="action-cell">
-      <select>
-        <option>Test1</option>
-        <option>Test2</option>
-      </select>
-      <button type="button" class="btn btn-primary btn-sm" (click)="onAssign()">Assign</button>
-      <button type="button" class="btn btn-primary btn-sm" (click)="onFinalise()">Finalise</button>
-      <button type="button" class="btn btn-primary btn-sm" (click)="onCancel()">Cancel</button>
-    </clr-dg-cell>
-  </clr-dg-row>
+      <clr-dg-row *clrDgItems="let job of jobDetails" [clrDgItem]="job">
+        <clr-dg-cell>{{job.jobId}}</clr-dg-cell>
+        <clr-dg-cell>{{job.when}}</clr-dg-cell>
+        <clr-dg-cell>{{job.accCode}}</clr-dg-cell>
+        <clr-dg-cell>{{job.company}}</clr-dg-cell>
+        <clr-dg-cell>{{job.contact}}</clr-dg-cell>
+        <clr-dg-cell>Ready/Close</clr-dg-cell>
+        <clr-dg-cell>Desp.</clr-dg-cell>
+        <clr-dg-cell>By</clr-dg-cell>
+        <clr-dg-cell>Details</clr-dg-cell>
+        <clr-dg-cell>Status</clr-dg-cell>
+        <clr-dg-cell class="action-cell">
+          <select>
+            <option>Test1</option>
+            <option>Test2</option>
+          </select>
+          <button type="button" class="btn btn-primary btn-sm" (click)="onAssign()">Assign</button>
+          <button type="button" class="btn btn-primary btn-sm" (click)="onFinalise()">Finalise</button>
+          <button type="button" class="btn btn-primary btn-sm" (click)="onCancel()">Cancel</button>
+        </clr-dg-cell>
+      </clr-dg-row>
 
-  <clr-dg-footer>
-    <clr-dg-pagination #pagination [clrDgPageSize]="10" [clrDgTotalItems]="jobDetails.length">
-      <clr-dg-page-size [clrPageSizeOptions]="[10, 20, 50, 100]">Job per page</clr-dg-page-size>
-      {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}} of {{pagination.totalItems}} Jobs
-    </clr-dg-pagination>
-  </clr-dg-footer>
-</clr-datagrid>
+      <clr-dg-footer>
+        <clr-dg-pagination #pagination [clrDgPageSize]="10" [clrDgTotalItems]="jobDetails.length">
+          <clr-dg-page-size [clrPageSizeOptions]="[10, 20, 50, 100]">Jobs per page</clr-dg-page-size>
+          {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}} of {{pagination.totalItems}} Jobs
+        </clr-dg-pagination>
+      </clr-dg-footer>
+    </clr-datagrid>
+  </div>
+</section>

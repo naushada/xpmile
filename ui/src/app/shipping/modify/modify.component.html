@@ -1,37 +1,65 @@
-<form clrForm clrLayout="compact" clrLabelSize="5" [formGroup]="modifyShipmentForm">
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="modifyShipmentForm" class="ms-page">
 
-  <!-- Lookup row -->
-  <div class="clr-row lookup-row">
-    <div class="clr-col-auto">
-      <clr-input-container>
-        <label>AWB No.</label>
-        <input clrInput name="awbno" formControlName="awbno" />
-      </clr-input-container>
+  <!-- Page header -->
+  <header class="ms-header">
+    <div class="ms-header-left">
+      <div class="ms-icon-tile" aria-hidden="true">
+        <clr-icon shape="pencil" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="ms-title">Update Single Shipment</h2>
+        <p class="ms-subtitle">Look up a shipment by AWB or Alt. Ref. number, edit the details, then save.</p>
+      </div>
     </div>
-    <div class="clr-col-auto">
-      <button class="btn btn-sm" type="button" (click)="onFetchByAwbNo()">Retrieve</button>
+    <div class="ms-header-right">
+      <span class="ms-step active"><span class="ms-step-no">1</span> Lookup</span>
+      <span class="ms-step active"><span class="ms-step-no">2</span> Edit</span>
+      <span class="ms-step active"><span class="ms-step-no">3</span> Save</span>
     </div>
-    <div class="clr-col-auto">
-      <clr-input-container>
-        <label>Alt. Ref. No.</label>
-        <input clrInput name="altRefNo" formControlName="altRefNo" />
-      </clr-input-container>
-    </div>
-    <div class="clr-col-auto">
-      <button class="btn btn-sm" type="button" (click)="onFetchByAltRefNo()">Retrieve</button>
-    </div>
-    <div class="clr-col-auto">
-      <button class="btn btn-primary" type="button" (click)="onShipmentUpdate()">Update Shipment</button>
-    </div>
-  </div>
+  </header>
 
-  <!-- Three-column form body -->
-  <div class="clr-row form-body">
+  <!-- Lookup card -->
+  <section class="ms-card ms-lookup-card">
+    <div class="ms-card-head">
+      <clr-icon shape="search" size="18"></clr-icon>
+      <h3>Lookup Shipment</h3>
+      <span class="ms-card-hint">Find by AWB or Alt. Ref.</span>
+    </div>
+    <div class="ms-card-body">
+      <div class="ms-lookup-grid">
+        <div class="ms-lookup-pair">
+          <clr-input-container>
+            <label>AWB No.</label>
+            <input clrInput name="awbno" formControlName="awbno" placeholder="Air Waybill number" />
+          </clr-input-container>
+          <button class="btn btn-sm btn-outline ms-retrieve-btn" type="button" (click)="onFetchByAwbNo()">
+            <clr-icon shape="refresh" size="12"></clr-icon> Retrieve
+          </button>
+        </div>
+        <div class="ms-lookup-pair">
+          <clr-input-container>
+            <label>Alt. Ref. No.</label>
+            <input clrInput name="altRefNo" formControlName="altRefNo" placeholder="Alternate reference" />
+          </clr-input-container>
+          <button class="btn btn-sm btn-outline ms-retrieve-btn" type="button" (click)="onFetchByAltRefNo()">
+            <clr-icon shape="refresh" size="12"></clr-icon> Retrieve
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <!-- Sender Information -->
-    <div class="clr-col-4">
-      <p class="section-head"><u><i>Sender Information</i></u></p>
-      <div formGroupName="senderInformation">
+  <!-- Three section cards -->
+  <div class="ms-cards-grid">
+
+    <!-- Sender -->
+    <section class="ms-card" formGroupName="senderInformation">
+      <div class="ms-card-head">
+        <clr-icon shape="user" size="18"></clr-icon>
+        <h3>Sender Information</h3>
+        <span class="ms-card-hint">Who is shipping</span>
+      </div>
+      <div class="ms-card-body">
         <clr-input-container>
           <label>Account No.</label>
           <input clrInput name="accountNo" formControlName="accountNo" />
@@ -85,12 +113,16 @@
           <input clrInput name="receivingTaxId" formControlName="receivingTaxId" />
         </clr-input-container>
       </div>
-    </div>
+    </section>
 
-    <!-- Shipment Information -->
-    <div class="clr-col-4">
-      <p class="section-head"><u><i>Shipment Information</i></u></p>
-      <div formGroupName="shipmentInformation">
+    <!-- Shipment -->
+    <section class="ms-card" formGroupName="shipmentInformation">
+      <div class="ms-card-head">
+        <clr-icon shape="bundle" size="18"></clr-icon>
+        <h3>Shipment Information</h3>
+        <span class="ms-card-hint">What is shipping</span>
+      </div>
+      <div class="ms-card-body">
         <clr-input-container>
           <label>SKU No.</label>
           <input clrInput name="skuNo" formControlName="skuNo" />
@@ -99,9 +131,9 @@
           <label>Service</label>
           <input clrInput name="service" formControlName="service" />
         </clr-input-container>
-        <clr-input-container>
-          <label>No. of Items</label>
-          <input clrInput name="numberOfItems" class="mandatory" formControlName="numberOfItems" />
+        <clr-input-container class="ms-required">
+          <label>No. of Items <span class="ms-asterisk">*</span></label>
+          <input clrInput name="numberOfItems" formControlName="numberOfItems" />
         </clr-input-container>
         <clr-input-container>
           <label>Goods Desc.</label>
@@ -140,12 +172,16 @@
           <input clrInput name="cubicWeight" formControlName="cubicWeight" />
         </clr-input-container>
       </div>
-    </div>
+    </section>
 
-    <!-- Receiver Information -->
-    <div class="clr-col-4">
-      <p class="section-head"><u><i>Receiver Information</i></u></p>
-      <div formGroupName="receiverInformation">
+    <!-- Receiver -->
+    <section class="ms-card" formGroupName="receiverInformation">
+      <div class="ms-card-head">
+        <clr-icon shape="users" size="18"></clr-icon>
+        <h3>Receiver Information</h3>
+        <span class="ms-card-hint">Where it's going</span>
+      </div>
+      <div class="ms-card-body">
         <clr-input-container>
           <label>Name</label>
           <input clrInput name="name" formControlName="name" />
@@ -183,8 +219,16 @@
           <input clrInput name="email" formControlName="email" />
         </clr-input-container>
       </div>
-    </div>
+    </section>
 
+  </div>
+
+  <!-- Sticky action bar -->
+  <div class="ms-action-bar">
+    <span class="ms-action-hint"><span class="ms-asterisk">*</span> required</span>
+    <button type="button" class="btn btn-primary ms-update-btn" (click)="onShipmentUpdate()">
+      <clr-icon shape="check" size="14"></clr-icon> Update Shipment
+    </button>
   </div>
 
 </form>

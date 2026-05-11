@@ -1,31 +1,53 @@
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="outInventoryForm" class="oi-page">
 
-<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="outInventoryForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-input-container >
-                <label for="sku">SKU or Product ID</label>
-                <input clrInput name="sku" formControlName="sku"/>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container >
-                <label for="qty">Quantity</label>
-                <input clrInput name="qty" formControlName="qty" type="number"/>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label for="accountCode">Account Code</label>
-                <select clrSelect name="accountCode" formControlName="accountCode">
-                    <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
-                </select>
-            </clr-select-container>
-        </div>
+  <!-- Page header -->
+  <header class="oi-header">
+    <div class="oi-header-left">
+      <div class="oi-icon-tile" aria-hidden="true">
+        <clr-icon shape="minus-circle" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="oi-title">Out Inventory</h2>
+        <p class="oi-subtitle">Remove stock for a SKU from the selected account's inventory.</p>
+      </div>
     </div>
-    
-    <div class="clr-row">
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary" (click)="outInventory()">From Inventory</button>
-        </div>
+  </header>
+
+  <!-- Form card -->
+  <section class="oi-card oi-narrow">
+    <div class="oi-card-head">
+      <clr-icon shape="minus" size="18"></clr-icon>
+      <h3>Withdraw Stock</h3>
+      <span class="oi-card-hint">What is going out</span>
     </div>
+    <div class="oi-card-body">
+      <clr-input-container>
+        <label for="sku">SKU or Product ID</label>
+        <input clrInput name="sku" formControlName="sku"/>
+      </clr-input-container>
+      <div class="oi-row-2">
+        <clr-input-container>
+          <label for="qty">Quantity</label>
+          <input clrInput name="qty" formControlName="qty" type="number"/>
+        </clr-input-container>
+        <clr-select-container>
+          <label for="accountCode">Account Code</label>
+          <select clrSelect name="accountCode" formControlName="accountCode">
+            <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">
+              {{acc.loginCredentials.accountCode}}
+            </option>
+          </select>
+        </clr-select-container>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sticky action bar -->
+  <div class="oi-action-bar oi-narrow">
+    <span class="oi-action-hint">Stock will be deducted from the account.</span>
+    <button type="button" class="btn btn-primary oi-create-btn" (click)="outInventory()">
+      <clr-icon shape="check" size="14"></clr-icon> From Inventory
+    </button>
+  </div>
+
 </form>

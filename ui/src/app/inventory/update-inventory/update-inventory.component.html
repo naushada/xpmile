@@ -1,32 +1,53 @@
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="updateInventoryForm" class="ui-page">
 
-<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="updateInventoryForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-input-container >
-                <label for="sku">SKU or Product ID</label>
-                <input clrInput name="sku" formControlName="sku" />
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-input-container >
-                <label for="qty">Quantity</label>
-                <input clrInput name="qty" type="number" formControlName="qty"/>
-            </clr-input-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label for="accountCode">Account Code</label>
-                <select clrSelect name="accountCode" formControlName="accountCode">
-                    <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
-                </select>
-            </clr-select-container>
-        </div>
+  <!-- Page header -->
+  <header class="ui-header">
+    <div class="ui-header-left">
+      <div class="ui-icon-tile" aria-hidden="true">
+        <clr-icon shape="pencil" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="ui-title">Update Inventory</h2>
+        <p class="ui-subtitle">Adjust the on-hand quantity for an existing SKU.</p>
+      </div>
     </div>
-    
-    <div class="clr-row">
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary" (click)="updateInventory()">Update Inventory</button>
-        </div>
+  </header>
+
+  <!-- Form card -->
+  <section class="ui-card ui-narrow">
+    <div class="ui-card-head">
+      <clr-icon shape="bundle" size="18"></clr-icon>
+      <h3>Adjust Stock</h3>
+      <span class="ui-card-hint">What to change</span>
     </div>
+    <div class="ui-card-body">
+      <clr-input-container>
+        <label for="sku">SKU or Product ID</label>
+        <input clrInput name="sku" formControlName="sku" />
+      </clr-input-container>
+      <div class="ui-row-2">
+        <clr-input-container>
+          <label for="qty">Quantity</label>
+          <input clrInput name="qty" type="number" formControlName="qty"/>
+        </clr-input-container>
+        <clr-select-container>
+          <label for="accountCode">Account Code</label>
+          <select clrSelect name="accountCode" formControlName="accountCode">
+            <option *ngFor="let acc of this.acctList" [value]="acc.loginCredentials.accountCode">
+              {{acc.loginCredentials.accountCode}}
+            </option>
+          </select>
+        </clr-select-container>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sticky action bar -->
+  <div class="ui-action-bar ui-narrow">
+    <span class="ui-action-hint">Existing quantity will be replaced with the new value.</span>
+    <button type="button" class="btn btn-primary ui-update-btn" (click)="updateInventory()">
+      <clr-icon shape="check" size="14"></clr-icon> Update Inventory
+    </button>
+  </div>
+
 </form>
-
