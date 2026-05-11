@@ -219,7 +219,14 @@ bool WsDbAgent::setup_inner_tls()
 
   m_innerTls = std::make_unique<InnerTlsClient>(*m_transport);
   if (!m_tls_ca.empty())   m_innerTls->set_ca(m_tls_ca);
-  if (!m_tls_cert.empty()) m_innerTls->set_cert(m_tls_cert, m_tls_key);
+  if (!m_tls_cert.empty() && !m_innerTls->set_cert(m_tls_cert, m_tls_key)) {
+    ACE_ERROR((LM_ERROR,
+               ACE_TEXT("%D [WsDbAgent] failed to load client cert %s / %s\n"),
+               m_tls_cert.c_str(), m_tls_key.empty() ? "(none)" : m_tls_key.c_str()));
+    m_innerTls.reset();
+    m_transport.reset();
+    return false;
+  }
 
   if (!m_innerTls->handshake()) {
     ACE_ERROR((LM_ERROR,

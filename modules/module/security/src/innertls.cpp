@@ -1,8 +1,19 @@
 #include "innertls.hpp"
 
+#include <cstdio>
+
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
+
+namespace {
+std::string ssl_error_string()
+{
+  unsigned long e = ERR_get_error();
+  if (e == 0) return "unknown (empty error queue)";
+  return ERR_error_string(e, nullptr);
+}
+} // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // InnerTlsClient
@@ -65,7 +76,8 @@ bool InnerTlsClient::handshake()
         } else if (err == SSL_ERROR_WANT_WRITE) {
             // wbio flushed above; loop
         } else {
-            ERR_clear_error();
+            std::string err = ssl_error_string();
+            std::fprintf(stderr, "[InnerTlsClient] handshake SSL error: %s\n", err.c_str());
             return false;
         }
     }
@@ -204,7 +216,8 @@ bool InnerTlsServer::accept()
         } else if (err == SSL_ERROR_WANT_WRITE) {
             // wbio flushed above; loop
         } else {
-            ERR_clear_error();
+            std::string err = ssl_error_string();
+            std::fprintf(stderr, "[InnerTlsServer] accept SSL error: %s\n", err.c_str());
             return false;
         }
     }
