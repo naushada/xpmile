@@ -542,6 +542,19 @@ Runs once on first container start (when `mongo-data` volume is empty):
 
 Note: `EmailServiceTest` is a `testing::Test` subclass with a custom constructor that accepts a JSON string and initializes `mMongodbc`/`mUser` directly, because `SetUp()` is only invoked by the gtest fixture machinery — not when the object is constructed directly in a `TEST()` body.
 
+### Shipment-creation benchmark
+
+`scripts/bench-shipments.py` (stdlib-only, Python 3) times shipment
+creation end-to-end against any running backend (default: Heroku).
+For each batch size N it runs `POST /api/v1/shipment/shipping` N
+times sequentially (**SINGLE**) and then `POST
+/api/v1/shipment/bulk/shipping` once with an N-item array (**BULK**),
+printing a side-by-side table of wall-clock total + per-shipment
+latency. Default sweep: 10, 50, 100, 500, 1000. Useful for spotting
+regressions in AWB counter throughput, `insert_many` performance, or
+Heroku router latency. Caveats and usage details in
+[`docs/bench-shipments.md`](docs/bench-shipments.md).
+
 ---
 
 ## Build system

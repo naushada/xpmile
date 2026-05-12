@@ -273,6 +273,23 @@ delete the `version: "..."` line.
 
 ---
 
+## Documentation
+
+Deep-dive docs live under [`docs/`](docs/). The most-referenced ones:
+
+| Doc | When to read it |
+|---|---|
+| [`docs/app.md`](docs/app.md) | Heroku deployment (push, release, config vars, UI cache-busting) |
+| [`docs/ws-db-agent.md`](docs/ws-db-agent.md) | The on-prem `wsdbagent` — mTLS setup, manual run, troubleshooting |
+| [`docs/dashboard-monthly-report.md`](docs/dashboard-monthly-report.md) | Dashboard **Download Report** button — Excel export of the active month's shipments (AWB, status, last-update timestamp) |
+| [`docs/bench-shipments.md`](docs/bench-shipments.md) | [`scripts/bench-shipments.py`](scripts/bench-shipments.py) — measure shipment-creation throughput (SINGLE-loop vs BULK) against any backend |
+| [`docs/onprem-ui-design.md`](docs/onprem-ui-design.md), [`docs/onprem-ui-tdd.md`](docs/onprem-ui-tdd.md), [`docs/onprem-ui-compose.md`](docs/onprem-ui-compose.md) | The on-prem Vaadin admin UI (separate from the Angular customer SPA) |
+| [`docs/vpn-db-proxy-design.md`](docs/vpn-db-proxy-design.md), [`docs/vpn-db-proxy-tdd.md`](docs/vpn-db-proxy-tdd.md) | Earlier VPN-style DB proxy design (superseded by `wsdbagent`, kept for context) |
+| [`codebase.md`](codebase.md) | Full backend architecture reference (process entry, modules, request lifecycle, deploy timing) |
+| [`CLAUDE.md`](CLAUDE.md) | Build/run conventions and architecture notes for AI-assisted development |
+
+---
+
 ## License
 
 xpmile is **dual-licensed**. Pick whichever fits your situation:

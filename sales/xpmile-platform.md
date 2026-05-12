@@ -26,8 +26,8 @@ A complete operations console:
 - **Inventory** — Inbound / outbound / find / update with on-the-fly A10 barcode label generation (PDF, prints to standard label printers).
 - **Drivers & DRS** — Collection workflow with driver assignment; Delivery Run Sheet (DRS) PDFs with embedded CODE128 barcodes.
 - **Accounting** — Customer, employee, and admin account management; quoted-amount + VAT + IBAN fields; role-based permissions.
-- **Reporting** — Detailed shipment reports; invoice generation with PDF export.
-- **Live dashboards** — Today-only operational pulse (LIVE strip in the header) + monthly stats dashboard with month picker. Agent/DB connectivity badges.
+- **Reporting** — Detailed shipment reports; invoice generation with PDF export; **one-click monthly Excel export** straight from the dashboard (AWB, status, last-update timestamp, per selected month).
+- **Live dashboards** — Today-only operational pulse (LIVE strip in the header) + monthly stats dashboard with month picker and **Download Report** button (`.xlsx`, client-side, no extra backend call). Agent/DB connectivity badges.
 - **Labels & documents** — A2 / A4 / A6 / A10 PDF labels; production-grade barcode rendering (JsBarcode + pdfMake).
 - **Multi-role** — Admin, Employee, Customer roles with appropriate data scoping (Customer sees only their own shipments).
 
