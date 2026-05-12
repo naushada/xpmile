@@ -20,6 +20,7 @@ Logistics management platform. C++ HTTP server (ACE + MongoDB) serving an Angula
 │   ├── mongodb/            MongoDB connection-pool client
 │   ├── wsdbproxy/          WebSocket DB server (WsDbServer) + proxy (WsMongodbProxy)
 │   ├── wsdbagent/          WebSocket DB agent — runs on the MongoDB machine
+│   ├── security/           Inner-TLS layer + WebSocket transport adapter
 │   ├── oauth2/             OAuth2 stub
 │   ├── whatsapp/           WhatsApp stub
 │   └── thirdparty/         nlohmann/json (header-only)
@@ -368,6 +369,55 @@ SSL_CTX_set_verify(ctx->context(), SSL_VERIFY_PEER, nullptr);
 | `--tls-cert` | no | — |
 | `--tls-key` | no | — |
 | `--backoff` | no | 5 s |
+
+---
+
+## security module
+
+`modules/module/security/` — inner-TLS encryption layer that runs *inside* an already-open transport. Both `wsdbproxy` and `wsdbagent` use it to encrypt DB traffic over the WebSocket tunnel.
+
+### Components
+
+| Class | File | Role |
+|---|---|---|
+| `ITransport` | `innertls.hpp` | Abstract `send(bytes)`/`recv(bytes)` interface. Decouples TLS from any specific transport. |
+| `InnerTlsClient` | `innertls.cpp` | Client-side TLS session — initiates handshake, optional CN/SAN check + custom CA. |
+| `InnerTlsServer` | `innertls.cpp` | Server-side TLS session — loads cert + key, optional mTLS via `set_ca()`. |
+| `WebSocketTransport` | `wstransport.hpp` | `ITransport` adapter for WebSocket binary frames; auto-replies to ping, ignores pong, surfaces close as `recv` returning false. |
+
+### Mechanics
+
+- **Memory BIOs:** `SSL` reads from `rbio` (`BIO_s_mem`, fed by `m_transport.recv`) and writes to `wbio` (drained via `flush_wbio` → `m_transport.send`). There are no real sockets at the OpenSSL level — the transport handles all I/O.
+- **Handshake loop:** `SSL_connect`/`SSL_accept` is called in a loop. Each iteration flushes `wbio` first (SSL may have queued output even when returning `WANT_READ`), then reads more wire bytes when `WANT_READ` is signalled, until success.
+- **Post-handshake flush:** an extra `flush_wbio` after success delivers the TLS 1.3 `Finished` message (or any other trailing flight).
+- **Single-frame send:** `send()` calls `SSL_write` once with the full plaintext, then `flush_wbio` writes all pending ciphertext to the transport in one chunk. For WebSocket transport, that means one binary frame per application message.
+
+### Message-preserving `recv` contract
+
+One `recv()` call returns the full plaintext that a single peer `send()` produced — even when the plaintext spans multiple TLS records (~16 KB each).
+
+```cpp
+plaintext.clear();
+std::uint8_t buf[16384];
+for (;;) {
+    int ret = SSL_read(m_ssl.get(), buf, sizeof(buf));
+    if (ret > 0)                              { plaintext.insert(end, buf, buf + ret); continue; }
+    if (SSL_get_error(...) == SSL_ERROR_WANT_READ) return true;
+    return false;
+}
+```
+
+`wsdbproxy` and `wsdbagent` rely on this: one inner-TLS message = one BSON `DbRequest`/`DbResponse`. If `recv` returned only the first record, the BSON parser would silently produce a document with default fields (`reqid = -1`, `ok = false`) and the response would be dropped. See `test/innertls_test.cc :: Recv_ReturnsFullPlaintext_InSingleCall` and `docs/design/security/README.md` for the longer write-up.
+
+### Tests
+
+`modules/module/security/test/innertls_test.cc` — 8 tests covering handshake success/failure, encryption (plaintext ≠ ciphertext), 64 KB roundtrip, multi-message ordering, single-call full-plaintext delivery, and two MITM scenarios (plaintext injection, frame tampering). Run via the `offtarget` binary:
+
+```sh
+./offtarget --gtest_filter='InnerTls*'
+```
+
+Tests skip gracefully if `/src/certs/server.{crt,key}` aren't present (e.g. when running the binary outside the Docker image).
 
 ---
 
