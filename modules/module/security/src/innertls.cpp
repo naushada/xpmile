@@ -121,21 +121,24 @@ bool InnerTlsClient::recv(std::vector<std::uint8_t> &plaintext)
     if (!wire.empty())
         BIO_write(m_rbio, wire.data(), static_cast<int>(wire.size()));
 
+    // SSL_read returns at most one TLS record (~16 KB) per call. The peer's
+    // single SSL_write may produce several records, all delivered in one
+    // transport frame, so loop until WANT_READ to drain every decrypted
+    // record. Without this, large responses are silently truncated and the
+    // caller parses an incomplete BSON document.
+    plaintext.clear();
     std::uint8_t buf[16384];
-    int ret = SSL_read(m_ssl.get(), buf, sizeof(buf));
-    if (ret > 0) {
-        plaintext.assign(buf, buf + ret);
-        return true;
+    for (;;) {
+        int ret = SSL_read(m_ssl.get(), buf, sizeof(buf));
+        if (ret > 0) {
+            plaintext.insert(plaintext.end(), buf, buf + ret);
+            continue;
+        }
+        int err = SSL_get_error(m_ssl.get(), ret);
+        if (err == SSL_ERROR_WANT_READ) return true;
+        ERR_clear_error();
+        return false;
     }
-
-    int err = SSL_get_error(m_ssl.get(), ret);
-    if (err == SSL_ERROR_WANT_READ) {
-        plaintext.clear();
-        return true;
-    }
-
-    ERR_clear_error();
-    return false;
 }
 
 bool InnerTlsClient::flush_wbio()
@@ -258,21 +261,21 @@ bool InnerTlsServer::recv(std::vector<std::uint8_t> &plaintext)
     if (!wire.empty())
         BIO_write(m_rbio, wire.data(), static_cast<int>(wire.size()));
 
+    // See InnerTlsClient::recv — loop SSL_read until WANT_READ so a single
+    // call returns the full plaintext that one peer SSL_write produced.
+    plaintext.clear();
     std::uint8_t buf[16384];
-    int ret = SSL_read(m_ssl.get(), buf, sizeof(buf));
-    if (ret > 0) {
-        plaintext.assign(buf, buf + ret);
-        return true;
+    for (;;) {
+        int ret = SSL_read(m_ssl.get(), buf, sizeof(buf));
+        if (ret > 0) {
+            plaintext.insert(plaintext.end(), buf, buf + ret);
+            continue;
+        }
+        int err = SSL_get_error(m_ssl.get(), ret);
+        if (err == SSL_ERROR_WANT_READ) return true;
+        ERR_clear_error();
+        return false;
     }
-
-    int err = SSL_get_error(m_ssl.get(), ret);
-    if (err == SSL_ERROR_WANT_READ) {
-        plaintext.clear();
-        return true;
-    }
-
-    ERR_clear_error();
-    return false;
 }
 
 bool InnerTlsServer::flush_wbio()

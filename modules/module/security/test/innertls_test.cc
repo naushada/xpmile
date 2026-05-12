@@ -221,6 +221,69 @@ TEST_F(InnerTlsTest, Roundtrip_LargePayload)
         << "Large payload must roundtrip correctly";
 }
 
+// Regression: a single SSL_write of >16 KB plaintext produces multiple TLS
+// records but one transport frame. recv() must return the *whole* plaintext
+// in a single call — wsdbproxy/wsdbagent rely on this because they treat one
+// inner-TLS message as one BSON document and parse it eagerly. Previously
+// SSL_read was called once with a 16 KB buffer, silently truncating the
+// response; the BSON parser then read default field values (reqid=-1) and
+// the response was dropped, causing H12 timeouts on Heroku.
+TEST_F(InnerTlsTest, Recv_ReturnsFullPlaintext_InSingleCall)
+{
+    MockTransport ct, st;
+    auto exchange = [&]() {
+        if (!ct.sentData.empty()) {
+            st.recvBuffer.insert(st.recvBuffer.end(),
+                                 ct.sentData.begin(), ct.sentData.end());
+            ct.sentData.clear();
+        }
+        if (!st.sentData.empty()) {
+            ct.recvBuffer.insert(ct.recvBuffer.end(),
+                                 st.sentData.begin(), st.sentData.end());
+            st.sentData.clear();
+        }
+    };
+
+    InnerTlsClient client(ct);
+    InnerTlsServer server(st, "/src/certs/server.crt",
+                          "/src/certs/server.key");
+
+    bool cd = false, sd = false;
+    for (int i = 0; i < 20; ++i) {
+        exchange();
+        if (!cd) cd = client.handshake();
+        exchange();
+        if (!sd) sd = server.accept();
+        if (cd && sd) break;
+    }
+    ASSERT_TRUE(cd && sd);
+
+    // 64 KB → ~4 TLS records, all in one transport frame.
+    std::vector<std::uint8_t> big_data(64 * 1024);
+    for (std::size_t i = 0; i < big_data.size(); ++i)
+        big_data[i] = static_cast<std::uint8_t>((i * 7) & 0xFF);
+
+    ASSERT_TRUE(client.send(big_data));
+    exchange();
+
+    std::vector<std::uint8_t> received;
+    ASSERT_TRUE(server.recv(received));
+    EXPECT_EQ(received.size(), big_data.size())
+        << "recv() must return the entire plaintext from a single peer send "
+        << "in one call; otherwise callers that treat one recv as one "
+        << "application message will parse truncated data.";
+    EXPECT_EQ(received, big_data);
+
+    // Same direction back: server → client.
+    ASSERT_TRUE(server.send(big_data));
+    exchange();
+
+    std::vector<std::uint8_t> received2;
+    ASSERT_TRUE(client.recv(received2));
+    EXPECT_EQ(received2.size(), big_data.size());
+    EXPECT_EQ(received2, big_data);
+}
+
 TEST_F(InnerTlsTest, MultipleMessages_StayInOrder)
 {
     MockTransport ct, st;
