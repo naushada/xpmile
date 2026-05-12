@@ -15,12 +15,46 @@ Logistics management platform. C++ HTTP server (ACE + MongoDB) serving an Angula
 │   └── CMakeLists.txt
 ├── modules/module/         Deep module tree — one directory per concern
 │   ├── webservice/         TCP server, reactor, request routing
+│   │   ├── inc/webservice.hpp
+│   │   ├── src/webservice.cpp + webservice_main.cpp
+│   │   └── test/webservice_test.cc
 │   ├── http/               HTTP/1.1 request parser
+│   │   ├── inc/http_parser.hpp
+│   │   ├── src/http_parser.cpp
+│   │   └── test/httpparser_test.cc
 │   ├── email/              SMTP client (TLS, FSM-driven)
+│   │   ├── inc/emailservice.hpp + emailservice_fsm.hpp
+│   │   ├── src/emailservice.cpp + emailservice_fsm.cpp
+│   │   └── test/emailservice_test.cc
 │   ├── mongodb/            MongoDB connection-pool client
+│   │   ├── inc/mongodbc.hpp
+│   │   ├── src/mongodbc.cpp
+│   │   └── test/mongodbc_test.cc
 │   ├── wsdbproxy/          WebSocket DB server (WsDbServer) + proxy (WsMongodbProxy)
+│   │   ├── inc/
+│   │   │   ├── wsdbproxy.hpp     WsDbServer + WsMongodbProxy
+│   │   │   ├── dbproto.hpp       DbRequest / DbResponse BSON framing
+│   │   │   └── wsframe.hpp       WebSocket frame encode/decode (RFC 6455)
+│   │   ├── src/
+│   │   │   ├── wsdbproxy.cpp     accept loop, dispatch, pending-request map
+│   │   │   ├── dbproto.cpp       BSON build/parse + make_error_response
+│   │   │   └── wsframe.cpp       masking, fragmentation, close-frame handling
+│   │   └── test/
+│   │       ├── dbproto_test.cc / .hpp
+│   │       ├── wsdbserver_test.cc / .hpp
+│   │       ├── wsframe_test.cc / .hpp
+│   │       └── wsproxy_test.cc / .hpp
 │   ├── wsdbagent/          WebSocket DB agent — runs on the MongoDB machine
+│   │   ├── inc/wsdbagent.hpp     WsDbAgent class
+│   │   └── src/
+│   │       ├── wsdbagent.cpp     connect/handshake/run_session/dispatch
+│   │       └── wsdbagent_main.cpp  CLI entry; ACE_Get_Opt
 │   ├── security/           Inner-TLS layer + WebSocket transport adapter
+│   │   ├── inc/
+│   │   │   ├── innertls.hpp      ITransport + InnerTlsClient/Server
+│   │   │   └── wstransport.hpp   WebSocketTransport (ITransport adapter)
+│   │   ├── src/innertls.cpp
+│   │   └── test/innertls_test.cc
 │   ├── oauth2/             OAuth2 stub
 │   ├── whatsapp/           WhatsApp stub
 │   └── thirdparty/         nlohmann/json (header-only)
