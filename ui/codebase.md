@@ -199,25 +199,32 @@ Used by `inventory/create-manifest` (manual generate from SKU + qty) and `invent
 
 ### `ShipmentStatsService`
 
-Drives the live stat chips in the shell's subnav (`MainComponent`). Lives at `src/common/shipment-stats.service.ts`.
+Drives both the live subnav stat chips and the Dashboard monthly cards from a single 60 s polling loop. Lives at `src/common/shipment-stats.service.ts`.
 
 ```typescript
-readonly stats$:   Observable<{
-  total, new, inScan, outForDelivery, delivered, returned: number
-}>;
-readonly loading$: Observable<boolean>;
-refresh(): void;          // manual one-shot fetch
+// Today — drives the live subnav
+readonly stats$:    Observable<ShipmentStats>;
+readonly loading$:  Observable<boolean>;
+
+// Monthly — drives the Dashboard
+readonly monthly$:        Observable<ShipmentStats>;
+readonly monthlyLoading$: Observable<boolean>;
+readonly month$:          Observable<Date>;      // 1st of selected month
+
+refresh(): void;           // re-fetch and recompute both streams
+setMonth(d: Date): void;   // change Dashboard's active month; recomputes
+                           // monthly$ from cached data — no extra request
 ```
 
-**Polling:** subscribes to `pubsub.onAccount`; when a new account logs in, kicks off `timer(0, 60_000)` and re-fetches every 60s. Each tick calls `HttpsvcService.getShipmentsList(from, to, accCode)`.
+**One fetch, two computes.** Each poll calls `getShipmentsList(from='01/01/2020', to=today, accCode)` once and caches the result. `computeToday()` filters by today's `activity[].date` and buckets on the latest event from today (drives `stats$`). `computeMonthly()` filters by `createdOn` falling in `month$` and buckets each shipment on its overall latest activity event (drives `monthly$`). Calling `setMonth()` re-runs `computeMonthly()` on the cached shipments — no network round-trip.
 
-**Date format:** the backend stores `createdOn` and `activity[].date` as `DD/MM/YYYY` and compares lexicographically. The service formats `today` and `fromDate` with `formatDate(d, 'dd/MM/yyyy', 'en-GB')`. Anything else (ISO, US) will silently match zero rows.
+**Date format:** the backend stores `createdOn` and `activity[].date` as `DD/MM/YYYY` and compares lexicographically. The service formats outbound dates with `formatDate(d, 'dd/MM/yyyy', 'en-GB')` and the bucketer parses both `DD/MM/YYYY` and ISO `YYYY-MM-DD...` to be safe. Anything else silently matches zero rows.
 
-**Account scoping:** for `role === 'Customer'`, the request is scoped to `loginCredentials.accountCode`. For Admin/Employee the `accountCode` param is omitted so the badges aggregate across all customers.
+**Account scoping:** for `role === 'Customer'`, the request is scoped to `loginCredentials.accountCode`. For Admin/Employee the `accountCode` param is omitted so the chips/cards aggregate across all customers.
 
-**Empty-result handling:** the backend returns HTTP 400 with `{cause:..., error:400}` when zero docs match the date range. The service `catchError(() => of([]))` so the chips show `0`, not stale numbers.
+**Empty-result handling:** the backend returns HTTP 400 with `{cause:..., error:400}` when zero docs match the date range. The service `catchError(() => of([]))` so consumers see `0`, not stale numbers.
 
-**Bucketing:** for each shipment with any activity dated today, the *latest* event from today decides the bucket:
+**Bucketing (shared between `computeToday` and `computeMonthly`):**
 
 | Event string | Bucket |
 |---|---|
@@ -228,6 +235,15 @@ refresh(): void;          // manual one-shot fetch
 | `Shipment Returned to Sender` / `Shiment Returned to Sending Station` | `returned` |
 
 The `Shiment` typo is intentional — it matches a real value that exists in production data.
+
+**Scope difference at a glance:**
+
+| Stream | Filter | Bucket source |
+|---|---|---|
+| `stats$` (subnav) | shipments with at least one `activity[].date == today` | latest event from *today* |
+| `monthly$` (Dashboard) | shipments with `createdOn` in the selected month | overall latest activity event (current status) |
+
+So a shipment created in December and delivered in January counts toward December's `total`/`delivered` (current status is "Delivered"), not January's — matching how a monthly operations report would read it.
 
 ---
 
@@ -336,24 +352,31 @@ Use this anywhere the user needs at-a-glance backend connectivity — currently 
 
 ## Dashboard (`app/dashboard/`)
 
-Five stat cards bound to the same `ShipmentStatsService` that powers the live subnav strip — Dashboard and subnav stay in sync without two polling loops:
+**Scope:** all shipments created in the selected month, bucketed by their current (latest) activity event. Defaults to the current month; a `<input type="month">` picker lets the user step backwards through any past month. Different scope from the live subnav strip (today only).
 
-| Card | `stats$` field | Bucket source event(s) |
+Six cards bound to `ShipmentStatsService.monthly$`:
+
+| Card | Field | Meaning |
 |---|---|---|
-| Delivered | `delivered` | Proof of Delivery |
-| In Scan | `inScan` | In Scan at HUB / Arrived in HUB |
-| Out For Delivery | `outForDelivery` | Out For Delivery |
-| Returned | `returned` | Shipment Returned to Sender / Shiment Returned to Sending Station |
-| New | `new` | Document Prepared / Document Created |
+| Total | `total` | Shipments with `createdOn` in the selected month |
+| Delivered | `delivered` | Current status = Proof of Delivery |
+| In Scan | `inScan` | Current status = In Scan at HUB / Arrived in HUB |
+| Out For Delivery | `outForDelivery` | Current status = Out For Delivery |
+| Returned | `returned` | Current status = (Shi[p]ment) Returned to Sender / Sending Station |
+| New | `new` | Current status = Document Prepared / Document Created |
 
 Layout:
-- Page-header strip (`.db-header`) with a refresh button — same SCSS pattern as the form-redesign pages.
-- `clr-row.cards-row` with `align-items: stretch` + `min-height: 160px` so cards stay the same height regardless of content.
-- Gradient icon backgrounds (`__blue`, `__teal`, `__red`, `__yellow`, `__green` modifiers).
+- Page-header strip (`.db-header`) with a month picker (`.db-month-picker`, `<input type="month">`) on the right and a refresh button (spins while `monthlyLoading$` is true; `prefers-reduced-motion` suppresses).
+- `clr-row.cards-row` with `clr-col-lg-2` columns (six across on wide screens, three on medium, one on narrow); `align-items: stretch` + `min-height: 160px` for height parity.
+- Gradient icon backgrounds reused from the earlier card style.
 
-`DashboardComponent` no longer holds shipment data or polling logic of its own — it subscribes to `stats.stats$` and `stats.loading$` via the async pipe and exposes a `onRefresh()` that calls `stats.refresh()`. The refresh button spins via `[class.spinning]="(stats.loading$ | async)"`, mirroring the subnav. `prefers-reduced-motion` suppresses the spin.
+`DashboardComponent` holds no shipment data and no polling logic — it owns only the `monthValue` (`YYYY-MM` string for the picker) and `monthLabel` (e.g. "May 2026") and delegates everything else to the service:
 
-> Historical note: the previous Dashboard ran its own `getShipmentsForAccount()` fetch and bucketed shipments using `new Date().toISOString().split('T')[0]` (YYYY-MM-DD), which never matched the backend's `DD/MM/YYYY` activity dates — so the "Created Today" count was effectively always wrong. The rewire fixes that by adopting the subnav's date-format-aware bucketing.
+- `(stats.monthly$ | async)?.<field>` for each card.
+- `onMonthChange(value)` parses the picker's `YYYY-MM` and calls `stats.setMonth(d)`. The service recomputes from cached shipments — no extra HTTP request, so picker changes feel instant.
+- `onRefresh()` calls `stats.refresh()`.
+
+> Historical note: a previous Dashboard iteration ran its own `getShipmentsForAccount()` fetch and bucketed by `new Date().toISOString().split('T')[0]` (YYYY-MM-DD), which never matched the backend's `DD/MM/YYYY` activity dates — counts were effectively always 0. A short-lived intermediate version then mirrored the subnav (today-only) before being corrected back to monthly scope per the original product intent.
 
 ---
 

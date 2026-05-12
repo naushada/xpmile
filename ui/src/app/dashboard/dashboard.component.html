@@ -1,27 +1,58 @@
-<!-- Header strip: account + manual refresh; same bucketing as the live subnav -->
+<!-- Header strip: account context + month picker + refresh -->
 <header class="db-header">
   <div class="db-header__left">
     <div class="db-header__icon"><clr-icon shape="dashboard" size="22"></clr-icon></div>
     <div>
-      <h2 class="db-header__title">Today's Dashboard</h2>
+      <h2 class="db-header__title">Monthly Dashboard</h2>
       <p class="db-header__subtitle">
-        Live shipment activity for {{ today }}{{ accountCode ? ' · ' + accountCode : '' }}
+        Shipments created in {{ monthLabel }}{{ accountCode ? ' · ' + accountCode : '' }}
       </p>
     </div>
   </div>
-  <button class="db-refresh-btn"
-          (click)="onRefresh()"
-          [class.spinning]="(stats.loading$ | async)"
-          title="Refresh now">
-    <clr-icon shape="sync"></clr-icon>
-    <span>Refresh</span>
-  </button>
+
+  <div class="db-header__right">
+    <label class="db-month-picker">
+      <clr-icon shape="calendar"></clr-icon>
+      <input type="month"
+             [value]="monthValue"
+             (change)="onMonthChange($any($event.target).value)"
+             aria-label="Select month" />
+    </label>
+    <button class="db-refresh-btn"
+            (click)="onRefresh()"
+            [class.spinning]="(stats.monthlyLoading$ | async)"
+            title="Refresh now">
+      <clr-icon shape="sync"></clr-icon>
+      <span>Refresh</span>
+    </button>
+  </div>
 </header>
 
-<!-- Stats cards: same buckets as the live subnav strip -->
+<!-- Stats cards: shipments whose createdOn falls in the selected month,
+     bucketed by their current (latest) activity event. -->
 <div class="clr-row cards-row">
 
-  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+  <div class="clr-col-lg-2 clr-col-md-4 clr-col-12">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon card-icon__blue">
+          <clr-icon shape="bundle" style="width:56px;height:56px;"></clr-icon>
+        </div>
+        <div class="card-header__text">
+          <p class="card-header__head">Total</p>
+          <h3 class="card-header__data">{{ (stats.monthly$ | async)?.total ?? 0 }}</h3>
+        </div>
+      </div>
+      <div class="card-footer">
+        <p class="card-footer__head">
+          <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
+          Created in {{ monthLabel }}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="clr-col-lg-2 clr-col-md-4 clr-col-12">
     <div class="card">
       <div class="card-header">
         <div class="card-icon card-icon__green">
@@ -29,19 +60,19 @@
         </div>
         <div class="card-header__text">
           <p class="card-header__head">Delivered</p>
-          <h3 class="card-header__data">{{ (stats.stats$ | async)?.delivered ?? 0 }}</h3>
+          <h3 class="card-header__data">{{ (stats.monthly$ | async)?.delivered ?? 0 }}</h3>
         </div>
       </div>
       <div class="card-footer">
         <p class="card-footer__head">
           <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
-          Proof of Delivery today
+          Proof of Delivery
         </p>
       </div>
     </div>
   </div>
 
-  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+  <div class="clr-col-lg-2 clr-col-md-4 clr-col-12">
     <div class="card">
       <div class="card-header">
         <div class="card-icon card-icon__blue">
@@ -49,19 +80,19 @@
         </div>
         <div class="card-header__text">
           <p class="card-header__head">In Scan</p>
-          <h3 class="card-header__data">{{ (stats.stats$ | async)?.inScan ?? 0 }}</h3>
+          <h3 class="card-header__data">{{ (stats.monthly$ | async)?.inScan ?? 0 }}</h3>
         </div>
       </div>
       <div class="card-footer">
         <p class="card-footer__head">
           <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
-          At HUB today
+          At HUB
         </p>
       </div>
     </div>
   </div>
 
-  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+  <div class="clr-col-lg-2 clr-col-md-4 clr-col-12">
     <div class="card">
       <div class="card-header">
         <div class="card-icon card-icon__teal">
@@ -69,19 +100,19 @@
         </div>
         <div class="card-header__text">
           <p class="card-header__head">Out For Delivery</p>
-          <h3 class="card-header__data">{{ (stats.stats$ | async)?.outForDelivery ?? 0 }}</h3>
+          <h3 class="card-header__data">{{ (stats.monthly$ | async)?.outForDelivery ?? 0 }}</h3>
         </div>
       </div>
       <div class="card-footer">
         <p class="card-footer__head">
           <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
-          With driver today
+          With driver
         </p>
       </div>
     </div>
   </div>
 
-  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+  <div class="clr-col-lg-2 clr-col-md-4 clr-col-12">
     <div class="card">
       <div class="card-header">
         <div class="card-icon card-icon__yellow">
@@ -89,19 +120,19 @@
         </div>
         <div class="card-header__text">
           <p class="card-header__head">Returned</p>
-          <h3 class="card-header__data">{{ (stats.stats$ | async)?.returned ?? 0 }}</h3>
+          <h3 class="card-header__data">{{ (stats.monthly$ | async)?.returned ?? 0 }}</h3>
         </div>
       </div>
       <div class="card-footer">
         <p class="card-footer__head">
           <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
-          Returned to sender today
+          Returned to sender
         </p>
       </div>
     </div>
   </div>
 
-  <div class="clr-col-lg-4 clr-col-md-6 clr-col-12">
+  <div class="clr-col-lg-2 clr-col-md-4 clr-col-12">
     <div class="card">
       <div class="card-header">
         <div class="card-icon card-icon__red">
@@ -109,13 +140,13 @@
         </div>
         <div class="card-header__text">
           <p class="card-header__head">New</p>
-          <h3 class="card-header__data">{{ (stats.stats$ | async)?.new ?? 0 }}</h3>
+          <h3 class="card-header__data">{{ (stats.monthly$ | async)?.new ?? 0 }}</h3>
         </div>
       </div>
       <div class="card-footer">
         <p class="card-footer__head">
           <clr-icon class="card-footer__icon" shape="angle" size="22"></clr-icon>
-          Documents prepared today
+          Documents prepared
         </p>
       </div>
     </div>

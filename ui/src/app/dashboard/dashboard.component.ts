@@ -13,7 +13,10 @@ import { SubSink } from 'subsink';
 export class DashboardComponent implements OnDestroy {
 
   accountCode = '';
-  today = formatDate(new Date(), 'EEE, d MMM y', 'en-US');
+  // Bound to a <input type="month"> — value is "YYYY-MM".
+  monthValue = formatDate(new Date(), 'yyyy-MM', 'en-US');
+  monthLabel = formatDate(new Date(), 'MMMM y', 'en-US');
+
   private subsink = new SubSink();
 
   constructor(
@@ -29,6 +32,17 @@ export class DashboardComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.subsink.unsubscribe();
+  }
+
+  onMonthChange(value: string): void {
+    // <input type="month"> emits "YYYY-MM"; build a Date on the 1st so the
+    // service's setMonth() can normalise + filter consistently.
+    const [y, m] = value.split('-').map(Number);
+    if (!y || !m) return;
+    const d = new Date(y, m - 1, 1);
+    this.monthValue = value;
+    this.monthLabel = formatDate(d, 'MMMM y', 'en-US');
+    this.stats.setMonth(d);
   }
 
   onRefresh(): void {
