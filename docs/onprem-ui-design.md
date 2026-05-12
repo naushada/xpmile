@@ -144,18 +144,44 @@ See `docs/onprem-ui-compose.md` for the full guide.
 
 ---
 
-## Scope (Phase 1)
+## Scope
 
-| # | View | API endpoints used |
-|---|------|--------------------|
-| 1 | Login | GET `/api/v1/account/account` |
-| 2 | Shipment List | GET `/api/v1/shipment/shipping` |
-| 3 | Create Single Shipment | POST `/api/v1/shipment/shipping` |
-| 4 | Create Bulk Shipment | POST `/api/v1/shipment/bulk/shipping` |
-| 5 | Modify Shipment | PUT `/api/v1/shipment/shipping` |
-| 6 | Create Account | POST `/api/v1/account/account` |
+The on-prem Vaadin UI is **deliberately narrower** than the Angular cloud app. It exists primarily as an **admin / recovery tool** for the customer's premises — not as a parallel daily-operations console.
 
-Out of scope for Phase 1: inventory, tracking, reporting, email, third-party (Ajoul).
+### Why narrower?
+
+The cloud-deployed Angular app has no self-service "forgot password" flow. When a user can't log in, recovery happens here, where the operator is physically on the customer's premises and protected by physical access controls. That's the load-bearing feature.
+
+### Current views
+
+| # | View | Route | Purpose |
+|---|------|-------|---------|
+| 1 | Dashboard | `""` (landing) | Monthly stats with PDF export for management. Same buckets as the Angular live subnav but scoped to a selected month. |
+| 2 | Shipments | `shipments` | Read-only list with **live polling** (60 s). Date-range + account filter. |
+| 3 | Accounts | `accounts` | Account list grid. Per-row **Reset Password** dialog. Toolbar **Create Account** dialog. |
+
+### Authentication
+
+**There is none.** The Vaadin app does not have a login screen by design. The `LoginView` source file is retained (un-routed) for reference; `AuthService` is dead code today and may be removed in a later cleanup.
+
+### Out of scope (lives only in the Angular cloud app)
+
+- Create / modify / bulk-upload daily shipment flows
+- DRS (Delivery Run Sheet) generation, driver assignment
+- Inventory in/out/find/update + A10 label PDFs
+- Detailed reports and invoices
+- Email notifications
+
+### PDF export (Dashboard)
+
+The Dashboard's Export PDF button generates an A4 portrait PDF via [OpenPDF](https://github.com/LibrePDF/OpenPDF) (Apache 2.0 licensed; AGPL-compatible). Output:
+
+- Title: "xpmile — Monthly Operations Dashboard"
+- Subtitle: selected month + generation date
+- Two-column stats table: Total / Delivered / In Scan / Out For Delivery / Returned / New
+- Footer noting the bucketing definition
+
+The file is delivered via Vaadin's `StreamResource` + `Page.open(..., "_blank")` — no temporary files on disk.
 
 ---
 
@@ -199,73 +225,43 @@ onprem/
 
 ## Authentication model
 
-- No server-side session store. On login, `AuthService` calls `GET /api/v1/account/account?userId=<u>&password=<p>`.
-- On success the backend returns the full account object. The logged-in account is stored in a Vaadin `VaadinSession` attribute (`"account"`).
-- All views except `LoginView` extend `MainLayout` which checks the session on `BeforeEnterEvent`; unauthenticated users are redirected to `""`.
-- Logout clears the session and navigates to `""`.
+**None.** Removed. The Vaadin app is unauthenticated by design — it lives behind the customer's physical access controls and exists primarily as an admin / recovery tool.
+
+The previous design used `AuthService.login(...)` which sent the password as a URL query parameter (`GET /api/v1/account/account?userId=&password=`). That's a multi-way leak: Heroku router logs, browser history, `Referer` headers. Rather than fix it, login was removed entirely — there's no scenario in which an operator with on-prem-machine access also needs to prove who they are to the Vaadin app.
+
+The `LoginView` source file is retained un-routed (no `@Route`) for reference; `AuthService` is dead code today and may be removed in a later cleanup.
 
 ---
 
 ## Views
 
-### LoginView
-
-- Route: `""` (no auth check)
-- Layout: centred card with xpmile logo, username field, password field, Login button.
-- On submit: call `AuthService.login(username, password)`.
-  - Success → store account in session, navigate to `"shipments"`.
-  - Failure (HTTP 4xx or empty response) → show inline error notification.
-
 ### MainLayout (app shell)
 
-- Left nav drawer with menu items:
-  - Shipments → `"shipments"`
-  - Create Shipment → `"shipments/create"`
-  - Bulk Upload → `"shipments/bulk"`
-  - Create Account → `"accounts/create"`
-- Top bar: app name + logged-in user name + Logout button.
-- All child views rendered in the content area.
+- Dark navy navbar with xpmile branding + Agent/DB status badges (driven by `StatusService.check()`).
+- Left nav drawer: **Dashboard**, **Shipments**, **Accounts**.
+- No logout button, no session-check `BeforeEnterEvent`.
+- `UI.setPollInterval(30_000)` drives the status-badge refresh; `ShipmentListView` piggybacks on this poll for its 60 s live update.
+
+### DashboardView (`""` — landing)
+
+- Header strip: title + month picker + Refresh + **Export PDF**.
+- Six stat cards: Total, Delivered, In Scan, Out For Delivery, Returned, New — same buckets as the Angular live subnav.
+- `compute(shipments, YearMonth)` filters by `createdOn` falling in the selected month and buckets each shipment on its overall latest activity event (current status). Both `DD/MM/YYYY` and ISO `YYYY-MM-DD` createdOn formats are accepted.
+- **PDF export**: OpenPDF (Apache 2.0, AGPL-compatible) generates an A4 portrait PDF — title, month subtitle, stats table, footer noting the bucketing definition. Delivered via Vaadin `StreamResource` + `Page.open("_blank")` — no temp files on disk.
 
 ### ShipmentListView (`"shipments"`)
 
-- Date range pickers (fromDate, toDate) + optional account code filter + Search button.
-- Results in a `Grid<Shipment>` showing: AWB no, Alt Ref, Sender name, Receiver name, Service, Weight, Status, Created on.
-- Row click opens `ModifyShipmentView` pre-populated with the selected shipment.
-- Action buttons per row: Print Label (A4), Download PDF (stub for Phase 1).
+- Header: title + LIVE pill + last-refreshed timestamp.
+- Filters: `From` date, `To` date, optional account code, Search button.
+- `Grid<Shipment>` columns: AWB no, Alt Ref, Sender, Receiver, Service, Weight, Created On. **Read-only** — no row-click navigation, no per-row PDF actions.
+- **Live polling**: 60 s refresh while the view is attached. Implemented atop `UI.addPollListener` with a millisecond gate, so it co-exists with MainLayout's 30 s status poll without contention.
 
-### CreateShipmentView (`"shipments/create"`)
+### AccountsView (`"accounts"`)
 
-Three section cards matching existing Angular layout:
-
-1. **AWB** — auto-generate toggle; AWB number field (disabled when auto-generate).
-2. **Sender** — account code, name, company, contact, email, address, city, state, country, postal code, tax ID.
-3. **Shipment Info** — SKU, service type (dropdown), items count, goods description, weight, COD amount, currency, customs value, HS code.
-4. **Receiver** — name, company, contact, email, address, city, state, country, postal code, phone.
-
-Submit → POST `/api/v1/shipment/shipping` → success notification + reset form.
-
-### BulkShipmentView (`"shipments/bulk"`)
-
-- `Upload` component accepting `.xlsx` files.
-- Download template button (static file served from `resources`).
-- On upload: parse Excel (Apache POI), convert rows to `Shipment[]`, POST to `/api/v1/shipment/bulk/shipping`.
-- Results summary: total submitted, success count, failure list.
-
-### ModifyShipmentView (`"shipments/modify"`)
-
-- AWB number field (read-only after load) + Load button → GET shipment.
-- Same section cards as CreateShipmentView, pre-populated.
-- Save → PUT `/api/v1/shipment/shipping`.
-
-### CreateAccountView (`"accounts/create"`)
-
-Three section cards:
-
-1. **Login Credentials** — account code (auto-gen toggle), password.
-2. **Personal Info** — role (dropdown: admin/user), name, contact, email, address, city, state, postal code, event location.
-3. **Customer Info** — company name, quoted amount, trading license, VAT, currency, bank account, IBAN, AWB prefix.
-
-Submit → POST `/api/v1/account/account` → success notification + reset.
+- Toolbar: **Create Account** (opens dialog), Refresh.
+- Grid columns: Account Code, Name, Role, Email, Contact, **Actions**.
+- Per-row **Reset Password** action opens a dialog (New Password + Confirm). On save: `accountService.resetPassword(code, newPwd)` → `PUT /api/v1/account/account?userId=<>` with the new plaintext in the body — `handle_account_PUT` on the backend hashes via PBKDF2 before storing. Password never appears in any URL.
+- **Create Account** dialog: minimal form (account code, password, name, email, contact, role). The full enterprise account form with VAT, IBAN, trading licence, currency, etc. stays in the Angular UI for daily provisioning workflows.
 
 ---
 
