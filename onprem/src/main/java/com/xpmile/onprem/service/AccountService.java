@@ -65,6 +65,20 @@ public class AccountService {
     }
 
     /**
+     * Delete an account by its accountCode. The C++ backend's
+     * handle_DELETE branch for /api/v1/account/account requires the
+     * accountCode query parameter — calling without it returns 400,
+     * which prevents an empty-filter from wiping the whole collection.
+     */
+    public void deleteAccount(String accountCode) {
+        String url = UriComponentsBuilder
+                .fromHttpUrl(backendConfig.getBaseUrl() + "/api/v1/account/account")
+                .queryParam("accountCode", accountCode)
+                .toUriString();
+        restTemplate.delete(url);
+    }
+
+    /**
      * Reset a user's password from the on-prem admin tool.
      *
      * Sends only the new plaintext password in the PUT body — the backend

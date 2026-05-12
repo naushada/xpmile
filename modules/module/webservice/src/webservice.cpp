@@ -200,6 +200,29 @@ std::string MicroService::handle_DELETE(std::string &in,
       r = "{\"status\": \"success\"}";
       return (build_responseOK(r));
     }
+  } else if (!uri.compare("/api/v1/account/account")) {
+    // Account deletion. Used by the on-prem Vaadin admin tool's "Delete"
+    // action. Requires an accountCode query param so we never accidentally
+    // wipe the whole collection if the caller's filter is empty.
+    const std::string coll("account");
+    const std::string accCode = http.get_element("accountCode");
+    if (accCode.empty()) {
+      std::string err_msg = "{\"status\":\"failure\","
+                            "\"cause\":\"Missing accountCode\","
+                            "\"error\":400}";
+      return build_responseERROR(err_msg, "400 Bad Request");
+    }
+
+    document = "{\"loginCredentials.accountCode\":\"" + accCode + "\"}";
+    bool rsp = dbInst.delete_document(coll, document);
+
+    if (rsp) {
+      return build_responseOK("{\"status\":\"success\"}");
+    }
+    std::string err_msg = "{\"status\":\"failure\","
+                          "\"cause\":\"Account not found or delete failed\","
+                          "\"error\":404}";
+    return build_responseERROR(err_msg, "404 Not Found");
   }
 
   std::string err("400 Bad Request");

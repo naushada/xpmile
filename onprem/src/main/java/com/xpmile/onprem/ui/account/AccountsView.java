@@ -6,6 +6,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.formlayout.FormLayout;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -89,7 +90,15 @@ public class AccountsView extends VerticalLayout {
             Button reset = new Button("Reset password", new Icon(VaadinIcon.KEY));
             reset.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL);
             reset.addClickListener(e -> openResetDialog(account));
-            return reset;
+
+            Button del = new Button("Delete", new Icon(VaadinIcon.TRASH));
+            del.addThemeVariants(ButtonVariant.LUMO_TERTIARY, ButtonVariant.LUMO_SMALL,
+                                  ButtonVariant.LUMO_ERROR);
+            del.addClickListener(e -> openDeleteDialog(account));
+
+            HorizontalLayout actions = new HorizontalLayout(reset, del);
+            actions.setSpacing(false);
+            return actions;
         }).setHeader("Actions").setAutoWidth(true).setFlexGrow(0);
 
         grid.setSizeFull();
@@ -136,6 +145,40 @@ public class AccountsView extends VerticalLayout {
 
         Button cancel = new Button("Cancel", e -> dlg.close());
         dlg.getFooter().add(cancel, save);
+        dlg.open();
+    }
+
+    // ── Delete-account dialog ────────────────────────────────────────────
+
+    private void openDeleteDialog(Account account) {
+        String code = safe(account.getLoginCredentials(), LoginCredentials::getAccountCode);
+
+        Dialog dlg = new Dialog();
+        dlg.setHeaderTitle("Delete account — " + code);
+
+        Div msg = new Div();
+        msg.setText("This will permanently delete the account \"" + code + "\". "
+                + "Any future login attempts with these credentials will fail. "
+                + "This cannot be undone.");
+        msg.getStyle()
+                .set("max-width", "420px")
+                .set("color", "var(--lumo-body-text-color)");
+        dlg.add(msg);
+
+        Button confirm = new Button("Delete", e -> {
+            try {
+                accountService.deleteAccount(code);
+                notify("Deleted account " + code, NotificationVariant.LUMO_SUCCESS);
+                dlg.close();
+                refresh();
+            } catch (Exception ex) {
+                notify("Delete failed: " + ex.getMessage(), NotificationVariant.LUMO_ERROR);
+            }
+        });
+        confirm.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_ERROR);
+
+        Button cancel = new Button("Cancel", e -> dlg.close());
+        dlg.getFooter().add(cancel, confirm);
         dlg.open();
     }
 

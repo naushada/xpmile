@@ -37,11 +37,8 @@ public class MainLayout extends AppLayout {
     public MainLayout(StatusService statusService) {
         this.statusService = statusService;
 
-        getStyle().set("--lumo-app-layout-bar-background", "#0f2744");
-
         DrawerToggle toggle = new DrawerToggle();
         toggle.getStyle().set("color", "white");
-        addToNavbar(toggle);
 
         H2 appName = new H2("xpmile · on-prem");
         appName.getStyle()
@@ -54,14 +51,19 @@ public class MainLayout extends AppLayout {
         Div agentBadge = createBadge("Agent");
         Div dbBadge    = createBadge("DB");
 
-        HorizontalLayout header = new HorizontalLayout(appName, agentBadge, dbBadge);
-        header.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
-        header.setWidthFull();
-        header.expand(appName);
-        header.getStyle()
+        // One full-width HorizontalLayout containing everything; this is the
+        // only thing added to the navbar so the dark background stretches the
+        // full row instead of just the inner content block.
+        HorizontalLayout navbar = new HorizontalLayout(toggle, appName, agentBadge, dbBadge);
+        navbar.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
+        navbar.setWidthFull();
+        navbar.setSpacing(true);
+        navbar.expand(appName);
+        navbar.getStyle()
                 .set("padding", "0 var(--lumo-space-m)")
-                .set("background", "#0f2744");
-        addToNavbar(header);
+                .set("background", "#0f2744")
+                .set("min-height", "var(--lumo-size-xl)");
+        addToNavbar(navbar);
 
         SideNav nav = new SideNav();
         nav.addItem(new SideNavItem("Dashboard", DashboardView.class));
