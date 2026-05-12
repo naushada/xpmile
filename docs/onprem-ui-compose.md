@@ -44,7 +44,7 @@ cd xpmile
 podman-compose -f docker-compose.onprem.yml up --build onprem-ui
 ```
 
-Open **http://localhost:8090** — logs in against your live Heroku data.
+Open **http://localhost:8090** — opens directly on the Dashboard (no login; see `docs/onprem-ui-design.md`). Reads your live Heroku data through the backend.
 
 To override the URL without editing `.env`:
 ```sh

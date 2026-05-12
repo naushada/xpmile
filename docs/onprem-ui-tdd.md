@@ -1,6 +1,33 @@
-# xpmile On-Prem UI — TDD Plan (Phase 1)
+# xpmile On-Prem UI — TDD Plan
 
-Tests are written **before** implementation. Each section lists the test class, what to mock/stub, and the assertions that define "done".
+> **Status (2026-05-13):** Phase 1 was about building a full daily-operations UI in Vaadin. The Vaadin app was subsequently re-scoped as an unauthenticated admin / recovery tool. Several sections below (5, 7, 8) reference views that no longer exist; they're kept for historical context. The **Current test scope** section is what applies today. See `docs/onprem-ui-design.md` for the live design.
+
+---
+
+## Current test scope (post-redesign)
+
+| # | Test class | Subject | Status |
+|---|---|---|---|
+| 1 | `AccountServiceTest` | List/create/update + `resetPassword` | Existing; needs new test for `resetPassword` and `getAllAccounts` |
+| 2 | `ShipmentServiceTest` | Read APIs (list, by AWB) | Existing |
+| 3 | `BulkShipmentParserTest` | XLSX → Shipment[] (kept; service is still referenced) | Existing |
+| 4 | `AuthServiceTest` | Login flow | **Dead** — `AuthService` is now unreferenced code; remove when `AuthService` itself is deleted |
+| 5 | _Future_ `DashboardViewIT` | Month picker → bucketing; PDF export downloads non-empty bytes | Not yet written |
+| 6 | _Future_ `AccountsViewIT` | Grid renders, reset-password dialog round-trip via WireMock | Not yet written |
+| 7 | _Future_ `ShipmentListViewIT` | Live-poll fires every 60 s while attached | Not yet written |
+
+**What to add next (highest-value new tests):**
+
+- `AccountServiceTest`:
+  - `resetPassword_sendsPutWithBodyOnly_noPasswordInUrl` — assert the captured WireMock request URL has no `password=` query param and the body contains `loginCredentials.accountPassword`.
+  - `getAllAccounts_returnsArray` — backend returns 3 docs → list of 3.
+  - `getAllAccounts_on400ReturnsEmpty` — backend returns 400 (no docs) → empty list (no exception).
+
+- `DashboardViewTest` (unit-level, no Vaadin):
+  - Extract `compute(shipments, YearMonth)` into a static helper or package-private method and unit-test the bucketing rules directly against fixtures.
+  - Test that `inMonth("15/05/2026", YearMonth.of(2026, 5))` is `true` and the same string against any other month is `false`.
+
+PDF generation is harder to assert exactly (binary output) — a "PDF starts with `%PDF-` and contains `Total shipments created` text" smoke test is enough.
 
 ---
 
@@ -17,6 +44,8 @@ Run order: unit → integration → UI. Unit and integration tests must all pass
 ---
 
 ## 1. AuthService
+
+> _Historical (Phase 1)._ AuthService is dead code after the login removal. The tests in `AuthServiceTest.java` still pass against the existing class but no UI consumer reaches `AuthService.login(...)`. Delete this section together with `AuthService.java` when convenient.
 
 **File:** `src/test/java/com/xpmile/onprem/service/AuthServiceTest.java`
 
@@ -148,7 +177,11 @@ then:  throws ParseException identifying the row number and missing field
 
 ---
 
-## 5. LoginView (UI test)
+## 5. LoginView (UI test) — _historical_
+
+> _Historical (Phase 1)._ `LoginView` is no longer routed; the Vaadin app is unauthenticated. The tests below would no longer compile (`@Route("")` is gone, the `LoginView` element selectors no longer have a host page). Skip implementing.
+
+
 
 **File:** `src/test/java/com/xpmile/onprem/ui/LoginViewIT.java`  
 Requires: Vaadin TestBench, running Spring Boot test server, WireMock for backend.
@@ -190,9 +223,11 @@ then:  browser URL is "/"
 
 **File:** `src/test/java/com/xpmile/onprem/ui/ShipmentListViewIT.java`
 
+> Note: this view is now **read-only with live polling**. There is no "row click → modify" navigation any more (ModifyShipmentView was deleted). Replace 6.3 with a live-polling assertion.
+
 ### 6.1 — grid renders after search
 ```
-given: authenticated session; WireMock returns 3 shipments
+given: WireMock returns 3 shipments
 when:  user sets fromDate, toDate, clicks Search
 then:  grid shows 3 rows
        first row AWB column matches first shipment awbno
@@ -205,17 +240,21 @@ when:  user searches
 then:  grid has 0 rows; no exception dialog visible
 ```
 
-### 6.3 — row click navigates to modify view with AWB pre-filled
+### 6.3 — live polling re-fetches after 60 s
 ```
-given: grid has 1 row with awbno="XP001"
-when:  user clicks the row
-then:  URL contains "/shipments/modify"
-       AWB field value is "XP001"
+given: view is attached; WireMock returns 1 shipment initially, then 2 on subsequent calls
+when:  60 s elapses (TestBench: advance the UI poll-listener clock or wait)
+then:  grid updates to 2 rows without user interaction
+       "last refreshed" label updates to the later timestamp
 ```
 
 ---
 
-## 7. CreateShipmentView (UI test)
+## 7. CreateShipmentView (UI test) — _historical_
+
+> _Historical (Phase 1)._ `CreateShipmentView` was deleted as part of the Vaadin re-scope (daily ops live in the Angular UI). Skip implementing.
+
+
 
 **File:** `src/test/java/com/xpmile/onprem/ui/CreateShipmentViewIT.java`
 
@@ -242,7 +281,11 @@ then:  inline error shown on sender name field
 
 ---
 
-## 8. CreateAccountView (UI test)
+## 8. CreateAccountView (UI test) — _historical_
+
+> _Historical (Phase 1)._ `CreateAccountView` (the standalone form-page) was replaced by a dialog inside `AccountsView`. The "auto-gen toggle" and "password masked" assertions still apply, but against the dialog component now. Use `AccountsViewIT` (item 6 in Current test scope) instead.
+
+
 
 **File:** `src/test/java/com/xpmile/onprem/ui/CreateAccountViewIT.java`
 
