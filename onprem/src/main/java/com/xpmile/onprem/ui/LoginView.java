@@ -12,14 +12,19 @@ import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
-import com.vaadin.flow.router.Route;
 import com.vaadin.flow.server.VaadinSession;
 import com.xpmile.onprem.model.Account;
 import com.xpmile.onprem.service.AuthException;
 import com.xpmile.onprem.service.AuthService;
 
-@Route("")
-@PageTitle("xpmile | Login")
+/**
+ * No longer routed. The on-prem Vaadin tool is unauthenticated by design —
+ * it lives behind the customer's physical access controls and exists as a
+ * recovery / admin console (see MainLayout). This file is kept so the
+ * AuthService dependency still has a consumer for reference; remove if
+ * the AuthService is later deleted.
+ */
+@PageTitle("xpmile | Login (disabled)")
 public class LoginView extends VerticalLayout {
 
     private final AuthService authService;
