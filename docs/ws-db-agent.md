@@ -276,6 +276,19 @@ On any recv error, or if a Ping cannot be sent, the loop exits and `run()` recon
 - Server → agent frames are **unmasked**.
 - `wsframe::encode()` / `wsframe::decode()` handle framing on both sides.
 
+### Large response framing (inner TLS recv contract)
+
+One inner-TLS message = one BSON `DbRequest`/`DbResponse`. The proxy and agent rely on `InnerTls{Client,Server}::recv()` returning the **full plaintext** that a single peer `send()` produced — even when the plaintext spans multiple TLS records.
+
+`SSL_read` returns at most one TLS record (~16 KB) per call, so a 60 KB shipment-list response produces ~4 records. The recv path:
+
+1. `m_transport.recv()` returns the ciphertext of all records in one WebSocket binary frame.
+2. `BIO_write` feeds it into the read BIO.
+3. `recv()` loops `SSL_read` until `SSL_ERROR_WANT_READ`, appending each decrypted record's plaintext into one contiguous buffer.
+4. Returns the full BSON payload in a single call.
+
+**Historical bug (fixed 2026-05-12):** the loop wasn't there — `recv()` did one `SSL_read` into a 16384-byte buffer, silently truncating responses larger than that. `parse_response` then iterated a BSON view whose `size` didn't match its encoded length and produced no elements, leaving `rsp.reqid = -1, rsp.ok = false`. The proxy logged `no pending request for reqid=-1`, the response was dropped, and the browser request hit Heroku's 30 s H12 timeout. Surfaced by `ShipmentStatsService` polling the entire shipment history every 60 s. See the `Recv_ReturnsFullPlaintext_InSingleCall` regression test in `modules/module/security/test/innertls_test.cc`.
+
 ---
 
 ## Building
