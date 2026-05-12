@@ -27,10 +27,18 @@ Browser
        │                         update-inventory, inav-bar)
        ├─ Accounting components (create-account, list-account,
        │                          update-account, anav-bar)
-       └─ Reporting components (detailed-report, invoice, rnav-bar)
+       ├─ Reporting components (detailed-report, invoice, rnav-bar)
+       └─ Common components    (status-badge)
 ```
 
 Navigation between sections is wired through the sidebar nav in the shell, not through Angular router child routes — each nav item calls a method that sets a flag/input to show the right sub-component.
+
+**Two homes for shared code:**
+
+- `ui/src/common/` — singleton services (`HttpsvcService`, `PubsubsvcService`, `ExcelsvcService`, `LabelService`, `ShipmentStatsService`, `StatusService`) plus `app-globals.ts` (types + `UriMap`). Imported as `from 'src/common/...'`.
+- `ui/src/app/common/` — shared Angular components (`status-badge/`). Imported as `from 'src/app/common/...'`.
+
+Keep services in `src/common/` and components in `src/app/common/`; don't mix them.
 
 ---
 
@@ -167,6 +175,77 @@ Wraps SheetJS to generate the bulk-upload template:
 
 ---
 
+### `LabelService`
+
+Generates A10-size barcode label PDFs. Lives at `src/common/label.service.ts`.
+
+```typescript
+labels.createA10LabelPdf(sku: string, qty: number, fileName = 'A10-label'): void
+```
+
+- Renders `qty` pages, one CODE128 barcode per page, and triggers a browser download named `<fileName>-<sku>.pdf`.
+- A10 landscape printable area is `~103pt × 72pt` (margins of 1pt each side on a 105×74pt page). The barcode is emitted as a base64 PNG and rendered with `fit: [fitW, fitH]` so it fills the page edge-to-edge.
+- `pdfMake.vfs` is set once at module load — do not reset it from callers.
+- The `docDef` object is built fresh inside the method, per the project rule against caching `docDef`/content arrays on long-lived objects.
+
+Used by `inventory/create-manifest` (manual generate from SKU + qty) and `inventory/in-inventory` (auto-download on successful Create Inventory).
+
+**A10 fit-to-page note:** an earlier version wrapped the barcode in a one-cell table at `width: 90pt`, which left the bottom half of every label blank. The current implementation uses a top-level `{ image, fit: [fitW, fitH] }` node and fills the page.
+
+---
+
+### `ShipmentStatsService`
+
+Drives the live stat chips in the shell's subnav (`MainComponent`). Lives at `src/common/shipment-stats.service.ts`.
+
+```typescript
+readonly stats$:   Observable<{
+  total, new, inScan, outForDelivery, delivered, returned: number
+}>;
+readonly loading$: Observable<boolean>;
+refresh(): void;          // manual one-shot fetch
+```
+
+**Polling:** subscribes to `pubsub.onAccount`; when a new account logs in, kicks off `timer(0, 60_000)` and re-fetches every 60s. Each tick calls `HttpsvcService.getShipmentsList(from, to, accCode)`.
+
+**Date format:** the backend stores `createdOn` and `activity[].date` as `DD/MM/YYYY` and compares lexicographically. The service formats `today` and `fromDate` with `formatDate(d, 'dd/MM/yyyy', 'en-GB')`. Anything else (ISO, US) will silently match zero rows.
+
+**Account scoping:** for `role === 'Customer'`, the request is scoped to `loginCredentials.accountCode`. For Admin/Employee the `accountCode` param is omitted so the badges aggregate across all customers.
+
+**Empty-result handling:** the backend returns HTTP 400 with `{cause:..., error:400}` when zero docs match the date range. The service `catchError(() => of([]))` so the chips show `0`, not stale numbers.
+
+**Bucketing:** for each shipment with any activity dated today, the *latest* event from today decides the bucket:
+
+| Event string | Bucket |
+|---|---|
+| `Document Prepared` / `Document Created` | `new` |
+| `In Scan at HUB` / `Arrived in HUB` | `inScan` |
+| `Out For Delivery` | `outForDelivery` |
+| `Proof of Delivery` | `delivered` |
+| `Shipment Returned to Sender` / `Shiment Returned to Sending Station` | `returned` |
+
+The `Shiment` typo is intentional — it matches a real value that exists in production data.
+
+---
+
+### `StatusService`
+
+Drives the Agent + DB status pills (`status-badge`). Lives at `src/common/status.service.ts`.
+
+```typescript
+readonly agent$:       Observable<'up' | 'down' | 'unknown'>;
+readonly db$:          Observable<'up' | 'down' | 'unknown'>;
+readonly lastChecked$: Observable<Date | null>;
+```
+
+**Probe:** `GET /api/v1/config` every 30s using `responseType: 'text'` + `observe: 'response'`. Any 2xx/3xx/4xx status means the request reached the backend and got a response, so the path through `nginx/uniservice → (proxy) → DB` is alive — pills go green. Only network errors and 5xx (status === 0 in some browsers) mark "down".
+
+**Single-state limitation:** without a dedicated health endpoint we can't tell "agent up, DB down" from "agent down" — one probe drives both `agent$` and `db$`. If the backend later exposes `/api/v1/health` returning per-component state, update the probe to set the two streams independently.
+
+The probe URL is built from `environment.apiUrl + UriMap.get('from_web_config')`, so it works in both same-origin dev and absolute-URL deployments.
+
+---
+
 ## Role-based behaviour
 
 The `personalInfo.role` field on the logged-in `Account` controls feature availability:
@@ -199,11 +278,56 @@ Two-panel layout:
 ## Shell (`app/main/`)
 
 `MainComponent` wraps the Clarity `clr-main-container`:
-- `clr-header` with the xpmile logo and top nav links.
-- `clr-vertical-nav` sidebar — the active section is controlled by a string flag.
-- `<router-outlet>` or direct `*ngIf`-switched sub-components depending on the section.
+- `clr-header` with the xpmile logo, top section links (Shipping / Tracking / Reporting / Accounting / Inventory), and the user dropdown.
+- A **live subnav strip** (`<nav class="live-subnav">`) directly below the header — see below.
+- A per-section sidebar (`submenu`, `snav-bar`, `rnav-bar`, `anav-bar`, `inav-bar`) — the active section is controlled by `selectedMenuItem`, and the active sub-page by `selectedNavItem` (both strings).
+- A `content-area` with `*ngIf`-switched sub-components for each `selectedNavItem` value. No Angular router child routes are used here.
 
-The sidebar nav HTML files (`submenu`, `snav-bar`, `rnav-bar`, `anav-bar`, `inav-bar`) contain `<a class="nav-link nav-text">` items — no `<b>` tags (stripped for cleaner font rendering).
+The sidebar nav HTML files contain `<a class="nav-link nav-text">` items — no `<b>` tags (stripped for cleaner font rendering).
+
+### Live subnav strip
+
+Always-visible "today at a glance" bar bound to `ShipmentStatsService` and `StatusService`:
+
+```
+[ ● LIVE ]  [📅 Tue, 12 May]  [✓ Delivered N]  [≡ In Scan N]  [🚚 Out N]
+            [↶ Returned N]    [+ New N]        [⟳ refresh]   [Agent ●][DB ●]
+```
+
+- **LIVE pulse** — animated dot (`@keyframes live-pulse`) to signal real-time data.
+- **Date chip** — today's date formatted for display as `EEE, d MMM` (e.g. "Tue, 12 May"). Note: this is *display only* — `ShipmentStatsService` sends `DD/MM/YYYY` to the backend.
+- **Five gradient stat chips** — `chip-delivered`, `chip-inscan`, `chip-out`, `chip-returned`, `chip-new`. Each binds to `(stats.stats$ | async)?.<bucket> ?? 0` via the async pipe, so the UI re-renders automatically on every poll without `ChangeDetectorRef` calls.
+- **Refresh button** (`.live-refresh-btn`) — calls `stats.refresh()`; the icon spins while `stats.loading$` is true via `[class.spinning]`.
+- **Agent/DB pills** — rendered by `<app-status-badge>` at the right edge.
+- **Auto-flash on poll** — `MainComponent` subscribes to `stats.stats$` in its constructor and sets `flashOn = true` for 700ms every time a poll completes (auto or manual). The template binds `[class.flashing]="flashOn"` on `.live-subnav`, which animates a brief highlight across `.live-strip`. Gives a visible "just refreshed" cue without the user clicking anything.
+
+**End-to-end live-update flow:**
+
+```
+ShipmentStatsService.timer(0, 60_000)
+  → GET /api/v1/shipment/shipping?fromDate=...&toDate=... (DD/MM/YYYY)
+  → compute() buckets shipments by today's latest activity event
+  → stats$.next(newStats)
+       ├─ async pipe in template updates the five chip counts
+       └─ MainComponent subscriber toggles flashOn for 700ms
+
+StatusService.timer(0, 30_000)
+  → GET /api/v1/config
+  → agent$.next(state), db$.next(state), lastChecked$.next(now)
+       └─ async pipe in status-badge updates the two pills
+```
+
+The strip's chip styling is nested under `.live-subnav` in `main.component.scss` so the rules don't leak into reused chips elsewhere. `@media (prefers-reduced-motion: reduce)` disables the pulse, the flash, and the refresh-icon spin — animations are opt-in.
+
+### `common/status-badge/`
+
+Shared component that renders two pills (Agent, DB) backed by `StatusService`. Both pills get `up`/`down` modifier classes and a `title` attribute showing the current state plus the last-checked timestamp:
+
+```html
+<app-status-badge></app-status-badge>
+```
+
+Use this anywhere the user needs at-a-glance backend connectivity — currently only the live subnav, but it has no other dependencies, so it can be dropped into headers, footers, or status panels.
 
 ---
 
@@ -218,6 +342,30 @@ Data is fetched from the shipment API and counted client-side by status.
 
 ---
 
+## Form-page layout pattern
+
+Nine form pages share a consistent card-based layout, applied in one wave of redesign:
+
+- Shipping: `single/`, `modify/`, `collect-shipment/`
+- Tracking: `update-shipment/`
+- Accounting: `create-account/`, `update-account/`
+- Inventory: `create-manifest/`, `in-inventory/`, `out-inventory/`, `update-inventory/`
+
+Each page has four parts:
+
+1. **Page header strip** (`.<prefix>-header`) — icon tile (`<clr-icon>` in a coloured square), title (`h2`), one-line subtitle, and optional step indicators on the right (used by `single/` for Sender / Shipment / Receiver).
+2. **Optional summary card** (e.g. `.ss-awb-card`) — for fields that govern the rest of the form (auto-generate toggle, AWB no., alt ref).
+3. **Section cards grid** (`.<prefix>-cards-grid`) — two or three `.<prefix>-card` blocks each containing `.card-head` (icon + h3 + hint) and `.card-body` (form fields). On narrow viewports the grid collapses to `1fr`.
+4. **Sticky action bar** (`.<prefix>-action-bar`) — `position: sticky; bottom: 0;` row holding the primary submit button and an optional hint. Stays visible while the user scrolls long forms.
+
+**Class-prefix convention:** each page uses a 2-letter component prefix to keep its rules scoped — `ss-` for single-shipment, `ca-` for create-account, `ii-` for in-inventory, etc. Prefixes are private to the component SCSS; the grid/card/action-bar structure is the only thing standardised.
+
+`clrForm clrLayout="vertical" clrLabelSize="5"` is used throughout — labels sit above inputs.
+
+Global compact spacing rules still apply (see Global styles): `clr-input-container`, `clr-select-container`, `clr-checkbox-container` get `margin-bottom: 6px !important` and `.clr-subtext-wrapper { display: none }`.
+
+---
+
 ## Shipping components
 
 ### `single/` — Create Single Shipment
@@ -229,7 +377,7 @@ Reactive form (`FormBuilder`) with three groups:
 
 `isAutoGenerate: true` → backend generates the AWB via `next_awbno(prefix)`.
 
-Compact spacing: `clr-input-container`, `clr-select-container`, `clr-checkbox-container` get `margin-bottom: 6px !important` and `.clr-subtext-wrapper { display: none }` in the component SCSS.
+Uses the four-part form layout (header strip → AWB summary card → three-card grid → sticky action bar) with the `ss-` prefix.
 
 ---
 
@@ -357,11 +505,17 @@ Composes and sends a shipment notification email via `/api/v1/email`.
 
 ### `create-manifest/` — Create Manifest
 
-Builds a manifest document (A10 label PDF) for a set of shipment AWBs. Uses pdfMake.
+Single-form page (SKU + quantity) that delegates A10 barcode label PDF generation to `LabelService.createA10LabelPdf(sku, qty)`. The component no longer owns any `pdfMake` setup or `docDef` — it's a thin wrapper around the service call.
 
 ### `in-inventory` / `out-inventory` / `find-inventory` / `update-inventory`
 
-Standard CRUD components against `/api/v1/inventory`. Each uses `clr-datagrid` for display.
+Standard CRUD components against `/api/v1/inventory`. Each uses `clr-datagrid` for display and follows the four-part form layout (header strip → section cards → sticky action bar).
+
+**`in-inventory` auto-label flow:** on successful `createInventory()` the component:
+1. Calls `LabelService.createA10LabelPdf(sku, qty)` so the user gets their labels without re-typing SKU + qty on `create-manifest`.
+2. Resets the form.
+
+Previously the create handler had an empty error block (silent failures) and forced the user to retype the same SKU + qty on the manifest page — both fixed in this refactor.
 
 ---
 
@@ -452,7 +606,7 @@ Hero background photo used in the login right panel. Overlaid with `linear-gradi
 
 ## PDF generation — cross-component notes
 
-pdfMake is imported in: `bulk`, `create-drs`, `list`, `create-manifest`, `multiple-shipment`.
+pdfMake is imported in: `bulk`, `create-drs`, `list`, `multiple-shipment`, and the shared `LabelService` (which `create-manifest` and `in-inventory` use for A10 labels — they don't import pdfMake directly).
 
 **Always:**
 - Import and set `pdfMake.vfs` at module level (top of the `.ts` file).
@@ -468,6 +622,19 @@ textToBase64Barcode(text: string, height: number): string {
 }
 ```
 `width: 1` narrows the bars so the barcode fits in the DRS table column at `width: 140` pts.
+
+**A10 label fit-to-page pattern (LabelService):**
+
+```typescript
+content.push({
+  image: this.barcodeDataUrl(sku, 120, 14),
+  fit:   [fitW, fitH],         // ~103 × 72 pt for A10 landscape (1pt margins)
+  alignment: 'center',
+  pageBreak: i < count - 1 ? 'after' : undefined
+});
+```
+
+Do **not** wrap the image in a table cell with a fixed `width:` — that scales the image to a fraction of the page and leaves the lower half blank. Use a top-level image node with `fit:` so pdfMake sizes the barcode to the page.
 
 ---
 
