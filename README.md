@@ -270,3 +270,17 @@ Docker Compose v2 ignores the top-level `version` field and prints a
 warning if it is present.  The field has been removed from
 `docker-compose.yml`; if you see the warning in a fork or older copy,
 delete the `version: "..."` line.
+
+---
+
+## License
+
+**xpmile is source-available, not open-source.** See [`LICENSE`](LICENSE) for the full terms.
+
+Quick summary:
+
+- **Academic use** — students, faculty, and researchers at accredited educational institutions may view, study, modify, and cite the code for teaching, coursework, or non-commercial scholarly research. Attribution required.
+- **Commercial use** — production deployment, hosting as a service, integration into a commercial product, or any other revenue-generating use **requires a separate paid commercial licence**.
+- **Pricing** — flat monthly subscription, no per-shipment fees. See [`sales/xpmile-platform.md`](sales/xpmile-platform.md) for the commercial offering.
+
+For commercial licensing enquiries: **naushad.dln@gmail.com**

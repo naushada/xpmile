@@ -1,0 +1,193 @@
+xpmile Source-Available License
+================================
+
+Copyright (c) 2026 Naushad. All rights reserved.
+
+This software is NOT open-source. The source code is made available
+publicly for the limited purposes set out below. All other uses, including
+in particular any Commercial Use, require a separate written agreement
+with the copyright holder.
+
+
+1. DEFINITIONS
+
+   1.1 "Software" means the source code, object code, documentation,
+       diagrams, configuration files, and any other materials contained
+       in this repository (https://github.com/naushada/xpmile) and any
+       derivative works thereof.
+
+   1.2 "You" or "Licensee" means the individual or legal entity exercising
+       rights under this License.
+
+   1.3 "Licensor" means Naushad, the copyright holder of the Software,
+       reachable at naushad.dln@gmail.com.
+
+   1.4 "Academic Use" means use of the Software solely:
+         (a) by a student, faculty member, or researcher of an accredited
+             educational institution; and
+         (b) for the purposes of academic teaching, coursework, or
+             non-commercial scholarly research that does not deliver
+             commercial advantage or monetary compensation to any party.
+
+   1.5 "Commercial Use" means any use of the Software that is not Academic
+       Use, including but not limited to:
+         (a) running the Software, or a derivative thereof, to provide
+             services to third parties (whether paid or unpaid);
+         (b) running the Software to support, directly or indirectly, the
+             commercial operations of any organisation;
+         (c) integrating the Software, in whole or in part, into a product
+             or service that is offered for sale, licence, subscription,
+             advertising revenue, or any other form of compensation;
+         (d) sublicensing, reselling, or redistributing the Software in
+             any form to a paying customer.
+
+   1.6 "Commercial Licence" means a separate paid licence granted in writing
+       by the Licensor authorising Commercial Use of the Software.
+
+
+2. GRANT OF LIMITED RIGHTS (ACADEMIC USE ONLY)
+
+   Subject to the terms of this License, the Licensor grants You a
+   worldwide, non-exclusive, non-transferable, royalty-free, revocable
+   licence to:
+
+   2.1 view and study the source code of the Software;
+
+   2.2 copy and modify the Software for Academic Use; and
+
+   2.3 publish academic papers, presentations, or coursework that quote,
+       reference, or include limited excerpts of the Software, provided
+       that proper attribution is given to the Licensor and a citation
+       to this repository is included.
+
+   No other rights are granted under this License.
+
+
+3. RESTRICTIONS — COMMERCIAL USE PROHIBITED WITHOUT A LICENCE
+
+   3.1 You may NOT engage in any Commercial Use of the Software unless
+       and until You have obtained a Commercial Licence from the
+       Licensor.
+
+   3.2 Without limiting the foregoing, You may NOT, without a Commercial
+       Licence:
+         (a) deploy or operate the Software in a production environment
+             that serves any customer, client, or paying user;
+         (b) host the Software (or any derivative) as a service offered
+             to third parties;
+         (c) bundle the Software, in whole or in part, with any product
+             or service that is sold, leased, subscribed to, or otherwise
+             commercially exploited;
+         (d) remove, alter, or obscure any copyright, trademark, or
+             attribution notice in the Software;
+         (e) sublicense, sell, lease, rent, or otherwise transfer the
+             Software to any third party.
+
+   3.3 Any attempt to exercise rights beyond those expressly granted in
+       Section 2 is a material breach of this License and automatically
+       terminates Your rights under Section 2 with immediate effect.
+
+
+4. HOW TO OBTAIN A COMMERCIAL LICENCE
+
+   Commercial Licences are available on commercially reasonable terms.
+   To enquire, contact the Licensor at:
+
+       naushad.dln@gmail.com
+
+   Pricing is determined per engagement based on deployment scale,
+   support level, and customisation requirements. See `sales/` in this
+   repository for the current commercial offering.
+
+
+5. ATTRIBUTION
+
+   Any permitted use of the Software, including in academic publications,
+   must include the following notice in a reasonably prominent location:
+
+       "Includes or derives from xpmile, Copyright (c) 2026 Naushad,
+       https://github.com/naushada/xpmile, used under the xpmile
+       Source-Available License."
+
+
+6. TRADEMARKS
+
+   The name "xpmile", and any associated logos, are trademarks of the
+   Licensor. This License does not grant You any right to use these
+   trademarks for any purpose other than the factual identification of
+   the Software as the origin of code You are studying or citing under
+   Section 2.3.
+
+
+7. THIRD-PARTY COMPONENTS
+
+   The Software includes third-party open-source libraries that are
+   licensed under their own respective terms (including but not limited
+   to ACE/TAO, MongoDB C/C++ Drivers, nlohmann/json, OpenSSL, Angular,
+   Clarity, pdfMake, JsBarcode, and others). Your use of those components
+   is governed by their original licences, not this License. Nothing in
+   this License restricts rights You may have under those licences with
+   respect to those components in isolation.
+
+
+8. NO WARRANTY
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+   NON-INFRINGEMENT.
+
+
+9. LIMITATION OF LIABILITY
+
+   IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+   BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+   OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+   AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+   OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
+   THE USE OF THE SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+   DAMAGE.
+
+
+10. TERMINATION
+
+   10.1 This License is effective until terminated.
+
+   10.2 Your rights under Section 2 terminate automatically and without
+        notice if You breach any term of this License.
+
+   10.3 Upon termination You must cease all use of the Software, destroy
+        all copies in Your possession or control, and certify such
+        destruction to the Licensor on request.
+
+   10.4 Sections 5, 6, 7, 8, 9, 10, 11, and 12 survive termination.
+
+
+11. GOVERNING LAW AND JURISDICTION
+
+   11.1 This License is governed by and construed in accordance with the
+        laws of the Republic of India, without regard to its conflict-of-
+        laws principles.
+
+   11.2 Any dispute arising out of or in connection with this License
+        shall be subject to the exclusive jurisdiction of the competent
+        courts located in India.
+
+
+12. GENERAL
+
+   12.1 If any provision of this License is held to be unenforceable,
+        that provision shall be modified to the minimum extent necessary
+        to make it enforceable, and the remaining provisions shall
+        continue in full force and effect.
+
+   12.2 No failure or delay by the Licensor in exercising any right under
+        this License operates as a waiver of that right.
+
+   12.3 This License constitutes the entire agreement between You and the
+        Licensor with respect to the limited rights granted in Section 2.
+        Any Commercial Licence is a separate written agreement.
+
+
+For commercial licensing enquiries, contact:  naushad.dln@gmail.com

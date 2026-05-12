@@ -192,3 +192,15 @@ Day 11+     │ Full rollout
 3. **Pilot proposal** — we draft a 30-day pilot with your real data on your premises. Cancel any time, no charges if you don't proceed.
 
 Contact: `naushad.dln@gmail.com`
+
+---
+
+## Licensing terms
+
+xpmile is **source-available, not open-source** — the code is on GitHub for transparency and academic review, but **commercial use requires a paid commercial licence**.
+
+- Production deployment, hosting as a service for third parties, or integration into a commercial offering all require a signed commercial licence with xpmile.
+- A monthly subscription gives you the commercial licence for the duration of the subscription, with no per-shipment fees, no volume caps, and no audit clauses beyond user-seat declarations.
+- See the full text in [`LICENSE`](../LICENSE) at the repository root.
+
+Universities and security researchers reviewing the codebase under the academic-use grant are welcome; no fee, attribution required.
