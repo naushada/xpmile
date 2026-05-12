@@ -187,18 +187,23 @@ def main() -> int:
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
-    print(f"Host:    {args.host}")
-    print(f"Account: {args.account}")
-    print(f"Sizes:   {args.counts}")
-    print(f"Modes:   {args.mode}")
-    print()
+    # Force line-buffered stdout so progress is visible when piped to
+    # `tee` / a log file (Python defaults to full-buffered when stdout
+    # is not a TTY, which hides per-row output until the run finishes).
+    sys.stdout.reconfigure(line_buffering=True)  # type: ignore[union-attr]
+
+    print(f"Host:    {args.host}", flush=True)
+    print(f"Account: {args.account}", flush=True)
+    print(f"Sizes:   {args.counts}", flush=True)
+    print(f"Modes:   {args.mode}", flush=True)
+    print(flush=True)
 
     header = (
         f"{'N':>6}  {'SINGLE total':>12}  {'SINGLE/ship':>12}  "
         f"{'BULK total':>12}  {'BULK/ship':>12}  {'speedup':>8}  fail"
     )
-    print(header)
-    print("-" * len(header))
+    print(header, flush=True)
+    print("-" * len(header), flush=True)
 
     for n in args.counts:
         s_total = s_per = float("nan")
@@ -227,7 +232,8 @@ def main() -> int:
             f"{n:>6}  "
             f"{fmt_total(s_total):>12}  {fmt_ms(s_per):>12}  "
             f"{fmt_total(b_total):>12}  {fmt_ms(b_per):>12}  "
-            f"{speedup:>8}  {fail_note}"
+            f"{speedup:>8}  {fail_note}",
+            flush=True,
         )
 
     return 0
