@@ -3,7 +3,6 @@ package com.xpmile.onprem.service;
 import com.xpmile.onprem.config.BackendConfig;
 import com.xpmile.onprem.model.Account;
 import com.xpmile.onprem.model.LoginCredentials;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -34,15 +33,11 @@ public class AccountService {
     public Account getAccount(String userId) {
         String url = UriComponentsBuilder
                 .fromHttpUrl(backendConfig.getBaseUrl() + "/api/v1/account/account")
-                .queryParam("accountCode", userId)
+                .queryParam("userId", userId)
                 .toUriString();
-        try {
-            Account[] result = restTemplate.getForObject(url, Account[].class);
-            if (result == null || result.length == 0) return null;
-            return result[0];
-        } catch (HttpClientErrorException e) {
-            return null;
-        }
+        Account[] result = restTemplate.getForObject(url, Account[].class);
+        if (result == null || result.length == 0) return null;
+        return result[0];
     }
 
     /**
