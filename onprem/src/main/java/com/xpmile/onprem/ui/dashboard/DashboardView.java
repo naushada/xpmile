@@ -7,7 +7,6 @@ import com.lowagie.text.FontFactory;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
-import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
@@ -18,7 +17,6 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H3;
-import com.vaadin.flow.component.html.H4;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -82,20 +80,55 @@ public class DashboardView extends VerticalLayout {
     }
 
     private Component buildHeader() {
-        H3 title = new H3("Monthly Dashboard");
-        title.getStyle().set("margin", "0");
+        // Icon tile + title + subtitle on the left
+        Div iconTile = new Div(new Icon(VaadinIcon.DASHBOARD));
+        iconTile.getStyle()
+                .set("width", "44px").set("height", "44px")
+                .set("display", "inline-flex")
+                .set("align-items", "center").set("justify-content", "center")
+                .set("border-radius", "8px")
+                .set("background", "linear-gradient(135deg, #1b4d8e, #0f2d52)")
+                .set("color", "#fff")
+                .set("flex-shrink", "0");
 
-        DatePicker monthPicker = new DatePicker("Month");
+        H3 title = new H3("Monthly Dashboard");
+        title.getStyle()
+                .set("margin", "0")
+                .set("font-size", "1.15rem")
+                .set("color", "#0f2d52")
+                .set("font-weight", "700");
+
+        Span subtitle = new Span("Shipments created in " + LABEL_FMT.format(selectedMonth));
+        subtitle.getStyle()
+                .set("font-size", "0.78rem")
+                .set("color", "#64748b")
+                .set("display", "block")
+                .set("margin-top", "2px");
+
+        Div titleBlock = new Div(title, subtitle);
+
+        HorizontalLayout left = new HorizontalLayout(iconTile, titleBlock);
+        left.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
+        left.setSpacing(true);
+
+        // Right side: month picker + refresh + export PDF
+        DatePicker monthPicker = new DatePicker();
         monthPicker.setValue(LocalDate.of(selectedMonth.getYear(), selectedMonth.getMonth(), 1));
-        monthPicker.setHelperText("Pick any date in the month");
+        monthPicker.setPlaceholder("Pick a month");
+        monthPicker.setWidth("180px");
         monthPicker.addValueChangeListener(e -> {
             LocalDate d = e.getValue();
             if (d == null) return;
             selectedMonth = YearMonth.of(d.getYear(), d.getMonth());
+            // Re-render subtitle text inline
+            subtitle.setText("Shipments created in " + LABEL_FMT.format(selectedMonth));
             refresh();
         });
 
-        Button refresh = new Button("Refresh", new Icon(VaadinIcon.REFRESH));
+        Button refresh = new Button(new Icon(VaadinIcon.REFRESH));
+        refresh.setAriaLabel("Refresh");
+        refresh.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        refresh.getElement().setProperty("title", "Refresh");
         refresh.addClickListener(e -> refresh());
 
         Button export = new Button("Export PDF", new Icon(VaadinIcon.FILE_TEXT_O));
@@ -103,50 +136,94 @@ public class DashboardView extends VerticalLayout {
         export.addClickListener(e -> exportPdf());
 
         HorizontalLayout right = new HorizontalLayout(monthPicker, refresh, export);
-        right.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.END);
+        right.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
         right.setSpacing(true);
 
-        HorizontalLayout bar = new HorizontalLayout(title, right);
+        HorizontalLayout bar = new HorizontalLayout(left, right);
         bar.setWidthFull();
         bar.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
         bar.setDefaultVerticalComponentAlignment(FlexComponent.Alignment.CENTER);
-        bar.getStyle().set("margin-bottom", "16px");
-        return bar;
+
+        // Wrap in a panel with subtle gradient + accent border
+        Div panel = new Div(bar);
+        panel.getStyle()
+                .set("padding", "14px 18px")
+                .set("background", "linear-gradient(90deg, #f8fafc, #eef2f7)")
+                .set("border-left", "4px solid #1b4d8e")
+                .set("border-radius", "8px")
+                .set("margin-bottom", "18px");
+        return panel;
     }
 
     private Component buildCards() {
         HorizontalLayout row = new HorizontalLayout(
-                card("Total",          totalNum,    "#1b4d8e"),
-                card("Delivered",      deliveredNum, "#43a047"),
-                card("In Scan",        inScanNum,   "#03a9f4"),
-                card("Out For Delivery", outNum,    "#00838f"),
-                card("Returned",       returnedNum, "#fb8c00"),
-                card("New",            newNum,      "#ef5350"));
+                card("Total",            totalNum,    VaadinIcon.PACKAGE,       "#03A9F4", "#027bb1"),
+                card("Delivered",        deliveredNum, VaadinIcon.CHECK_CIRCLE, "#66bb6a", "#43a047"),
+                card("In Scan",          inScanNum,   VaadinIcon.RECORDS,       "#26c6da", "#00838f"),
+                card("Out For Delivery", outNum,      VaadinIcon.TRUCK,         "#7e57c2", "#4527a0"),
+                card("Returned",         returnedNum, VaadinIcon.REPLY,         "#FFC312", "#fb8c00"),
+                card("New",              newNum,      VaadinIcon.PLUS_CIRCLE,   "#ef5350", "#EA2027"));
         row.setWidthFull();
         row.setSpacing(true);
-        for (Component c : row.getChildren().toList()) {
-            ((Div) c).getStyle().set("flex", "1");
-        }
+        row.getChildren().forEach(c -> ((Div) c).getStyle().set("flex", "1"));
         return row;
     }
 
-    private Div card(String label, Span numSpan, String accent) {
-        H4 h = new H4(label);
-        h.getStyle().set("margin", "0 0 8px 0").set("color", "#475569").set("font-weight", "600");
+    /**
+     * Build one stat card. Icon tile (gradient) on the left, label + big
+     * number on the right. Subtle box-shadow + rounded corners; no border
+     * accents (the icon-tile colour carries the identity).
+     */
+    private Div card(String label, Span numSpan, VaadinIcon iconName,
+                     String colorFrom, String colorTo) {
+        // Icon block
+        Icon icon = new Icon(iconName);
+        icon.setSize("22px");
+        Div iconBox = new Div(icon);
+        iconBox.getStyle()
+                .set("width", "44px").set("height", "44px")
+                .set("display", "inline-flex")
+                .set("align-items", "center").set("justify-content", "center")
+                .set("border-radius", "10px")
+                .set("background",
+                        "linear-gradient(135deg, " + colorFrom + ", " + colorTo + ")")
+                .set("color", "#fff")
+                .set("box-shadow", "0 4px 12px -4px " + colorTo)
+                .set("flex-shrink", "0");
+
+        // Text block
+        Span labelEl = new Span(label);
+        labelEl.getStyle()
+                .set("font-size", "0.75rem")
+                .set("font-weight", "600")
+                .set("color", "#64748b")
+                .set("text-transform", "uppercase")
+                .set("letter-spacing", "0.04em")
+                .set("display", "block");
 
         numSpan.getStyle()
-                .set("font-size", "1.75rem")
+                .set("font-size", "1.85rem")
                 .set("font-weight", "700")
-                .set("color", "#0f2d52");
+                .set("color", "#0f2d52")
+                .set("line-height", "1.1")
+                .set("display", "block")
+                .set("margin-top", "2px");
 
-        Div card = new Div(h, numSpan);
+        Div text = new Div(labelEl, numSpan);
+        text.getStyle().set("min-width", "0").set("flex", "1");
+
+        Div card = new Div();
+        card.add(iconBox, text);
         card.getStyle()
+                .set("display", "flex")
+                .set("align-items", "center")
+                .set("gap", "14px")
                 .set("padding", "16px 18px")
-                .set("border-radius", "8px")
                 .set("background", "#fff")
-                .set("box-shadow", "0 1px 3px rgba(0,0,0,0.08)")
-                .set("border-left", "4px solid " + accent)
-                .set("min-height", "100px");
+                .set("border-radius", "10px")
+                .set("box-shadow", "0 1px 3px rgba(0,0,0,0.06), 0 8px 24px -16px rgba(15,45,82,0.18)")
+                .set("min-height", "92px")
+                .set("transition", "transform 0.15s, box-shadow 0.15s");
         return card;
     }
 

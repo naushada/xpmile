@@ -16,7 +16,6 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.PasswordField;
-import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.xpmile.onprem.model.Account;
@@ -65,7 +64,8 @@ public class AccountsView extends VerticalLayout {
 
         Button create = new Button("Create Account", new Icon(VaadinIcon.PLUS));
         create.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-        create.addClickListener(e -> openCreateDialog());
+        create.addClickListener(e ->
+                com.vaadin.flow.component.UI.getCurrent().navigate(CreateAccountView.class));
 
         HorizontalLayout bar = new HorizontalLayout(create, refresh);
         bar.setSpacing(true);
@@ -179,60 +179,6 @@ public class AccountsView extends VerticalLayout {
 
         Button cancel = new Button("Cancel", e -> dlg.close());
         dlg.getFooter().add(cancel, confirm);
-        dlg.open();
-    }
-
-    // ── Create-account dialog ────────────────────────────────────────────
-
-    private void openCreateDialog() {
-        Dialog dlg = new Dialog();
-        dlg.setHeaderTitle("Create account");
-        dlg.setWidth("680px");
-
-        TextField accountCode = new TextField("Account Code");
-        PasswordField password = new PasswordField("Password");
-        TextField name = new TextField("Name");
-        TextField email = new TextField("Email");
-        TextField contact = new TextField("Contact");
-        TextField role = new TextField("Role (Admin/Employee/Customer)");
-
-        FormLayout form = new FormLayout(accountCode, password, name, email, contact, role);
-        form.setResponsiveSteps(
-                new FormLayout.ResponsiveStep("0", 1),
-                new FormLayout.ResponsiveStep("520px", 2));
-        dlg.add(form);
-
-        Button save = new Button("Create", e -> {
-            if (accountCode.isEmpty() || password.isEmpty()) {
-                notify("Account code and password are required",
-                        NotificationVariant.LUMO_ERROR);
-                return;
-            }
-            Account account = new Account();
-            account.setLoginCredentials(new LoginCredentials(
-                    accountCode.getValue(), password.getValue()));
-            PersonalInfo pi = new PersonalInfo();
-            pi.setName(name.getValue());
-            pi.setEmail(email.getValue());
-            pi.setContact(contact.getValue());
-            pi.setRole(role.getValue());
-            account.setPersonalInfo(pi);
-
-            try {
-                accountService.createAccount(account);
-                notify("Account " + accountCode.getValue() + " created",
-                        NotificationVariant.LUMO_SUCCESS);
-                dlg.close();
-                refresh();
-            } catch (Exception ex) {
-                notify("Create failed: " + ex.getMessage(),
-                        NotificationVariant.LUMO_ERROR);
-            }
-        });
-        save.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-
-        Button cancel = new Button("Cancel", e -> dlg.close());
-        dlg.getFooter().add(cancel, save);
         dlg.open();
     }
 
