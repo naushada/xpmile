@@ -72,6 +72,8 @@ heroku container:release web --app marvel
 podman rmi $(podman images -f "dangling=true" -q)
 ```
 
+**Warning:** this also evicts the `cpp-builder` intermediate image. The next `./deploy-heroku.sh deploy` (even the UI-only variant) will then be a cold build (~30–40 min) instead of cached (~5–8 min). Only prune when `podman system df` shows >80 % reclaimable, or when you can afford the rebuild. Full timing table in `codebase.md` → Build & deploy timing.
+
 ### wsdbagent stack (MongoDB machine behind NAT)
 
 ```sh

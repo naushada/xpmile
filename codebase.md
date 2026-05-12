@@ -526,6 +526,51 @@ Standard: C++20 (`-std=c++2a`) for `uniservice` / `offtarget`; C++17 for `mongod
 
 ---
 
+## Build & deploy timing
+
+Container build times on an M1/M2 Mac with podman, fibre internet, healthy `~/.local/share/containers` storage:
+
+| Path | What runs | Time (cached) | Time (cold) |
+|---|---|---|---|
+| `./run.sh build-ui` / `./deploy-heroku.sh deploy` | Angular `ng build` only; cpp-builder + base layers reused | **2–4 min** | n/a (UI rebuilds only) |
+| `./run.sh build` / `./deploy-heroku.sh deploy full` | Full C++ + Angular | **5–8 min** | **30–40 min** |
+| `./deploy-heroku.sh push` | Push image to `registry.heroku.com` | **3–6 min** (network-bound) | — |
+| `./deploy-heroku.sh release` | Heroku activates the new image; dyno restarts | **<1 min** | — |
+
+Inside the cold full build, the dominant costs are:
+
+| Step | Time | Notes |
+|---|---|---|
+| ACE/TAO compile from source | ~15 min | Single-threaded for many sub-targets; biggest single contributor |
+| mongo-cxx-driver + bsoncxx | ~5 min | CMake reconfigure + compile |
+| googletest | ~30 s | Header + library compile |
+| `uniservice` + `offtarget` link | ~3 min | Includes all C++ modules + the test binary |
+| `npm ci` (Angular deps) | ~3 min | 1 100+ packages from npm |
+| `ng build --configuration production --aot` | ~3 min | With `NODE_OPTIONS=--max_old_space_size=1536` to avoid OOM on vfs_fonts |
+
+### The cache-eviction trap
+
+`podman rmi $(podman images -f "dangling=true" -q)` (the cleanup snippet in this file) frees disk *and* drops the `cpp-builder` intermediate image. The next deploy then has nothing to reuse and takes the cold-build path (~30–40 min) even when you only changed UI code.
+
+**Symptom:** you run `./deploy-heroku.sh deploy` expecting a 3-minute UI redeploy, and instead see `STEP 9/29: RUN make install ssl=1 ...` from ACE/TAO.
+
+**Avoid by:**
+- Pruning only when `podman system df` shows >80 % reclaimable space — otherwise the eviction cost exceeds the disk-reclaim benefit.
+- Tagging the `cpp-builder` stage so `podman rmi -f dangling` leaves it alone (one-time setup; not currently done).
+- Reserving the prune for off-hours when a 30-minute rebuild is acceptable.
+
+### Deploy disk space
+
+Heroku container builds need ~15 GB free under `~/.local/share/containers` on macOS (podman VM disk). Symptoms of running low:
+
+```
+error: write /ui/node_modules/esbuild-linux-64/bin/esbuild: no space left on device
+```
+
+`podman system df` reports current usage; `podman system reset` (destructive — wipes everything) is the nuclear option if a prune isn't enough.
+
+---
+
 ## Request lifecycle (end to end)
 
 ```
