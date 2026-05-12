@@ -79,6 +79,27 @@ Hash the `loginCredentials.accountPassword` field before insert, store result in
 
 If the update body contains a new `loginCredentials.accountPassword`, hash it and write to `passwordHash`.
 
+### Password reset (Angular UI)
+
+The UI never places a password in a URL. `HttpsvcService.resetAccountPassword(id, currentPwd, newPwd)` is a two-step chain that reuses the existing primitives:
+
+1. **Verify** current password: `POST /api/v1/account/login` with `{userId, password: currentPwd}` (request body — body bytes are encrypted by TLS and not logged in router access logs).
+2. **Update** to the new password: `PUT /api/v1/account/account?userId=<id>` with body `{loginCredentials: {accountPassword: newPwd}}`. The `PUT` handler runs the hash step before insert, so the plaintext never reaches the DB.
+
+If step 1 fails (HTTP 401), `switchMap` short-circuits and step 2 is never issued.
+
+> Note: the on-prem Vaadin UI (`onprem/.../AuthService.java`) still issues `GET /api/v1/account/account?userId=...&password=...` and depends on the legacy plaintext-match path in `handle_account_GET`. That code path is left intact for now and should be migrated to `POST /login` separately.
+
+### Request-body log redaction
+
+`handle_account_POST` debug-logs the raw request body on every account creation. That body carries the plaintext `accountPassword`. To avoid leaking credentials to Heroku log drains, the body is passed through `redact_for_log()` before the `ACE_DEBUG` line — string values at any of these keys are replaced with `"***"`:
+
+```
+password · accountPassword · newPassword · currentPassword · passwordHash
+```
+
+`redact_for_log` walks the parsed JSON tree once; for non-JSON bodies it returns the input unchanged. The original `content` string is still used for the actual handler logic — only the logged copy is redacted.
+
 ### Migration strategy
 
 **Phase 1 — Dual-read (deploy):**

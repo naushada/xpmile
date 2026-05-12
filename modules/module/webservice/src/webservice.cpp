@@ -3,7 +3,10 @@
 #include "http_parser.hpp"
 #include "json.hpp"
 #include "wsframe.hpp"
+#include <algorithm>
 #include <cstring>
+#include <functional>
+#include <vector>
 
 using json = nlohmann::json;
 
@@ -70,6 +73,40 @@ std::string http_build_error(std::string body, const std::string &status) {
              ACE_TEXT("%D [Worker:%t] %M %N:%l response length:%zu header:%s"),
              hdr.length(), hdr.c_str()));
   return hdr;
+}
+
+// Replace string values at sensitive keys with "***" so debug logs of the
+// request body don't leak plaintext credentials. Walks the JSON tree once;
+// returns the original body if it's not parseable JSON (so non-JSON inputs
+// still log as-is rather than disappearing).
+std::string redact_for_log(const std::string &content) {
+  static const std::vector<std::string> kSecretKeys = {
+      "password", "accountPassword", "newPassword", "currentPassword",
+      "passwordHash"};
+
+  json body;
+  try {
+    body = json::parse(content);
+  } catch (...) {
+    return content;
+  }
+
+  std::function<void(json &)> walk = [&](json &node) {
+    if (node.is_object()) {
+      for (auto it = node.begin(); it != node.end(); ++it) {
+        const bool secret = std::find(kSecretKeys.begin(), kSecretKeys.end(),
+                                       it.key()) != kSecretKeys.end();
+        if (secret && it.value().is_string())
+          it.value() = "***";
+        else
+          walk(it.value());
+      }
+    } else if (node.is_array()) {
+      for (auto &elem : node) walk(elem);
+    }
+  };
+  walk(body);
+  return body.dump();
 }
 
 std::int32_t http_send(ACE_HANDLE handle, const std::string &rsp) {
@@ -695,10 +732,13 @@ std::string MicroService::handle_account_POST(std::string &in,
     /*We need newly created account Code */
     std::string projection("{\"_id\" : false, \"accountCode\" : true}");
     std::string content = http.body();
+    // Body carries the new account's plaintext accountPassword — redact
+    // before logging so credentials don't end up in dyno log streams.
+    const std::string log_body = redact_for_log(content);
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [Worker:%t] %M %N:%l http request body length:%d "
                         "\n Request http_body:%s\n"),
-               content.length(), content.c_str()));
+               content.length(), log_body.c_str()));
 
     if (content.length()) {
         // Hash plain-text password if present before storing

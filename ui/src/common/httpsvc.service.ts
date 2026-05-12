@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams, HttpHeaders, HttpErrorResponse} from '@angular/common/http';
-import { catchError, forkJoin, Observable} from 'rxjs';
+import { catchError, forkJoin, Observable, switchMap } from 'rxjs';
 import { Shipment, Account, ShipmentStatus, Inventory, UriMap, Email, SenderInformation, activityOnShipment } from './app-globals';
 import { environment } from 'src/environments/environment';
 
@@ -207,11 +207,21 @@ export class HttpsvcService {
    * @param pwd 
    * @returns 
    */
-    resetAccountPassword(id:string, currentPwd: string, newPassword: string): Observable<Account> {
-      let param = `userId=${id}&password=${currentPwd}&newPassword=${newPassword}`;
-      const options = {params: new HttpParams({fromString: param})};
-  
-      return this.http.get<Account>(this.getUri("from_web_account"), options);
+    // Two-step reset: verify current password via POST /login (body, not URL),
+    // then PUT the new password — backend hashes via PBKDF2 before storing.
+    // Neither call places a password into the request URL, so passwords no
+    // longer leak into Heroku router logs, browser history, or Referer headers.
+    resetAccountPassword(id: string, currentPwd: string, newPassword: string): Observable<Account> {
+      return this.http.post<Account>(
+        this.getUri("from_web_login"),
+        { userId: id, password: currentPwd }
+      ).pipe(
+        switchMap(() => {
+          const params = new HttpParams().set('userId', id);
+          const body = { loginCredentials: { accountPassword: newPassword } };
+          return this.http.put<Account>(this.getUri("from_web_account"), body, { params });
+        })
+      );
     }
   
   /**
