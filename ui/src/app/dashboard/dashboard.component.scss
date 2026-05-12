@@ -139,5 +139,73 @@
       height: 408px;
     }
   }
-  
+
+  // ── Page header strip ──────────────────────────────────────────────
+  .db-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    background: linear-gradient(90deg, #f8fafc, #eef2f7);
+    border-left: 4px solid #1b4d8e;
+    border-radius: 6px;
+
+    &__left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    &__icon {
+      width: 38px; height: 38px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #1b4d8e;
+      color: #fff;
+    }
+    &__title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #0f2d52;
+    }
+    &__subtitle {
+      margin: 2px 0 0 0;
+      font-size: 0.75rem;
+      color: #475569;
+    }
+  }
+
+  .db-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #1b4d8e;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+
+    &:hover  { background: #eff6ff; border-color: #1b4d8e; }
+    &.spinning clr-icon {
+      animation: db-spin 1s linear infinite;
+    }
+  }
+
+  @keyframes db-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .db-refresh-btn.spinning clr-icon { animation: none; }
+  }
+
   }

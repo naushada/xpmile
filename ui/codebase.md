@@ -124,9 +124,12 @@ All HTTP calls live here. `environment.apiUrl` is prepended to every URI when no
 
 | Method | Notes |
 |---|---|
-| `getAccountInfo(id, pwd?)` | Login or info lookup |
+| `getAccountInfo(id, pwd?)` | `POST /api/v1/account/login` — credentials go in the JSON body, never the URL |
+| `resetAccountPassword(id, cur, new)` | POST `/login` to verify, then PUT `/account` with the new password (body); rxjs `switchMap` chains them so the PUT only fires on successful verification |
 | `getAccountInfoList()` | Admin — all accounts |
 | `getCustomerInfo(accountCode)` | Used by bulk to resolve sender details |
+
+**Why two calls instead of a single `?password=…&newPassword=…` GET:** the old reset path placed both passwords in the request URL, where they ended up in Heroku router logs, browser history, and `Referer` headers. Bodies don't appear in any of those.
 
 **Inventory / other:** `getFromInventory`, `createManifest`, `sendEmail`, etc.
 
@@ -333,12 +336,24 @@ Use this anywhere the user needs at-a-glance backend connectivity — currently 
 
 ## Dashboard (`app/dashboard/`)
 
-Five stat cards in a single `clr-row.cards-row`:
-- Created Today, Total Active, Delivered, Returned, COD Pending.
-- All in `clr-col-lg-4` columns (`align-items: stretch` on the row, `min-height: 160px` on cards) so they stay the same height regardless of content.
-- Card icons use gradient backgrounds (`__blue`, `__teal`, `__red`, `__yellow`, `__green` modifiers in `dashboard.component.scss`).
+Five stat cards bound to the same `ShipmentStatsService` that powers the live subnav strip — Dashboard and subnav stay in sync without two polling loops:
 
-Data is fetched from the shipment API and counted client-side by status.
+| Card | `stats$` field | Bucket source event(s) |
+|---|---|---|
+| Delivered | `delivered` | Proof of Delivery |
+| In Scan | `inScan` | In Scan at HUB / Arrived in HUB |
+| Out For Delivery | `outForDelivery` | Out For Delivery |
+| Returned | `returned` | Shipment Returned to Sender / Shiment Returned to Sending Station |
+| New | `new` | Document Prepared / Document Created |
+
+Layout:
+- Page-header strip (`.db-header`) with a refresh button — same SCSS pattern as the form-redesign pages.
+- `clr-row.cards-row` with `align-items: stretch` + `min-height: 160px` so cards stay the same height regardless of content.
+- Gradient icon backgrounds (`__blue`, `__teal`, `__red`, `__yellow`, `__green` modifiers).
+
+`DashboardComponent` no longer holds shipment data or polling logic of its own — it subscribes to `stats.stats$` and `stats.loading$` via the async pipe and exposes a `onRefresh()` that calls `stats.refresh()`. The refresh button spins via `[class.spinning]="(stats.loading$ | async)"`, mirroring the subnav. `prefers-reduced-motion` suppresses the spin.
+
+> Historical note: the previous Dashboard ran its own `getShipmentsForAccount()` fetch and bucketed shipments using `new Date().toISOString().split('T')[0]` (YYYY-MM-DD), which never matched the backend's `DD/MM/YYYY` activity dates — so the "Created Today" count was effectively always wrong. The rewire fixes that by adopting the subnav's date-format-aware bucketing.
 
 ---
 
