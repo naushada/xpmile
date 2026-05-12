@@ -69,6 +69,19 @@ export class ShipmentStatsService implements OnDestroy {
     this.monthly$.next(this.computeMonthly(this.lastShipments, norm));
   }
 
+  /** Shipments whose createdOn falls in the currently-selected dashboard
+   *  month. Drawn from the cached fetch so callers (e.g. report download)
+   *  don't trigger another network round-trip. */
+  getMonthlyShipments(): Shipment[] {
+    const month = this.month$.value;
+    const m = month.getMonth();
+    const y = month.getFullYear();
+    return this.lastShipments.filter(s => {
+      const createdOn = String(s.shipment?.shipmentInformation?.createdOn ?? '');
+      return this.dateInMonth(createdOn, m, y);
+    });
+  }
+
   private startPolling(): void {
     this.pollSub?.unsubscribe();
     this.pollSub = timer(0, this.intervalMs).pipe(
