@@ -275,12 +275,13 @@ delete the `version: "..."` line.
 
 ## License
 
-**xpmile is source-available, not open-source.** See [`LICENSE`](LICENSE) for the full terms.
+xpmile is **dual-licensed**. Pick whichever fits your situation:
 
-Quick summary:
+| Licence | When to pick it | What it costs |
+|---|---|---|
+| **[AGPL v3.0-or-later](LICENSE)** | Internal evaluation, academic research, hobbyist tinkering, AGPL-compatible projects, contributing back upstream. | Free. Source modifications running on a network server must be offered to your users (AGPL §13). |
+| **[Commercial Licence](COMMERCIAL-LICENSE.md)** | Hosting xpmile as a service for third parties, integrating it into a proprietary product, or any deployment where AGPL's copyleft is unacceptable to your legal team. | Flat monthly subscription. No per-shipment fees. See [`sales/xpmile-platform.md`](sales/xpmile-platform.md). |
 
-- **Academic use** — students, faculty, and researchers at accredited educational institutions may view, study, modify, and cite the code for teaching, coursework, or non-commercial scholarly research. Attribution required.
-- **Commercial use** — production deployment, hosting as a service, integration into a commercial product, or any other revenue-generating use **requires a separate paid commercial licence**.
-- **Pricing** — flat monthly subscription, no per-shipment fees. See [`sales/xpmile-platform.md`](sales/xpmile-platform.md) for the commercial offering.
+The Commercial Licence is the *only* way to run a modified xpmile in production without open-sourcing your customisations. Most enterprise deployments will need it.
 
 For commercial licensing enquiries: **naushad.dln@gmail.com**

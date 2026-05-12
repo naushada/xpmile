@@ -197,10 +197,24 @@ Contact: `naushad.dln@gmail.com`
 
 ## Licensing terms
 
-xpmile is **source-available, not open-source** — the code is on GitHub for transparency and academic review, but **commercial use requires a paid commercial licence**.
+xpmile is **dual-licensed**:
 
-- Production deployment, hosting as a service for third parties, or integration into a commercial offering all require a signed commercial licence with xpmile.
-- A monthly subscription gives you the commercial licence for the duration of the subscription, with no per-shipment fees, no volume caps, and no audit clauses beyond user-seat declarations.
-- See the full text in [`LICENSE`](../LICENSE) at the repository root.
+1. **AGPL v3.0-or-later** — free. Open source. Anyone can read, fork, study, evaluate, or extend the code. Modifications served over a network must be released back to your users (AGPL §13).
+2. **Commercial Licence** — flat monthly subscription. Strips out the copyleft, gives you indemnification, SLA, and the right to keep your customisations private.
 
-Universities and security researchers reviewing the codebase under the academic-use grant are welcome; no fee, attribution required.
+**Why most operators need the Commercial Licence:**
+
+- You're running xpmile as a service for your customers — AGPL §13 would require you to publish the source of your operator UI customisations, integrations, and label templates to those customers.
+- Your legal team prohibits AGPL in your production stack (universally true for banks, healthcare, large enterprise).
+- You want indemnification — a contractual promise to defend you against third-party IP claims. AGPL provides none.
+- You want a real support SLA, not "best effort, open an issue on GitHub".
+
+**Why dual licensing is good for you (the buyer):**
+
+- The same code path runs in our cloud and in your future migration target. No hidden enterprise-only features that vanish if you stop paying.
+- You can ask your security team to audit the source code, line by line, before signing. Most SaaS vendors don't offer that.
+- If we ever disappear, the AGPL-licensed code remains usable forever — no end-of-life cliff.
+
+See [`COMMERCIAL-LICENSE.md`](../COMMERCIAL-LICENSE.md) at the repository root for full terms.
+
+Universities and security researchers reviewing the codebase under AGPL are welcome; no fee, attribution required.
