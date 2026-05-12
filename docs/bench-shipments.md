@@ -10,7 +10,11 @@ comparison:
 | BULK    | `POST /api/v1/shipment/bulk/shipping` once, with an array of N shipments  |
 
 Default batch sweep: **10, 50, 100, 500, 1000**.
-Default target: **`https://marvel.herokuapp.com`** (the Heroku deploy).
+Default target: **`https://marvel-3a78bd953f5f.herokuapp.com`** (the Heroku
+deploy). Heroku now publishes apps under a hashed subdomain — the short
+`marvel.herokuapp.com` form 404s. The canonical URL is whatever
+`heroku apps:info --app marvel` prints as **Web URL**; update the
+`DEFAULT_HOST` constant if Heroku rotates the hash.
 
 Only the Python 3 standard library is used — no `pip install` needed.
 
@@ -36,7 +40,7 @@ Flags:
 
 | Flag           | Default                        | Purpose                                                |
 |----------------|--------------------------------|--------------------------------------------------------|
-| `--host`       | `https://marvel.herokuapp.com` | Base URL                                               |
+| `--host`       | `https://marvel-3a78bd953f5f.herokuapp.com` | Base URL (see note above on Heroku hashed subdomain) |
 | `--account`    | *required*                     | `senderInformation.accountNo` — must exist on the target |
 | `--counts`     | `10 50 100 500 1000`           | Batch sizes to sweep                                   |
 | `--awb-prefix` | `AWB`                          | Fallback prefix if the account doesn't carry one       |

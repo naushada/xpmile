@@ -37,7 +37,10 @@ from datetime import datetime
 from typing import Any
 
 
-DEFAULT_HOST = "https://marvel.herokuapp.com"
+# Heroku now serves apps under a hashed subdomain. The short
+# https://marvel.herokuapp.com form 404s for this app — use the
+# hashed URL reported by `heroku apps:info --app marvel`.
+DEFAULT_HOST = "https://marvel-3a78bd953f5f.herokuapp.com"
 DEFAULT_COUNTS = [10, 50, 100, 500, 1000]
 SINGLE_PATH = "/api/v1/shipment/shipping"
 BULK_PATH = "/api/v1/shipment/bulk/shipping"
