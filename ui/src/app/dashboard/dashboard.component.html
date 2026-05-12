@@ -6,6 +6,10 @@
       <h2 class="db-header__title">Monthly Dashboard</h2>
       <p class="db-header__subtitle">
         Shipments created in {{ monthLabel }}{{ accountCode ? ' · ' + accountCode : '' }}
+        <span *ngIf="downloadingReport" class="db-header__progress" role="status" aria-live="polite">
+          <clr-icon shape="sync"></clr-icon>
+          Preparing monthly report…
+        </span>
       </p>
     </div>
   </div>
@@ -24,6 +28,15 @@
             title="Refresh now">
       <clr-icon shape="sync"></clr-icon>
       <span>Refresh</span>
+    </button>
+    <button class="db-report-btn"
+            (click)="onDownloadReport()"
+            [class.spinning]="downloadingReport"
+            [disabled]="downloadingReport || (stats.monthlyLoading$ | async)"
+            [attr.aria-busy]="downloadingReport ? 'true' : null"
+            title="Download monthly report (.xlsx)">
+      <clr-icon [attr.shape]="downloadingReport ? 'sync' : 'download'"></clr-icon>
+      <span>{{ downloadingReport ? 'Preparing…' : 'Download Report' }}</span>
     </button>
   </div>
 </header>

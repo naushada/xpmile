@@ -231,6 +231,63 @@
     }
   }
 
+  .db-report-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #1b4d8e;
+    border: 1px solid #1b4d8e;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+
+    clr-icon { color: #fff; }
+
+    &:hover:not(:disabled) {
+      background: #143d70;
+      border-color: #143d70;
+    }
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    &.spinning {
+      background: #143d70;
+      border-color: #143d70;
+    }
+    &.spinning clr-icon {
+      animation: db-spin 1s linear infinite;
+    }
+  }
+
+  .db-header__progress {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(27, 77, 142, 0.08);
+    color: #1b4d8e;
+    font-weight: 600;
+    font-size: 0.7rem;
+
+    clr-icon {
+      width: 12px;
+      height: 12px;
+      animation: db-spin 1s linear infinite;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .db-report-btn.spinning clr-icon,
+    .db-header__progress clr-icon { animation: none; }
+  }
+
   @keyframes db-spin {
     from { transform: rotate(0deg); }
     to   { transform: rotate(360deg); }
