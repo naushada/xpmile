@@ -158,7 +158,8 @@ The cloud-deployed Angular app has no self-service "forgot password" flow. When 
 |---|------|-------|---------|
 | 1 | Dashboard | `""` (landing) | Monthly stats with PDF export for management. Same buckets as the Angular live subnav but scoped to a selected month. |
 | 2 | Shipments | `shipments` | Read-only list with **live polling** (60 s). Date-range + account filter. |
-| 3 | Accounts | `accounts` | Account list grid. Per-row **Reset Password** dialog. Toolbar **Create Account** dialog. |
+| 3 | Accounts | `accounts` | Account list grid. Per-row **Reset password** + **Delete** dialogs. Toolbar **+ Create Account** navigates to the dedicated `/accounts/create` page. |
+| 4 | Create Account | `accounts/create` | Full-page form with three section cards (Login Credentials / Personal Information / Customer Information). Same enterprise field coverage as the Angular UI. |
 
 ### Authentication
 
@@ -258,10 +259,32 @@ The `LoginView` source file is retained un-routed (no `@Route`) for reference; `
 
 ### AccountsView (`"accounts"`)
 
-- Toolbar: **Create Account** (opens dialog), Refresh.
+- Toolbar: **+ Create Account** (navigates to `/accounts/create`), Refresh.
 - Grid columns: Account Code, Name, Role, Email, Contact, **Actions**.
-- Per-row **Reset Password** action opens a dialog (New Password + Confirm). On save: `accountService.resetPassword(code, newPwd)` → `PUT /api/v1/account/account?userId=<>` with the new plaintext in the body — `handle_account_PUT` on the backend hashes via PBKDF2 before storing. Password never appears in any URL.
-- **Create Account** dialog: minimal form (account code, password, name, email, contact, role). The full enterprise account form with VAT, IBAN, trading licence, currency, etc. stays in the Angular UI for daily provisioning workflows.
+- Per-row actions:
+  - **Reset password** — dialog (New Password + Confirm). On save: `accountService.resetPassword(code, newPwd)` → `PUT /api/v1/account/account?userId=<>` with the new plaintext in the body — `handle_account_PUT` on the backend hashes via PBKDF2 before storing. Password never appears in any URL.
+  - **Delete** — red destructive button. Confirmation dialog explains permanence; on confirm calls `accountService.deleteAccount(code)` → `DELETE /api/v1/account/account?accountCode=<code>` against the new backend branch in `handle_DELETE` (added 2026-05-13). Empty `accountCode` returns 400 by design, preventing an empty-filter from wiping the collection.
+
+### CreateAccountView (`"accounts/create"`)
+
+Dedicated full-page form reached from the AccountsView toolbar button. Three section cards (Login Credentials / Personal Information / Customer Information) covering the full enterprise field set: VAT, IBAN, trading licence, currency, AWB prefix, etc. Mirrors the Angular UI's account-create form so the on-prem admin can provision new accounts with the same fidelity.
+
+- Header strip with gradient icon tile + title + subtitle ("Provision a new operator, employee, or customer login").
+- Section cards: header row (icon + title) over a `FormLayout` with responsive 1/2/3-column breakpoints.
+- Sticky action bar at the viewport bottom: Cancel (navigates back to `AccountsView`) + Create Account (submits + navigates back on success).
+- Submit body posts to `POST /api/v1/account/account`; the backend hashes `accountPassword` via PBKDF2 before insert.
+
+### DashboardView visual styling
+
+- Header is a **gradient panel** (`linear-gradient(90deg, #f8fafc, #eef2f7)`) with a 4-px left accent border (`#1b4d8e`) — same pattern reused by `CreateAccountView` and `AccountsView` for consistency.
+- Six stat cards each carry a 44×44 gradient icon tile on the left (per-bucket colour palette) instead of the earlier left-border accent. Box-shadow is a two-layer subtle elevation `0 1px 3px rgba(0,0,0,0.06), 0 8px 24px -16px rgba(15,45,82,0.18)`.
+- Date picker is now unlabelled inline; the subtitle text underneath the title carries the active-month context.
+
+### Backend additions (2026-05-13)
+
+| Endpoint | Handler | Purpose |
+|---|---|---|
+| `DELETE /api/v1/account/account?accountCode=<code>` | `handle_DELETE` (new account branch) | Used by the Vaadin AccountsView Delete action. Requires the `accountCode` query param; refuses empty filters; returns 200 on success, 404 if no doc matched, 400 if the param is missing. |
 
 ---
 

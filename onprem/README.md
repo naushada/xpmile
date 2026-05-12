@@ -74,7 +74,7 @@ Open **http://localhost:8090** in your browser.
 
 The on-prem UI is **unauthenticated** — opening that URL drops you straight into the Dashboard. The tool is intended to run behind the customer's physical access controls; it exists as an admin / recovery console rather than as a parallel daily-operations UI. See [`docs/onprem-ui-design.md`](../docs/onprem-ui-design.md) for the design rationale.
 
-Available views: Dashboard (monthly stats + PDF export), Shipments (read-only, live 60 s polling), Accounts (list, password reset, create).
+Available views: Dashboard (monthly stats + PDF export), Shipments (read-only, live 60 s polling), Accounts (list, password reset, delete), Create Account (dedicated `/accounts/create` page).
 
 ---
 

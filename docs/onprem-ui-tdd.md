@@ -8,13 +8,14 @@
 
 | # | Test class | Subject | Status |
 |---|---|---|---|
-| 1 | `AccountServiceTest` | List/create/update + `resetPassword` | Existing; needs new test for `resetPassword` and `getAllAccounts` |
+| 1 | `AccountServiceTest` | List/create/update + `resetPassword` + `deleteAccount` | Existing; needs new tests for `resetPassword`, `getAllAccounts`, `deleteAccount` |
 | 2 | `ShipmentServiceTest` | Read APIs (list, by AWB) | Existing |
 | 3 | `BulkShipmentParserTest` | XLSX → Shipment[] (kept; service is still referenced) | Existing |
 | 4 | `AuthServiceTest` | Login flow | **Dead** — `AuthService` is now unreferenced code; remove when `AuthService` itself is deleted |
 | 5 | _Future_ `DashboardViewIT` | Month picker → bucketing; PDF export downloads non-empty bytes | Not yet written |
-| 6 | _Future_ `AccountsViewIT` | Grid renders, reset-password dialog round-trip via WireMock | Not yet written |
-| 7 | _Future_ `ShipmentListViewIT` | Live-poll fires every 60 s while attached | Not yet written |
+| 6 | _Future_ `AccountsViewIT` | Grid renders, reset-password + delete-confirm dialog round-trips via WireMock | Not yet written |
+| 7 | _Future_ `CreateAccountViewIT` | Submit posts to `/api/v1/account/account` and navigates back to `/accounts` | Not yet written |
+| 8 | _Future_ `ShipmentListViewIT` | Live-poll fires every 60 s while attached | Not yet written |
 
 **What to add next (highest-value new tests):**
 
@@ -22,10 +23,14 @@
   - `resetPassword_sendsPutWithBodyOnly_noPasswordInUrl` — assert the captured WireMock request URL has no `password=` query param and the body contains `loginCredentials.accountPassword`.
   - `getAllAccounts_returnsArray` — backend returns 3 docs → list of 3.
   - `getAllAccounts_on400ReturnsEmpty` — backend returns 400 (no docs) → empty list (no exception).
+  - `deleteAccount_sendsDeleteWithAccountCodeQueryParam` — assert the captured request is `DELETE /api/v1/account/account?accountCode=<code>` and the body is empty. Locks in the contract with the new backend handler.
+  - `deleteAccount_on404PropagatesException` — backend returns 404 (account not found) → service rethrows so the UI dialog can show "Delete failed".
 
 - `DashboardViewTest` (unit-level, no Vaadin):
   - Extract `compute(shipments, YearMonth)` into a static helper or package-private method and unit-test the bucketing rules directly against fixtures.
   - Test that `inMonth("15/05/2026", YearMonth.of(2026, 5))` is `true` and the same string against any other month is `false`.
+
+- Backend C++ side: add a gtest for the new `handle_DELETE` `/api/v1/account/account` branch — assert that calling without `accountCode` returns 400, and calling with one builds the correct `{"loginCredentials.accountCode": "<code>"}` filter against the mock `IMongodbClient`. This is the guardrail against an empty-filter regression.
 
 PDF generation is harder to assert exactly (binary output) — a "PDF starts with `%PDF-` and contains `Total shipments created` text" smoke test is enough.
 
