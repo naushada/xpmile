@@ -1,28 +1,47 @@
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="inventoryReportForm" class="ir-page">
 
-<form clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="inventoryReportForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-input-container>
-                <label for="sku">SKU or Product ID</label>
-                <input type="text" clrInput name="sku">
-            </clr-input-container>
-        </div>
-    
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label>Account Code</label>
-                <select clrSelect name="accountCode" multiple cols="50">
-                    <option *ngFor="let acc of this.accountInfoList" value="acc.loginCrendetials.accountCode">{{acc.loginCredentials.accountCode}}</option>
-                </select>
-            </clr-select-container>
-            
-        </div>
-
+  <!-- Page header -->
+  <header class="ir-header">
+    <div class="ir-header-left">
+      <div class="ir-icon-tile" aria-hidden="true">
+        <clr-icon shape="view-list" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="ir-title">Detailed Report</h2>
+        <p class="ir-subtitle">Look up inventory by SKU or product ID, filtered by account.</p>
+      </div>
     </div>
+  </header>
 
-    <div class="clr-row" >
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary">Submit</button>
-        </div>
+  <!-- Filters card -->
+  <section class="ir-card">
+    <div class="ir-card-head">
+      <clr-icon shape="filter" size="18"></clr-icon>
+      <h3>Filters</h3>
+      <span class="ir-card-hint">Narrow your results</span>
     </div>
+    <div class="ir-card-body">
+      <div class="ir-row-2">
+        <clr-input-container>
+          <label for="sku">SKU or Product ID</label>
+          <input clrInput name="sku" formControlName="sku" type="text" />
+        </clr-input-container>
+        <clr-select-container>
+          <label>Account Code</label>
+          <select clrSelect name="accountCode" formControlName="accountCode" multiple>
+            <option *ngFor="let acc of accountInfoList" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
+          </select>
+        </clr-select-container>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sticky action bar -->
+  <div class="ir-action-bar">
+    <span class="ir-action-hint">Submit to load matching inventory records.</span>
+    <button type="button" class="btn btn-primary" (click)="createInventoryReport()">
+      <clr-icon shape="search" size="14"></clr-icon> Submit
+    </button>
+  </div>
+
 </form>

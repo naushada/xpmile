@@ -1,45 +1,70 @@
-<form action="" clrForm clrLayout="vertical" clrLabelSize="4" [formGroup]="detailedReportForm">
-    <div class="clr-row">
-        <div class="clr-col-lg-auto">
-            <clr-date-container>
-                <label for="shipmentNo">Start Date</label>
-                <input clrDate name="startDate" formControlName="startDate" type="date">
-            </clr-date-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-date-container>
-                <label for="endDate">End Date</label>
-                <input clrDate name="startDate" formControlName="endDate" type="date">
-            </clr-date-container>
-        </div>
+<form clrForm clrLayout="vertical" clrLabelSize="5" [formGroup]="detailedReportForm" class="dr-page">
 
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label>Receiver Country</label>
-                <select clrSelect name="receiverCountry" formControlName="receiverCountry">
-                  <option *ngFor="let country of defValue.CountryName" [value]="country">{{country}}</option>
-                </select>
-              </clr-select-container>
-        </div>
-        <div class="clr-col-lg-auto">
-            <clr-select-container>
-                <label>Account Code</label>
-                <select clrSelect name="accountCode" formControlName="accountCode" multiple cols="50">
-                  <option *ngFor="let acc of accounts" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
-                </select>
-              </clr-select-container>
-        </div>
+  <!-- Page header -->
+  <header class="dr-header">
+    <div class="dr-header-left">
+      <div class="dr-icon-tile" aria-hidden="true">
+        <clr-icon shape="bar-chart" size="22"></clr-icon>
+      </div>
+      <div>
+        <h2 class="dr-title">Detailed Report</h2>
+        <p class="dr-subtitle">Filter shipments by date range, destination and account, then export to Excel.</p>
+      </div>
     </div>
-    <div class="clr-row">
-        <div class="clr-col">
-            <button type="button" class="btn btn-primary" (click)="onSubmit()">Submit</button>
-            <button type="button" class="btn btn-primary" (click)="onExcelExport()" [disabled]="isButtonDisabled">Export To Excel</button>
-        </div>
+  </header>
+
+  <!-- Filters card -->
+  <section class="dr-card">
+    <div class="dr-card-head">
+      <clr-icon shape="filter" size="18"></clr-icon>
+      <h3>Filters</h3>
+      <span class="dr-card-hint">Narrow your results</span>
     </div>
+    <div class="dr-card-body">
+      <div class="dr-row-2">
+        <clr-date-container>
+          <label for="startDate">Start Date</label>
+          <input clrDate name="startDate" formControlName="startDate" type="date" />
+        </clr-date-container>
+        <clr-date-container>
+          <label for="endDate">End Date</label>
+          <input clrDate name="endDate" formControlName="endDate" type="date" />
+        </clr-date-container>
+      </div>
+      <div class="dr-row-2">
+        <clr-select-container>
+          <label>Receiver Country</label>
+          <select clrSelect name="receiverCountry" formControlName="receiverCountry">
+            <option *ngFor="let country of defValue.CountryName" [value]="country">{{country}}</option>
+          </select>
+        </clr-select-container>
+        <clr-select-container>
+          <label>Account Code</label>
+          <select clrSelect name="accountCode" formControlName="accountCode" multiple>
+            <option *ngFor="let acc of accounts" [value]="acc.loginCredentials.accountCode">{{acc.loginCredentials.accountCode}}</option>
+          </select>
+        </clr-select-container>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sticky action bar -->
+  <div class="dr-action-bar">
+    <span class="dr-action-hint">Submit to load shipments, then Export to Excel.</span>
+    <div class="dr-action-buttons">
+      <button type="button" class="btn btn-outline" (click)="onSubmit()">
+        <clr-icon shape="search" size="14"></clr-icon> Submit
+      </button>
+      <button type="button" class="btn btn-primary" (click)="onExcelExport()" [disabled]="isButtonDisabled">
+        <clr-icon shape="download" size="14"></clr-icon> Export To Excel
+      </button>
+    </div>
+  </div>
+
 </form>
 
 
-<clr-datagrid>
+<clr-datagrid class="dr-datagrid">
     <clr-dg-column>Tracking Number</clr-dg-column>
     <clr-dg-column>Alternate Reference Number</clr-dg-column>
     <clr-dg-column>Account Code</clr-dg-column>
@@ -58,17 +83,17 @@
     <clr-dg-column>Sender Contact</clr-dg-column>
     <clr-dg-column>Sender Phone</clr-dg-column>
     <clr-dg-column>Sender Email</clr-dg-column>
-    <clr-dg-column>Service Type	</clr-dg-column>
+    <clr-dg-column>Service Type</clr-dg-column>
     <clr-dg-column>Number Of Items</clr-dg-column>
-    <clr-dg-column>	Goods Description</clr-dg-column>
+    <clr-dg-column>Goods Description</clr-dg-column>
     <clr-dg-column>Goods Value</clr-dg-column>
     <clr-dg-column>Customs Value</clr-dg-column>
     <clr-dg-column>Weight</clr-dg-column>
     <clr-dg-column>Weight Unit</clr-dg-column>
     <clr-dg-column>COD Amount</clr-dg-column>
     <clr-dg-column>Currency</clr-dg-column>
-    <clr-dg-column>SKU </clr-dg-column>
-    <clr-dg-column>HS Code </clr-dg-column>
+    <clr-dg-column>SKU</clr-dg-column>
+    <clr-dg-column>HS Code</clr-dg-column>
     <clr-dg-column>Receiver Name</clr-dg-column>
     <clr-dg-column>Receiver Address</clr-dg-column>
     <clr-dg-column>Receiver City</clr-dg-column>
@@ -116,14 +141,13 @@
         <clr-dg-cell>{{sh.shipment.receiverInformation.contact}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.receiverInformation.phone}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.receiverInformation.email}}</clr-dg-cell>
-
     </clr-dg-row>
 
     <clr-dg-footer>
-		<clr-dg-pagination #pagination [clrDgPageSize]="10">
-			<clr-dg-page-size [clrPageSizeOptions]="[10,20,50,100]">Shipment per page</clr-dg-page-size>
-        {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}}
-        of {{pagination.totalItems}} shipments
-    </clr-dg-pagination>
+        <clr-dg-pagination #pagination [clrDgPageSize]="10">
+            <clr-dg-page-size [clrPageSizeOptions]="[10,20,50,100]">Shipment per page</clr-dg-page-size>
+            {{pagination.firstItem + 1}} - {{pagination.lastItem + 1}}
+            of {{pagination.totalItems}} shipments
+        </clr-dg-pagination>
     </clr-dg-footer>
 </clr-datagrid>
