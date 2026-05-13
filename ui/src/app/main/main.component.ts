@@ -16,7 +16,7 @@ export class MainComponent implements OnInit, OnDestroy {
   private selectedItem: string = "";
 
   loggedInUser?: Account;
-  today = formatDate(new Date(), 'EEE, d MMM', 'en-US');
+  today = this.formatToday();
   flashOn = false;
 
   subsink = new SubSink();
@@ -26,11 +26,15 @@ export class MainComponent implements OnInit, OnDestroy {
       rsp => { this.loggedInUser = { ...(rsp as Account) }; }
     );
 
-    // Brief flash on the live strip each time a poll completes.
     this.subsink.sink = this.stats.stats$.subscribe(() => {
+      this.today = this.formatToday();
       this.flashOn = true;
       setTimeout(() => { this.flashOn = false; }, 700);
     });
+  }
+
+  private formatToday(): string {
+    return formatDate(new Date(), 'EEE, d MMM', 'en-US');
   }
 
   ngOnInit(): void {
