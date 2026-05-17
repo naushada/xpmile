@@ -22,20 +22,42 @@ COPY modules/ /src/modules/
 COPY test/ /src/test/
 COPY docker/mongo-init.js /src/docker/
 
-# Copy repo certs and generate Heroku server cert from the same CA.
-# The CA (ca.crt / ca.key) lives in the repo so wsdbagent can verify the
-# server using a committed trust anchor.
-COPY certs/ /tmp/repo-certs/
-RUN mkdir -p /src/certs && \
-    openssl genrsa -out /src/certs/server.key 2048 && \
-    openssl req -new -key /src/certs/server.key \
-        -out /src/certs/server.csr \
+# Mint a fresh CA + server + client cert family per build (mirrors
+# onprem-pbx Dockerfile.cloud). No host-side ca.key required — the
+# previous pattern needed certs/ca.key for `openssl x509 -req -CAkey`,
+# but ca.key is gitignored, so CI never had it. Now the CA is born
+# inside this layer and ca.key is purged at the end of the same RUN
+# so it never lands in any image filesystem.
+#
+# Output:
+#   /src/certs/        — ca.crt + server.{crt,key}   (baked into runtime: /opt/xAPP/granada/certs/)
+#   /src/agent-certs/  — ca.crt + client.{crt,key}   (staged for wsdbagent rotation; future
+#                                                     deploy-heroku.sh cmd_extract_agent_certs
+#                                                     pulls these out of the built image)
+#
+# Per-build CA → wsdbagent's trust anchor rotates with every deploy.
+# Customers running an older ca.crt will fail TLS verification until
+# their cert pair is refreshed (extract step + sidecar watcher land
+# in follow-up work).
+RUN mkdir -p /src/certs /src/agent-certs && cd /tmp && \
+    openssl genrsa -out ca.key 4096 && \
+    openssl req -new -x509 -days 3650 -key ca.key -out ca.crt \
+        -subj "/O=xpmile/CN=xpmile-CA" && \
+    openssl genrsa -out server.key 4096 && \
+    openssl req -new -key server.key -out server.csr \
         -subj "/O=xpmile/CN=marvel.xpmile.com" && \
-    openssl x509 -req -days 365 -in /src/certs/server.csr \
-        -CA /tmp/repo-certs/ca.crt -CAkey /tmp/repo-certs/ca.key -CAcreateserial \
-        -out /src/certs/server.crt && \
-    cp /tmp/repo-certs/ca.crt /src/certs/ca.crt && \
-    rm -f /src/certs/server.csr /src/certs/ca.srl /tmp/repo-certs/ca.key
+    openssl x509 -req -days 3650 -in server.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt && \
+    openssl genrsa -out client.key 4096 && \
+    openssl req -new -key client.key -out client.csr \
+        -subj "/O=xpmile/CN=wsdbagent" && \
+    openssl x509 -req -days 3650 -in client.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt && \
+    cp ca.crt /src/certs/ca.crt && \
+    mv server.crt server.key /src/certs/ && \
+    cp ca.crt /src/agent-certs/ca.crt && \
+    mv client.crt client.key /src/agent-certs/ && \
+    rm -f ca.key ca.srl server.csr client.csr
 
 WORKDIR /src/build
 RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
@@ -95,9 +117,15 @@ RUN ldconfig
 RUN mkdir -p /opt/xAPP/granada
 COPY --from=cpp-builder /src/build/uniservice /opt/xAPP/granada/uniservice
 
-# Self-signed certs for inner TLS (generated in cpp-builder stage)
-RUN mkdir -p /opt/xAPP/granada/certs
-COPY --from=cpp-builder /src/certs/ /opt/xAPP/granada/certs/
+# InnerTLS material baked into the runtime image. server.{crt,key}
+# + ca.crt is what uniservice serves on the inner TLS port. The
+# matching client cert family (ca.crt + client.{crt,key}) is staged
+# at /opt/xAPP/granada/agent-certs/ so a future
+# `deploy-heroku.sh cmd_extract_agent_certs` can `podman cp` it out
+# of the built image for the on-prem wsdbagent stack.
+RUN mkdir -p /opt/xAPP/granada/certs /opt/xAPP/granada/agent-certs
+COPY --from=cpp-builder /src/certs/       /opt/xAPP/granada/certs/
+COPY --from=cpp-builder /src/agent-certs/ /opt/xAPP/granada/agent-certs/
 
 # Angular distribution
 RUN mkdir -p /opt/xAPP/webgui
