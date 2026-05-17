@@ -255,26 +255,16 @@ jobs:
           cache-from: type=registry,ref=${{ env.UNISERVICE_IMAGE }}:buildcache
           cache-to:   type=registry,ref=${{ env.UNISERVICE_IMAGE }}:buildcache,mode=max
 
-      # Release on Heroku by PATCHing the Platform API with the image
-      # digest that buildx just pushed. This is the headless equivalent
-      # of `heroku container:release web --app marvel`; running the
-      # heroku CLI on the runner would require pulling the image first
-      # to read its ID from the local daemon. The Platform API takes
-      # the digest directly.
-      #
-      # Docs: https://devcenter.heroku.com/articles/container-registry-and-runtime#api
-      - name: Release marvel on Heroku
+      # Release on Heroku via the official CLI. The earlier approach
+      # (PATCH /formation with the buildx-reported digest) hit
+      # `record not_found` because Heroku's registry stores its own
+      # digest after the push, distinct from the OCI manifest digest
+      # buildx emits. The CLI re-resolves the digest from the registry,
+      # so it always uses the right one. Matches onprem-pbx's pattern.
+      - name: Install Heroku CLI (one-shot, ~10 s)
+        run: curl -fsSL https://cli-assets.heroku.com/install.sh | sudo sh
+
+      - name: Release marvel on Heroku (heroku container:release web)
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-          IMAGE_DIGEST:   ${{ steps.build.outputs.digest }}
-        run: |
-          set -euo pipefail
-          echo "Releasing image digest: ${IMAGE_DIGEST}"
-          curl -fsSL -X PATCH \
-            "https://api.heroku.com/apps/${HEROKU_APP}/formation" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/vnd.heroku+json; version=3.docker-releases" \
-            -H "Authorization: Bearer ${HEROKU_API_KEY}" \
-            -d "{\"updates\":[{\"type\":\"web\",\"docker_image\":\"${IMAGE_DIGEST}\"}]}"
-          echo ""
-          echo "Release triggered. Dyno is restarting."
+        run: heroku container:release web --app "${HEROKU_APP}"
