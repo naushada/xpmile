@@ -73,14 +73,20 @@ services:
 
   # ------------------------------------------------------------------
   # wsdbagent — connects outbound to uniservice /ws/db
-  # Stateless: no volume needed (certs mounted read-only if using mTLS)
+  #
+  # Pulled from Docker Hub (published per-deploy by CI). The image
+  # carries only the binary + runtime libs — the matching client
+  # cert pair is mounted at /certs from the host (refreshed by
+  # `./run-agent.sh refresh-certs`). To pin to a specific build,
+  # set WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:<sha>.
+  #
+  # Override with WSDBAGENT_LOCAL_BUILD=1 + a sibling compose file
+  # that adds a `build:` directive if you're hacking on the agent
+  # locally.
   # ------------------------------------------------------------------
   wsdbagent:
-    pull_policy: never
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.wsdbagent
-    image: wsdbagent:latest
+    image: ${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}
+    pull_policy: always
     container_name: agent-wsdbagent
     restart: unless-stopped
     depends_on:

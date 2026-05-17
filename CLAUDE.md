@@ -98,16 +98,17 @@ podman rmi $(podman images -f "dangling=true" -q)
 ### wsdbagent stack (MongoDB machine behind NAT)
 
 ```sh
-# First-time setup
+# First-time setup — one-shot
 cp .env.agent .env                  # set SERVER_HOST=<your-heroku-app>.herokuapp.com
-./run-agent.sh refresh-certs        # pull rotated client cert family from Docker Hub
-./run-agent.sh start                # brings up mongodb + wsdbagent + xpmile-cert-watcher
+./run-agent.sh start                # auto-refresh certs (if missing) + bring up all 3 services
 
 # After each CI/Heroku deploy (or every 15 min on a cron)
 ./run-agent.sh refresh-certs        # cert-watcher restarts wsdbagent automatically (~15 s)
 ```
 
-Three services: `mongodb`, `wsdbagent`, and `xpmile-cert-watcher`. The watcher is a tiny alpine sidecar that md5sums `./certs/cloud-issued/innertls/` every 5 s and POSTs a restart to `agent-wsdbagent` via the host podman socket on any change. It exists because `docker/Dockerfile` mints a fresh CA per uniservice build — wsdbagent's trust anchor + client cert pair must rotate in lockstep or the next reconnect fails with `tls_process_client_certificate verify failed`. Full rotation story in `docs/ws-db-agent.md`.
+Three services: `mongodb` (built locally from `docker/Dockerfile.mongo`, ~30 s), `wsdbagent` (pulled from `docker.io/naushada/xpmile-wsdbagent:latest` — CI-published per deploy; pin with `WSDBAGENT_IMAGE=...:<sha>`), and `xpmile-cert-watcher` (alpine sidecar; `docker.io/library/alpine:3.19`). The watcher md5sums `./certs/cloud-issued/innertls/` every 5 s and POSTs a restart to `agent-wsdbagent` via the host podman socket on any change. It exists because `docker/Dockerfile` mints a fresh CA per uniservice build — wsdbagent's trust anchor + client cert pair must rotate in lockstep or the next reconnect fails with `tls_process_client_certificate verify failed`. Full rotation story in `docs/ws-db-agent.md`.
+
+`./run-agent.sh start` auto-invokes `refresh-certs` when `./certs/cloud-issued/innertls/` is missing or empty, so the first-time flow is genuinely one-shot.
 
 ### Running tests
 

@@ -56,11 +56,24 @@ on:
       - 'docker/Dockerfile.bootstrap'
       - 'docker/Dockerfile.test'
       - 'docker/Dockerfile.wsdbagent'
+      - 'docker/Dockerfile.mongo'
+      - 'docker/mongo-init.js'
       - 'CMakeLists.txt'
       - 'modules/**'
       - 'test/**'
       - 'ui/**'
       - 'certs/**'
+      # Operator-facing scripts + compose files: changes here can break the
+      # on-prem stack or deploy path even when the C++ binaries are unchanged.
+      # Gate them behind the test job so a script regression can't merge
+      # silently.
+      - 'run.sh'
+      - 'run-agent.sh'
+      - 'deploy-heroku.sh'
+      - 'docker-compose.yml'
+      - 'docker-compose.agent.yml'
+      - 'docker-compose.heroku.yml'
+      - '.env.agent'
       - '.github/workflows/publish-images.yml'
   # PR runs are the merge gate: bootstrap + test only (no publish, no
   # Heroku release — see `if:` guards on wsdbagent + uniservice jobs).
@@ -73,11 +86,24 @@ on:
       - 'docker/Dockerfile.bootstrap'
       - 'docker/Dockerfile.test'
       - 'docker/Dockerfile.wsdbagent'
+      - 'docker/Dockerfile.mongo'
+      - 'docker/mongo-init.js'
       - 'CMakeLists.txt'
       - 'modules/**'
       - 'test/**'
       - 'ui/**'
       - 'certs/**'
+      # Operator-facing scripts + compose files: changes here can break the
+      # on-prem stack or deploy path even when the C++ binaries are unchanged.
+      # Gate them behind the test job so a script regression can't merge
+      # silently.
+      - 'run.sh'
+      - 'run-agent.sh'
+      - 'deploy-heroku.sh'
+      - 'docker-compose.yml'
+      - 'docker-compose.agent.yml'
+      - 'docker-compose.heroku.yml'
+      - '.env.agent'
       - '.github/workflows/publish-images.yml'
   workflow_dispatch:
 

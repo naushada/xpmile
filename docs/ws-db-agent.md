@@ -95,7 +95,23 @@ Because every Heroku deploy rolls the CA, on-prem `wsdbagent` instances must
 refresh their cert pair in lockstep — otherwise the next reconnect fails with
 `tls_process_client_certificate verify failed`.
 
-### Refreshing on the MongoDB machine
+### Bringing the stack up on the MongoDB machine
+
+First-time, one-shot:
+
+```sh
+cp .env.agent .env             # set SERVER_HOST=marvel-…herokuapp.com
+./run-agent.sh start           # auto-refresh certs + start mongodb + wsdbagent + cert-watcher
+```
+
+`./run-agent.sh start` auto-invokes `refresh-certs` when
+`./certs/cloud-issued/innertls/` is missing or empty. The wsdbagent image
+is pulled from Docker Hub (`docker.io/naushada/xpmile-wsdbagent:latest`,
+published per deploy by CI) — no local build needed. Pin to a specific
+build by setting `WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:<sha>`
+in `.env`.
+
+### Manual cert refresh (between deploys)
 
 ```sh
 ./run-agent.sh refresh-certs   # podman pull + extract → certs/cloud-issued/innertls/

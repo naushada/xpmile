@@ -69,10 +69,12 @@ ensure_env() {
 
 # ── subcommands ───────────────────────────────────────────────────────────────
 cmd_build() {
-  section "Building images"
+  section "Building local images (mongodb only — wsdbagent + cert-watcher pull from registries)"
   ensure_env
-  info "Building mongodb and wsdbagent images (this takes 20–30 min on first run)…"
-  $COMPOSE_CMD -f "$COMPOSE_FILE" build
+  info "Building xpmile-mongo:latest from docker/Dockerfile.mongo (~30 s)."
+  info "wsdbagent (docker.io/naushada/xpmile-wsdbagent:latest) is pulled at start time."
+  info "xpmile-cert-watcher (docker.io/library/alpine:3.19) is pulled at start time."
+  $COMPOSE_CMD -f "$COMPOSE_FILE" build mongodb
   ok "Build complete."
 }
 
@@ -80,11 +82,22 @@ cmd_start() {
   section "Starting containers"
   ensure_env
 
-  # Auto-build if either image is missing
-  if ! podman image exists xpmile-mongo:latest &>/dev/null || \
-     ! podman image exists wsdbagent:latest &>/dev/null; then
-    warn "One or more images not found — building first."
-    $COMPOSE_CMD -f "$COMPOSE_FILE" build
+  # wsdbagent (and the cert-watcher's bind mount) need the rotated
+  # client cert family on disk before they start. If the dir is
+  # missing or empty, pull it from Docker Hub before bringing the
+  # stack up — otherwise wsdbagent crashloops on a TLS load failure
+  # and the operator sees a confusing "agent not connected" later.
+  if [[ ! -d "${CERTS_DEST}" ]] || [[ -z "$(ls -A "${CERTS_DEST}" 2>/dev/null)" ]]; then
+    warn "${CERTS_DEST} is missing or empty — running refresh-certs first."
+    cmd_refresh_certs
+    echo ""
+  fi
+
+  # Pull/build the mongodb side if missing — wsdbagent is pulled by
+  # compose (pull_policy: always) so no local build is needed there.
+  if ! podman image exists xpmile-mongo:latest &>/dev/null; then
+    warn "xpmile-mongo:latest not found — building it now."
+    $COMPOSE_CMD -f "$COMPOSE_FILE" build mongodb
   fi
 
   $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
