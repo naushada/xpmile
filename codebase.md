@@ -663,25 +663,56 @@ error: write /ui/node_modules/esbuild-linux-64/bin/esbuild: no space left on dev
 
 ## Continuous integration
 
-`.github/workflows/publish-images.yml` is the single CI/CD entry point. Triggers: push to `main` touching `docker/Dockerfile*`, `modules/**`, `ui/**`, `test/**`, `certs/**`, `CMakeLists.txt`, or the workflow file; plus `workflow_dispatch`.
+`.github/workflows/publish-images.yml` is the single CI/CD entry point. Triggers:
+
+- **`push` to `main`** on path matches (full pipeline including Docker Hub publish + Heroku release)
+- **`pull_request` against `main`** on the same path matches (gating mode — runs `bootstrap` + `test` only; publish + release jobs guarded by `if: github.event_name != 'pull_request'`)
+- **`workflow_dispatch`** for manual reruns / branch validation
+
+Path filter: `docker/Dockerfile*`, `CMakeLists.txt`, `modules/**`, `test/**`, `ui/**`, `certs/**`, or the workflow file itself.
 
 ### Pipeline shape
 
 ```
-bootstrap  ─┬─►  test  ─┬─►  wsdbagent     (Docker Hub, multi-arch)
-            │            │
-            │            └─►  uniservice    (Docker Hub amd64 + registry.heroku.com/marvel/web)
-            │                     │
-            │                     └─► PATCH Heroku Platform API → release on web dyno
-            └─ (no fan-out without test; concurrency block cancels older runs on same ref)
+push to main:
+  bootstrap  ─┬─►  test  ─┬─►  wsdbagent     (Docker Hub, multi-arch)
+              │            │
+              │            └─►  uniservice    (Docker Hub amd64 + registry.heroku.com/marvel/web)
+              │                     │
+              │                     └─► heroku container:release web → marvel dyno
+              └─ (concurrency block cancels older runs on same ref)
+
+PR against main:
+  bootstrap  ───►  test       ──► [wsdbagent + uniservice skipped]
+                       │
+                       └─► status check `Run offtarget GTest suite` reported to PR
+                           (branch protection blocks merge if missing/failing)
 ```
 
-| Job | Runner | Platforms | Output |
-|---|---|---|---|
-| **bootstrap** | `ubuntu-latest` | linux/amd64, linux/arm64 | `docker.io/naushada/xpmile-cpp-builder:{bootstrap,<sha>}` + `:buildcache` |
-| **test** | `ubuntu-latest` | linux/amd64 | `xpmile-test:ci` (loaded into local docker daemon, then `docker run --rm`); 3 Mongo-dependent tests skipped by `--gtest_filter` |
-| **wsdbagent** | `ubuntu-latest` | linux/amd64, linux/arm64 | `docker.io/naushada/xpmile-wsdbagent:{latest,<sha>}` |
-| **uniservice** | `ubuntu-latest` | linux/amd64 | `docker.io/naushada/xpmile-uniservice:{latest,<sha>}` + `registry.heroku.com/marvel/web`, then `curl PATCH https://api.heroku.com/apps/marvel/formation` with the buildx digest |
+| Job | Runner | Platforms | Output | Skipped on PR? |
+|---|---|---|---|---|
+| **bootstrap** | `ubuntu-latest` | linux/amd64, linux/arm64 | `docker.io/naushada/xpmile-cpp-builder:{bootstrap,<sha>}` + `:buildcache` | no |
+| **test** | `ubuntu-latest` | linux/amd64 | `xpmile-test:ci` (loaded into local docker daemon, then `docker run --rm`); 3 Mongo-dependent tests skipped by `--gtest_filter` | no |
+| **wsdbagent** | `ubuntu-latest` | linux/amd64, linux/arm64 | `docker.io/naushada/xpmile-wsdbagent:{latest,<sha>}` | **yes** |
+| **uniservice** | `ubuntu-latest` | linux/amd64 | `docker.io/naushada/xpmile-uniservice:{latest,<sha>}` + `registry.heroku.com/marvel/web`, then `heroku container:release web --app marvel` | **yes** |
+
+### Branch protection (gating)
+
+Configured on `main` via `gh api -X PUT repos/naushada/xpmile/branches/main/protection`:
+
+| Setting | Value | Why |
+|---|---|---|
+| Required check | `Run offtarget GTest suite` | The test job — fails → merge blocked |
+| `strict` | `true` | PR branch must be up-to-date with main before merge (forces re-run if main moved) |
+| `enforce_admins` | `false` | Repo admins keep an emergency override for CI outages |
+| `allow_force_pushes` / `allow_deletions` | `false` | main history is append-only |
+| Required PR reviews | none | self-merge OK; revisit when a collaborator joins |
+
+Inspect / update with:
+```sh
+gh api repos/naushada/xpmile/branches/main/protection | jq .
+gh api -X PUT repos/naushada/xpmile/branches/main/protection --input protection.json
+```
 
 ### Required repo secrets
 
@@ -689,14 +720,15 @@ bootstrap  ─┬─►  test  ─┬─►  wsdbagent     (Docker Hub, multi-ar
 |---|---|---|
 | `DOCKERHUB_USERNAME` | `naushada` | Docker Hub login |
 | `DOCKERHUB_TOKEN` | https://hub.docker.com/settings/security (write scope) | Docker Hub push |
-| `HEROKU_API_KEY` | `heroku auth:token` | Heroku registry push + Platform API release |
+| `HEROKU_API_KEY` | `heroku auth:token` | Heroku registry push + `heroku container:release` |
 
 ### Caveats
 
-- **`provenance: false`** on the uniservice build — Heroku's registry rejects buildx attestation manifests; turning provenance off makes buildx emit a plain Docker manifest that both Docker Hub and Heroku accept.
+- **`provenance: false` + `outputs: type=image,oci-mediatypes=false`** on the uniservice build — Heroku's registry rejects buildx attestation manifests and is picky about OCI mediatypes; together these tell buildx to emit a plain Docker v2s2 manifest (matching `podman push --format=v2s2` in `deploy-heroku.sh`). Mirrors onprem-pbx publish-cloud.
+- **Heroku release uses the official CLI** (`heroku container:release web --app marvel`), installed one-shot inside the uniservice job. An earlier attempt at `PATCH /apps/marvel/formation` with the buildx-reported digest hit `404 record_not_found` because Heroku's registry stores its own digest distinct from the OCI manifest digest; the CLI re-resolves it correctly.
 - **Concurrency block** cancels older in-flight runs only for runs queued *after* the block was added. Runs queued before continue to completion.
 - **Mongo-dependent tests** (`AccountLoginTest.ValidCredentials_*`, `AccountLoginTest.ResponseBody_*`, `WsDbServer.SecondAgentRejected_When_FirstAlive`) are excluded by `Dockerfile.test`'s CMD filter. Wire a Mongo sidecar into the `test` job and drop the filter to include them.
-- **`deploy-heroku.sh`** is still the manual escape hatch — useful for hotfixes from a feature branch, offline deploys, or when CI is down.
+- **`deploy-heroku.sh`** is still the manual escape hatch — useful for hotfixes from a feature branch, offline deploys, or when CI is down. Admin-exempt branch protection means a force-push from the dev's laptop still works (but `allow_force_pushes: false` blocks it on main anyway, so the escape hatch is really "build locally + push to Heroku registry directly").
 
 ---
 

@@ -199,6 +199,7 @@ public interface and `src/` for the implementation.
 │   └── mongo-init.js               DB user creation + bootstrap admin document
 ├── .github/workflows/
 │   └── publish-images.yml          CI: bootstrap → test → wsdbagent ∥ uniservice + Heroku release
+│                                   (PRs run bootstrap + test only — merge to main blocked on gtest)
 ├── docker-compose.yml              Local stack (mongodb + app)
 ├── docker-compose.agent.yml        On-prem stack (mongodb + wsdbagent + cert-watcher sidecar)
 ├── docker-compose.heroku.yml       Build spec for the Heroku registry image
