@@ -517,7 +517,7 @@ Two build stages; cpp-builder is `FROM ${BUILDER_IMAGE}`:
 - Passes `-DBUILD_TESTS=OFF` so GTest is not required at compile time
 - Builds only the `wsdbagent` target (`make -j2 wsdbagent`)
 - Runtime stage copies the binary and shared libs; all flags passed via `ENV ARGS=""`
-- No volume needed — agent connects outbound only; certs mounted read-only via `-v /path/to/certs:/certs:ro`
+- Certs (rotated CA + client pair) bind-mounted at `/certs` — written by `./run-agent.sh refresh-certs`, watched by the cert-watcher sidecar; see "Agent cert rotation" below.
 
 ### Docker — test image (`docker/Dockerfile.test`)
 
@@ -529,6 +529,25 @@ Two services on an isolated bridge network (`xpmile-net`):
 
 - **`mongodb`** — custom image with `mongo-init.js` baked in; runs as UID 999 (MongoDB system user) to avoid `/proc/1/fd` permission issues on some Linux hosts; data persisted in named volume `mongo-data`.
 - **`app`** — depends on `mongodb` with `condition: service_healthy`; passes the MongoDB URI with app credentials via `ARGS` env var.
+
+### docker-compose.agent.yml
+
+Three services on `agent-net`, intended for the on-prem MongoDB machine behind NAT:
+
+- **`mongodb`** — same custom image as the main stack; container name `agent-mongo`.
+- **`wsdbagent`** — outbound-only WS DB proxy to uniservice; mounts `${CERTS_DIR:-./certs/cloud-issued/innertls}` at `/certs:ro`.
+- **`xpmile-cert-watcher`** — alpine sidecar that md5sums the cert dir every 5 s and POSTs `/libpod/containers/agent-wsdbagent/restart` via the host podman socket on any change. Bind-mounts `${PODMAN_SOCKET:-/run/podman/podman.sock}`.
+
+### Agent cert rotation
+
+`docker/Dockerfile` mints a fresh CA per uniservice build (see "Docker — main app image"). The matching client cert family is staged at `/opt/xAPP/granada/agent-certs/` inside the image. Two entry points pull it out:
+
+| Trigger | Command | Source image | Used when |
+|---|---|---|---|
+| Laptop deploy | `./deploy-heroku.sh extract-agent-certs` (auto-invoked by `deploy`) | Locally built image | Operator deploys directly from a dev machine |
+| On-prem refresh | `./run-agent.sh refresh-certs` | `docker.io/naushada/xpmile-uniservice:latest` (override with `UNISERVICE_IMAGE=...`) | CI deployed; operator wants to follow up |
+
+Both write the family to `./certs/cloud-issued/innertls/` (gitignored — canonical source is the published image). The `xpmile-cert-watcher` sidecar then restarts `agent-wsdbagent`. End-to-end refresh-to-reconnect: ~15 s (5 s detect + 5–10 s restart + 1–2 s handshake). Tune the watcher's poll interval with `CERT_WATCH_POLL_SECONDS`; switch the socket path with `PODMAN_SOCKET` for rootless setups.
 
 ### mongo-init.js
 

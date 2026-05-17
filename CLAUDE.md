@@ -45,19 +45,21 @@ The `app` service is the only service name relevant for rebuilds. `mongodb` has 
 **Pushes to `main` auto-deploy** via `.github/workflows/publish-images.yml` — see the *Continuous integration* section below. `deploy-heroku.sh` is the manual escape hatch (hotfixes, branch builds, offline use). Use `deploy-heroku.sh` (wraps podman + heroku CLI):
 
 ```sh
-./deploy-heroku.sh login              # authenticate with registry.heroku.com (once per session)
-./deploy-heroku.sh build-bootstrap    # build the shared C++ toolchain image (amd64, ~30 min cold)
-./deploy-heroku.sh deploy             # rebuild Angular only + push + release  (typical redeploy)
-./deploy-heroku.sh deploy full        # full C++ + Angular build + push + release
-./deploy-heroku.sh build              # full build only (no push)
-./deploy-heroku.sh build-ui           # Angular-only rebuild (no push)
-./deploy-heroku.sh push               # push previously built image
-./deploy-heroku.sh release            # release (activate) the pushed image
-./deploy-heroku.sh logs               # tail live Heroku logs
-./deploy-heroku.sh open               # open the app in the browser
+./deploy-heroku.sh login                  # authenticate with registry.heroku.com (once per session)
+./deploy-heroku.sh build-bootstrap        # build the shared C++ toolchain image (amd64, ~30 min cold)
+./deploy-heroku.sh deploy                 # rebuild UI + extract agent certs + push + release  (typical redeploy)
+./deploy-heroku.sh deploy full            # full C++ + Angular build + extract + push + release
+./deploy-heroku.sh build                  # full build only (no push)
+./deploy-heroku.sh build-ui               # Angular-only rebuild (no push)
+./deploy-heroku.sh push                   # push previously built image
+./deploy-heroku.sh release                # release (activate) the pushed image
+./deploy-heroku.sh extract-agent-certs    # extract wsdbagent client cert family from the local image
+./deploy-heroku.sh logs                   # tail live Heroku logs
+./deploy-heroku.sh open                   # open the app in the browser
 ```
 
-`build` / `build-ui` / `deploy` auto-invoke `build-bootstrap` when the toolchain image is missing or wrong arch.
+- `build` / `build-ui` / `deploy` auto-invoke `build-bootstrap` when the toolchain image is missing or wrong arch.
+- `deploy` auto-invokes `extract-agent-certs` after the build, writing `./certs/cloud-issued/innertls/` so the operator can `scp` the rotated client cert family to the on-prem MongoDB machine. Skip the scp if the operator is going to `./run-agent.sh refresh-certs` from Docker Hub instead.
 
 Default app is `marvel`. Override with `HEROKU_APP=<name> ./deploy-heroku.sh deploy`.
 
@@ -94,12 +96,16 @@ podman rmi $(podman images -f "dangling=true" -q)
 ### wsdbagent stack (MongoDB machine behind NAT)
 
 ```sh
-# Copy the env template, fill in SERVER_HOST, then bring the stack up
-cp .env.agent .env
-podman-compose -f docker-compose.agent.yml up --build -d
+# First-time setup
+cp .env.agent .env                  # set SERVER_HOST=<your-heroku-app>.herokuapp.com
+./run-agent.sh refresh-certs        # pull rotated client cert family from Docker Hub
+./run-agent.sh start                # brings up mongodb + wsdbagent + xpmile-cert-watcher
+
+# After each CI/Heroku deploy (or every 15 min on a cron)
+./run-agent.sh refresh-certs        # cert-watcher restarts wsdbagent automatically (~15 s)
 ```
 
-Runs MongoDB + wsdbagent together. `docker-compose.agent.yml` is self-contained — no other services needed. See `docs/ws-db-agent.md` for mTLS and manual run options.
+Three services: `mongodb`, `wsdbagent`, and `xpmile-cert-watcher`. The watcher is a tiny alpine sidecar that md5sums `./certs/cloud-issued/innertls/` every 5 s and POSTs a restart to `agent-wsdbagent` via the host podman socket on any change. It exists because `docker/Dockerfile` mints a fresh CA per uniservice build — wsdbagent's trust anchor + client cert pair must rotate in lockstep or the next reconnect fails with `tls_process_client_certificate verify failed`. Full rotation story in `docs/ws-db-agent.md`.
 
 ### Running tests
 

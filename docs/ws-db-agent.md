@@ -71,33 +71,68 @@ modules/module/wsdbagent/
     ├── wsdbagent.cpp       Implementation
     └── wsdbagent_main.cpp  CLI entry point
 certs/
-└── generate.sh             OpenSSL script — generates CA, server, client certs
+├── generate.sh             OpenSSL script — used only for local dev (manual rotation)
+└── cloud-issued/innertls/  Rotated client cert family from the latest published
+                            xpmile-uniservice image (gitignored, populated by
+                            ./run-agent.sh refresh-certs)
 docker/
-└── Dockerfile.wsdbagent   Standalone container image
+└── Dockerfile.wsdbagent    Standalone container image
 ```
 
 ---
 
 ## Certificates
 
-### Generate
+### Rotation model (production)
+
+`docker/Dockerfile` mints a fresh CA + server + client cert family **every build**:
+the CA private key is born and purged inside a single `RUN` so it never lands in
+any image layer. The server family is baked into the runtime image at
+`/opt/xAPP/granada/certs/`; the matching client family is staged at
+`/opt/xAPP/granada/agent-certs/` for extraction.
+
+Because every Heroku deploy rolls the CA, on-prem `wsdbagent` instances must
+refresh their cert pair in lockstep — otherwise the next reconnect fails with
+`tls_process_client_certificate verify failed`.
+
+### Refreshing on the MongoDB machine
+
+```sh
+./run-agent.sh refresh-certs   # podman pull + extract → certs/cloud-issued/innertls/
+```
+
+Pulls `docker.io/naushada/xpmile-uniservice:latest`, runs `podman cp
+/opt/xAPP/granada/agent-certs/.` into `./certs/cloud-issued/innertls/`. Pin to
+a specific deploy by setting `UNISERVICE_IMAGE=...:<sha>`.
+
+The `xpmile-cert-watcher` sidecar (in `docker-compose.agent.yml`) md5sums that
+dir every `CERT_WATCH_POLL_SECONDS` (default 5) and POSTs
+`/libpod/containers/agent-wsdbagent/restart` via the host podman socket on any
+change. End-to-end rotation latency from `refresh-certs` to a fresh wsdbagent
+handshake ≈ 15 s.
+
+For continuous rotation, run `refresh-certs` on a systemd timer or cron:
+```sh
+echo '*/15 * * * * cd /path/to/xpmile && ./run-agent.sh refresh-certs >/dev/null' | crontab -
+```
+
+### Local dev (no rotation)
 
 ```sh
 cd certs && ./generate.sh
 ```
 
-Produces:
+Produces a once-and-done CA + server + client family at the repo root. Useful
+when running uniservice locally against wsdbagent on the same machine. Not
+used by the production deploy path.
 
 | File | Used by | Keep secret? |
 |------|---------|--------------|
 | `ca.crt` | both sides | no — distribute freely |
 | `server.crt` | uniservice | no |
-| `server.key` | uniservice | **yes** |
+| `server.key` | uniservice | **yes** (gitignored) |
 | `client.crt` | wsdbagent | no |
-| `client.key` | wsdbagent | **yes** |
-
-Certs are valid for 10 years. Re-run `generate.sh` to rotate — both sides must be
-updated together.
+| `client.key` | wsdbagent | **yes** (gitignored) |
 
 ### How mTLS is enforced
 
