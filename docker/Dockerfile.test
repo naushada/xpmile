@@ -15,12 +15,33 @@ WORKDIR /src
 COPY CMakeLists.txt /src/
 COPY modules/      /src/modules/
 COPY test/         /src/test/
+# SeedDataTest.BootstrapAdminHasHashedPassword reads
+# /src/docker/mongo-init.js to verify the seeded admin uses a
+# passwordHash (not plain-text accountPassword). Ship the file with
+# the image; without it the test ASSERTs on the missing file.
+COPY docker/mongo-init.js /src/docker/mongo-init.js
 # innertls_test reads server.crt/server.key + client.crt/key from
-# /src/certs/. The repo carries a committed CA + matching server/
-# client pair under certs/ so the tests run identically in CI and on
-# dev laptops. Tests skip gracefully (GTEST_SKIP) when the files
-# are missing.
-COPY certs/        /src/certs/
+# /src/certs/. The *.key files are gitignored (see certs/.gitignore),
+# so a plain `COPY certs/` leaves the keys missing in CI and the 8
+# InnerTlsTests skip with GTEST_SKIP. Generate a fresh self-signed
+# CA + server + client triple inline instead — the tests only need
+# a working keypair set; the CA's identity doesn't matter for the
+# in-memory handshake. Mirrors certs/generate.sh.
+RUN mkdir -p /src/certs && cd /src/certs \
+ && openssl genrsa -out ca.key 2048 \
+ && openssl req -new -x509 -days 365 -key ca.key -out ca.crt \
+        -subj "/O=xpmile-test/CN=xpmile-test-CA" \
+ && openssl genrsa -out server.key 2048 \
+ && openssl req -new -key server.key -out server.csr \
+        -subj "/O=xpmile-test/CN=uniservice" \
+ && openssl x509 -req -days 365 -in server.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt \
+ && openssl genrsa -out client.key 2048 \
+ && openssl req -new -key client.key -out client.csr \
+        -subj "/O=xpmile-test/CN=wsdbagent" \
+ && openssl x509 -req -days 365 -in client.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt \
+ && rm -f server.csr client.csr ca.srl
 
 WORKDIR /src/build
 RUN cmake -DBUILD_TESTS=ON -DCMAKE_CXX_FLAGS="-fconcepts" .. \
