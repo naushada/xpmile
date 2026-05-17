@@ -229,13 +229,19 @@ jobs:
 
       # Build amd64 only (Heroku is amd64). The same manifest is pushed
       # to both Docker Hub (mirror) and registry.heroku.com/marvel/web
-      # in one shot, so the next "release" step can use the digest
-      # without an extra pull.
+      # in one shot — the Docker Hub copy is what `./run-agent.sh
+      # refresh-certs` pulls on the on-prem MongoDB machine.
       #
-      # provenance: false — Heroku's registry rejects OCI manifest
-      # lists that include the buildx attestation manifest. With
-      # provenance off, buildx emits a plain Docker manifest that
-      # Heroku accepts and that the Platform API can release from.
+      # provenance: false + outputs: oci-mediatypes=false — Heroku's
+      # registry rejects OCI manifest lists and the buildx attestation
+      # manifest. Together these tell buildx to emit a plain Docker
+      # v2s2 manifest (matches what `podman push --format=v2s2` does
+      # in deploy-heroku.sh), which both Heroku and Docker Hub accept.
+      # Without `oci-mediatypes=false`, the push currently succeeds
+      # because Heroku's CLI re-resolves the digest at release time,
+      # but a future Heroku tightening or buildx upgrade can resurface
+      # the "manifest unknown" / 404 errors we hit on PR #8's first
+      # uniservice job. Mirrors onprem-pbx publish-cloud.
       - name: Build + push uniservice (amd64) to Docker Hub + Heroku
         id: build
         uses: docker/build-push-action@v5
@@ -245,6 +251,7 @@ jobs:
           platforms: linux/amd64
           push: true
           provenance: false
+          outputs: type=image,oci-mediatypes=false
           build-args: |
             BUILDER_IMAGE=${{ env.BOOTSTRAP_IMAGE }}:bootstrap
             UI_BUST=${{ github.sha }}
