@@ -25,7 +25,20 @@
 #   MONGO_DB           Database name                  (default: xpmile)
 #   MONGO_POOL         MongoDB connection pool size   (default: 10)
 #   BACKOFF            Reconnect wait in seconds      (default: 5)
-#   CERTS_DIR          Path to certs/ on host (mTLS only, optional)
+#   CERTS_DIR          Path to certs/ on host
+#                      (default: ./certs/cloud-issued/innertls — written
+#                       by `run-agent.sh refresh-certs`)
+#
+# Cert rotation:
+#   xpmile-cert-watcher (alpine sidecar) md5sums CERTS_DIR every 5s
+#   and POSTs `/libpod/containers/agent-wsdbagent/restart` via the
+#   host podman socket on any change. End-to-end rotation latency
+#   from `refresh-certs` → wsdbagent reconnected: ~15s.
+#
+#   Override the watcher poll interval with CERT_WATCH_POLL_SECONDS
+#   (default 5).  Override the podman socket path with PODMAN_SOCKET
+#   (default /run/podman/podman.sock — rootful).  For rootless use
+#   `${XDG_RUNTIME_DIR}/podman/podman.sock`.
 
 services:
 
@@ -86,9 +99,66 @@ services:
         --tls-key /certs/client.key
         ${TLS_HOSTNAME:+--tls-hostname ${TLS_HOSTNAME}}
     volumes:
-      - ${CERTS_DIR:-./certs}:/certs:ro
+      - ${CERTS_DIR:-./certs/cloud-issued/innertls}:/certs:ro
     networks:
       - agent-net
+
+  # ------------------------------------------------------------------
+  # xpmile-cert-watcher — restarts agent-wsdbagent whenever the
+  # rotated client cert family on disk changes.
+  #
+  # docker/Dockerfile mints a fresh CA per build (PR #8), so the
+  # cert pair has to rotate every Heroku deploy or wsdbagent's
+  # handshake fails with `tls_process_client_certificate verify
+  # failed`. `run-agent.sh refresh-certs` (or a cron job calling
+  # it) pulls the new cert pair from Docker Hub into
+  # ./certs/cloud-issued/innertls/; this sidecar md5sums the dir
+  # every CERT_WATCH_POLL_SECONDS and restarts wsdbagent on change.
+  #
+  # Polling, not inotify — bind mounts across podman machine VMs
+  # (Lima on macOS, WSL2 on Windows) don't reliably propagate
+  # inotify events. Polling is cheap (a handful of small files).
+  # ------------------------------------------------------------------
+  xpmile-cert-watcher:
+    image: docker.io/library/alpine:3.19
+    container_name: xpmile-cert-watcher
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - |
+        set -eu
+        apk add --no-cache curl >/dev/null
+        log() { printf '[cert-watcher %s] %s\n' "$$(date -u +%H:%M:%S)" "$$1"; }
+        log "watching /watch every $${POLL_SECONDS:-5}s for cert changes"
+        LAST=""
+        while true; do
+          NEW=$$(find /watch -type f \( -name '*.crt' -o -name '*.key' -o -name '*.pem' \) -exec md5sum {} + 2>/dev/null \
+                 | sort | md5sum | cut -d' ' -f1)
+          if [ -n "$$NEW" ] && [ "$$NEW" != "$$LAST" ]; then
+            if [ -n "$$LAST" ]; then
+              log "cert change detected ($$LAST -> $$NEW); restarting agent-wsdbagent"
+              if curl -fsS -X POST --unix-socket /run/podman/podman.sock \
+                      "http://d/v4.0.0/libpod/containers/agent-wsdbagent/restart?timeout=5" >/dev/null; then
+                log "  agent-wsdbagent restarted"
+              else
+                log "  agent-wsdbagent restart FAILED (will retry next change)"
+              fi
+            else
+              log "first observation: $$NEW (no restart, baseline)"
+            fi
+            LAST=$$NEW
+          fi
+          sleep $${POLL_SECONDS:-5}
+        done
+    environment:
+      POLL_SECONDS: ${CERT_WATCH_POLL_SECONDS:-5}
+    volumes:
+      - ${CERTS_DIR:-./certs/cloud-issued/innertls}:/watch:ro
+      - ${PODMAN_SOCKET:-/run/podman/podman.sock}:/run/podman/podman.sock
+    depends_on:
+      wsdbagent:
+        condition: service_started
 
 # ------------------------------------------------------------------
 # Named volume — MongoDB data persists across restarts and upgrades
