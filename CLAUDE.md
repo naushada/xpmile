@@ -85,6 +85,8 @@ heroku container:release web --app marvel
 
 Required repo secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (write-scope token), `HEROKU_API_KEY`. A `concurrency` block auto-cancels older in-flight runs for the same ref.
 
+**PR gating**: pull requests against `main` trigger the same workflow but only the `bootstrap` and `test` jobs run (publish + Heroku release are guarded by `if: github.event_name != 'pull_request'`). Branch protection on `main` requires the `Run offtarget GTest suite` check to pass before merge, with `strict: true` (PR branch must be up-to-date with main) and admins exempt (`enforce_admins: false`).
+
 ### Clean up dangling images
 
 ```sh
