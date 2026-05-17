@@ -2,18 +2,23 @@
 # run-agent.sh — build and manage the MongoDB + wsdbagent container stack
 #
 # Usage:
-#   ./run-agent.sh build    Build both images (required on first run or after code changes)
-#   ./run-agent.sh start    Start both containers (builds if images are missing)
-#   ./run-agent.sh stop     Stop and remove containers (data volume is preserved)
-#   ./run-agent.sh restart  Stop then start
-#   ./run-agent.sh logs     Follow live logs from both containers
-#   ./run-agent.sh status   Show container status
-#   ./run-agent.sh clean    Stop containers AND delete the MongoDB data volume
+#   ./run-agent.sh build           Build both images (required on first run or after code changes)
+#   ./run-agent.sh start           Start MongoDB + wsdbagent + cert-watcher (builds if images are missing)
+#   ./run-agent.sh stop            Stop and remove containers (data volume is preserved)
+#   ./run-agent.sh restart         Stop then start
+#   ./run-agent.sh refresh-certs   Pull the latest uniservice image and extract the rotated
+#                                  client cert family into ./certs/cloud-issued/innertls/
+#                                  (the cert-watcher will then restart wsdbagent automatically)
+#   ./run-agent.sh logs            Follow live logs from all containers
+#   ./run-agent.sh status          Show container status
+#   ./run-agent.sh clean           Stop containers AND delete the MongoDB data volume
 
 set -euo pipefail
 
 COMPOSE_FILE="docker-compose.agent.yml"
 COMPOSE_CMD="podman-compose"
+UNISERVICE_IMAGE="${UNISERVICE_IMAGE:-docker.io/naushada/xpmile-uniservice:latest}"
+CERTS_DEST="./certs/cloud-issued/innertls"
 
 # ── colours ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -123,6 +128,7 @@ cmd_status() {
   podman ps -a \
     --filter name=agent-mongo \
     --filter name=agent-wsdbagent \
+    --filter name=xpmile-cert-watcher \
     --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
 }
 
@@ -136,26 +142,60 @@ cmd_clean() {
   ok "Containers and data volume removed."
 }
 
+# Pull the latest uniservice image from Docker Hub and extract the
+# rotated client cert family into ${CERTS_DEST}. docker/Dockerfile
+# mints a fresh CA per build, so the on-prem wsdbagent's trust
+# anchor + client cert pair must rotate to stay valid against the
+# new server cert.
+#
+# The xpmile-cert-watcher sidecar md5sums ${CERTS_DEST} every ~5s
+# and POSTs a restart to agent-wsdbagent on any change — so once
+# this command finishes, wsdbagent will reconnect with the fresh
+# cert pair within ~15s end-to-end.
+#
+# Run on a systemd timer (e.g. every 15 min) or directly after a
+# CI deploy notification.
+cmd_refresh_certs() {
+  section "Refreshing wsdbagent certs from ${UNISERVICE_IMAGE}"
+  info "Pulling ${UNISERVICE_IMAGE}…"
+  podman pull "${UNISERVICE_IMAGE}" \
+    || die "podman pull failed — check network / Docker Hub auth"
+
+  local cid
+  cid=$(podman create "${UNISERVICE_IMAGE}") \
+    || die "podman create failed against ${UNISERVICE_IMAGE}"
+  mkdir -p "${CERTS_DEST}"
+  podman cp "${cid}:/opt/xAPP/granada/agent-certs/." "${CERTS_DEST}/" \
+    || { podman rm -f "${cid}" >/dev/null 2>&1; die "podman cp /opt/xAPP/granada/agent-certs/ failed"; }
+  podman rm -f "${cid}" >/dev/null
+  chmod 600 "${CERTS_DEST}"/client.key 2>/dev/null || true
+
+  ok "Refreshed: ${CERTS_DEST}  ($(ls "${CERTS_DEST}" | tr '\n' ' '))"
+  info "cert-watcher will detect the change and restart agent-wsdbagent within ~5s."
+}
+
 usage() {
-  echo -e "${BOLD}Usage:${RESET} $0 {build|start|stop|restart|logs|status|clean}"
+  echo -e "${BOLD}Usage:${RESET} $0 {build|start|stop|restart|refresh-certs|logs|status|clean}"
   echo ""
-  echo "  build    Build both Docker images"
-  echo "  start    Start MongoDB + wsdbagent (builds if images are missing)"
-  echo "  stop     Stop containers (data preserved)"
-  echo "  restart  Stop then start"
-  echo "  logs     Follow live logs from both containers"
-  echo "  status   Show container status"
-  echo "  clean    Stop containers and delete the MongoDB data volume"
+  echo "  build           Build both Docker images"
+  echo "  start           Start MongoDB + wsdbagent + cert-watcher (builds if images are missing)"
+  echo "  stop            Stop containers (data preserved)"
+  echo "  restart         Stop then start"
+  echo "  refresh-certs   Pull latest uniservice image + extract rotated client certs"
+  echo "  logs            Follow live logs from all containers"
+  echo "  status          Show container status"
+  echo "  clean           Stop containers and delete the MongoDB data volume"
 }
 
 # ── dispatch ──────────────────────────────────────────────────────────────────
 case "${1:-}" in
-  build)   cmd_build   ;;
-  start)   cmd_start   ;;
-  stop)    cmd_stop    ;;
-  restart) cmd_restart ;;
-  logs)    cmd_logs    ;;
-  status)  cmd_status  ;;
-  clean)   cmd_clean   ;;
-  *)       usage; exit 1 ;;
+  build)         cmd_build         ;;
+  start)         cmd_start         ;;
+  stop)          cmd_stop          ;;
+  restart)       cmd_restart       ;;
+  refresh-certs) cmd_refresh_certs ;;
+  logs)          cmd_logs          ;;
+  status)        cmd_status        ;;
+  clean)         cmd_clean         ;;
+  *)             usage; exit 1     ;;
 esac

@@ -123,6 +123,37 @@ cmd_release() {
   info "Monitor startup with:  ./deploy-heroku.sh logs"
 }
 
+# Extract the wsdbagent client cert family from the just-built local
+# image into ./certs/cloud-issued/innertls/. docker/Dockerfile mints a
+# fresh CA per build, so the on-prem wsdbagent's cert pair must rotate
+# in lockstep — otherwise its handshake against the new server cert
+# fails with `tls_process_client_certificate verify failed`.
+#
+# Source path inside the image:
+#   /opt/xAPP/granada/agent-certs/{ca,client}.{crt,key}
+#
+# Distribution to customer machines (after this runs):
+#   - dev laptop workflow: scp ./certs/cloud-issued/innertls/* to the
+#     on-prem MongoDB machine's repo
+#   - CI/Heroku workflow:  on-prem operator runs `./run-agent.sh
+#     refresh-certs` to pull the same files from Docker Hub
+EXTRACT_DEST="./certs/cloud-issued/innertls"
+cmd_extract_agent_certs() {
+  section "Extracting wsdbagent client cert family from ${IMAGE}"
+  podman image exists "${IMAGE}" \
+    || die "${IMAGE} not present locally — run cmd_build first."
+  local cid
+  cid=$(podman create "${IMAGE}") \
+    || die "podman create failed — was the image built?"
+  mkdir -p "${EXTRACT_DEST}"
+  podman cp "${cid}:/opt/xAPP/granada/agent-certs/." "${EXTRACT_DEST}/" \
+    || { podman rm -f "${cid}" >/dev/null 2>&1; die "podman cp /opt/xAPP/granada/agent-certs/ failed"; }
+  podman rm -f "${cid}" >/dev/null
+  chmod 600 "${EXTRACT_DEST}"/client.key 2>/dev/null || true
+  ok "Extracted to ${EXTRACT_DEST}  ($(ls "${EXTRACT_DEST}" | tr '\n' ' '))"
+  info "On-prem cert-watcher sidecar will restart wsdbagent within ~5s of these files changing on the MongoDB machine."
+}
+
 cmd_deploy() {
   local mode="${1:-ui}"   # "ui" (default) or "full"
   if [[ "$mode" == "full" ]]; then
@@ -130,6 +161,7 @@ cmd_deploy() {
   else
     cmd_build_ui
   fi
+  cmd_extract_agent_certs
   cmd_push
   cmd_release
 }
@@ -150,12 +182,13 @@ usage() {
   echo "  build-bootstrap    Build the shared C++ toolchain image (amd64)"
   echo "  build              Full build — C++ + Angular (linux/amd64)"
   echo "  build-ui           Rebuild Angular only, reuse C++ layer cache"
-  echo "  push               Push the built image to registry.heroku.com"
-  echo "  release            Release (activate) the pushed image on the dyno"
-  echo "  deploy             build-ui + push + release  (default redeploy)"
-  echo "  deploy full        Full build + push + release"
-  echo "  logs               Tail live Heroku logs"
-  echo "  open               Open the app in the browser"
+  echo "  push                 Push the built image to registry.heroku.com"
+  echo "  release              Release (activate) the pushed image on the dyno"
+  echo "  extract-agent-certs  Extract wsdbagent client cert family from the local image"
+  echo "  deploy               build-ui + extract-agent-certs + push + release  (default redeploy)"
+  echo "  deploy full          Full build + extract-agent-certs + push + release"
+  echo "  logs                 Tail live Heroku logs"
+  echo "  open                 Open the app in the browser"
   echo ""
   echo -e "${BOLD}Environment variables:${RESET}"
   echo "  HEROKU_APP=marvel   Heroku app name (default: marvel)"
@@ -172,14 +205,15 @@ CMD="${1:-}"
 ARG="${2:-}"
 
 case "$CMD" in
-  login)             cmd_login ;;
-  build-bootstrap)   cmd_build_bootstrap ;;
-  build)             cmd_build ;;
-  build-ui)          cmd_build_ui ;;
-  push)              cmd_push ;;
-  release)           cmd_release ;;
-  deploy)            cmd_deploy "$ARG" ;;
-  logs)              cmd_logs ;;
-  open)              cmd_open ;;
-  *)                 usage; exit 1 ;;
+  login)               cmd_login ;;
+  build-bootstrap)     cmd_build_bootstrap ;;
+  build)               cmd_build ;;
+  build-ui)            cmd_build_ui ;;
+  push)                cmd_push ;;
+  release)             cmd_release ;;
+  extract-agent-certs) cmd_extract_agent_certs ;;
+  deploy)              cmd_deploy "$ARG" ;;
+  logs)                cmd_logs ;;
+  open)                cmd_open ;;
+  *)                   usage; exit 1 ;;
 esac
