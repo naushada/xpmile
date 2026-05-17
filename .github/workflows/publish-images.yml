@@ -2,20 +2,29 @@
 #
 # Triggered on every push to main + on demand via the Actions UI.
 #
+# Four jobs:
+#
 # Job 1 — xpmile-cpp-builder:bootstrap — the shared toolchain layer
 # (ACE/TAO 7.0.0 + mongo-c-driver + mongo-cxx-driver + googletest, on
 # ubuntu:focal). Slow (~30 min per arch when not cached). Pushed first
-# so Jobs 2 and 3 can `FROM` it via the BUILDER_IMAGE ARG.
+# so Jobs 2-4 can `FROM` it via the BUILDER_IMAGE ARG.
 #
-# Job 2 — xpmile-wsdbagent — the on-prem NAT-side DB agent. Multi-arch
-# (amd64/arm64) so customers on either architecture can pull `:latest`.
-# Compile + assembly only (~5 min/arch after bootstrap is cached).
+# Job 2 — test — builds docker/Dockerfile.test against the just-
+# published bootstrap and runs the offtarget GTest binary. Quality
+# gate: if any test fails OR a compile error surfaces, jobs 3 + 4
+# don't run.
 #
-# Job 3 — xpmile-uniservice + Heroku release — the main web app. Built
-# linux/amd64 only (Heroku Common Runtime is amd64). Same image is
-# pushed to both Docker Hub (mirror) and registry.heroku.com/marvel/web
-# in one buildx invocation, then the Heroku Platform API is PATCHed to
-# release the new image on the `web` dyno.
+# Job 3 — xpmile-wsdbagent — needs test + bootstrap. The on-prem
+# NAT-side DB agent. Multi-arch (amd64/arm64) so customers on either
+# architecture can pull `:latest`. Compile + assembly only (~5 min/arch
+# after bootstrap is cached).
+#
+# Job 4 — xpmile-uniservice + Heroku release — needs test + bootstrap.
+# The main web app, built linux/amd64 only (Heroku Common Runtime is
+# amd64). Same image is pushed to both Docker Hub (mirror) and
+# registry.heroku.com/marvel/web in one buildx invocation, then the
+# Heroku Platform API is PATCHed to release the new image on the `web`
+# dyno.
 #
 # Tags published:
 #   docker.io/naushada/xpmile-cpp-builder:bootstrap        (rolling)
@@ -45,6 +54,7 @@ on:
       # ~1 GB of registry pulls per docs-only PR.
       - 'docker/Dockerfile'
       - 'docker/Dockerfile.bootstrap'
+      - 'docker/Dockerfile.test'
       - 'docker/Dockerfile.wsdbagent'
       - 'CMakeLists.txt'
       - 'modules/**'
@@ -53,6 +63,15 @@ on:
       - 'certs/**'
       - '.github/workflows/publish-images.yml'
   workflow_dispatch:
+
+# Latest-push-wins: a newer push to main auto-cancels any earlier
+# in-flight run of THIS workflow for THIS ref. Saves CI minutes and
+# avoids the "v40 published from PR #93 while v41 is being built from
+# PR #95" race. `cancel-in-progress: true` does the work; the `group:`
+# key scopes "what counts as the same queue".
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY:         docker.io
@@ -100,9 +119,53 @@ jobs:
           cache-from: type=registry,ref=${{ env.BOOTSTRAP_IMAGE }}:buildcache
           cache-to:   type=registry,ref=${{ env.BOOTSTRAP_IMAGE }}:buildcache,mode=max
 
+  test:
+    # Build the offtarget GTest image against the just-published
+    # bootstrap, then RUN it. Quality gate for every downstream job —
+    # failed tests OR a compile error stop the publish + Heroku
+    # release. Three Mongo-dependent tests are excluded by the
+    # Dockerfile.test CMD filter; wire up a Mongo sidecar here to
+    # include them.
+    #
+    # Single-arch (amd64) — ubuntu-latest is amd64-only and offtarget
+    # is logic-only (no arch-sensitive code). The same suite runs in
+    # podman locally on whichever arch the developer has.
+    name: Run offtarget GTest suite
+    needs: bootstrap
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub (to pull bootstrap)
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build offtarget test image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.test
+          platforms: linux/amd64
+          push: false
+          load: true               # import into the local docker daemon
+          build-args: |
+            BUILDER_IMAGE=${{ env.BOOTSTRAP_IMAGE }}:bootstrap
+          tags: xpmile-test:ci
+          # No registry cache — the test image is one-shot, no consumers.
+
+      - name: Run offtarget tests (3 Mongo-dependent tests excluded by Dockerfile CMD)
+        run: docker run --rm xpmile-test:ci
+
   wsdbagent:
     name: Publish xpmile-wsdbagent (multi-arch)
-    needs: bootstrap
+    needs: [bootstrap, test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -138,7 +201,7 @@ jobs:
 
   uniservice:
     name: Publish xpmile-uniservice + release marvel on Heroku
-    needs: bootstrap
+    needs: [bootstrap, test]
     runs-on: ubuntu-latest
     permissions:
       contents: read

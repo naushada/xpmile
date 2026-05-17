@@ -1,0 +1,34 @@
+# docker/Dockerfile.test — offtarget GTest image for xpmile.
+#
+# Builds the offtarget test binary against the shared C++ toolchain
+# (ACE/TAO + mongo-cxx + gtest, pre-built in xpmile-cpp-builder:bootstrap),
+# then `docker run` invokes the binary as a one-shot CI quality gate.
+# Failed tests OR a compile error stop the publish + Heroku release.
+#
+# BUILDER_IMAGE override: same three-context rationale as
+# docker/Dockerfile. Local dev keeps the localhost/ default; CI
+# overrides to docker.io/naushada/xpmile-cpp-builder:bootstrap.
+ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
+FROM ${BUILDER_IMAGE}
+
+WORKDIR /src
+COPY CMakeLists.txt /src/
+COPY modules/      /src/modules/
+COPY test/         /src/test/
+# innertls_test reads server.crt/server.key + client.crt/key from
+# /src/certs/. The repo carries a committed CA + matching server/
+# client pair under certs/ so the tests run identically in CI and on
+# dev laptops. Tests skip gracefully (GTEST_SKIP) when the files
+# are missing.
+COPY certs/        /src/certs/
+
+WORKDIR /src/build
+RUN cmake -DBUILD_TESTS=ON -DCMAKE_CXX_FLAGS="-fconcepts" .. \
+ && make -j2 offtarget
+
+WORKDIR /src/build/test
+# Three tests depend on a live MongoDB (no Mongo fixture in CI yet),
+# excluded by the gtest_filter below. Wire up a Mongo sidecar to the
+# `test` job in .github/workflows/publish-images.yml to include them.
+CMD ["./offtarget", "--gtest_color=yes", \
+     "--gtest_filter=-AccountLoginTest.ValidCredentials_Returns200WithAccountData:AccountLoginTest.ResponseBody_ExcludesSensitiveFields:WsDbServer.SecondAgentRejected_When_FirstAlive"]
