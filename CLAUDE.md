@@ -6,25 +6,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build and run
 
-All C++ compilation happens inside Docker. There is no native build path — ACE/TAO, mongo-cxx-driver, and googletest are built from source in the `cpp-builder` stage and are not installed on the host.
+All C++ compilation happens inside containers. There is no native build path — ACE/TAO, mongo-cxx-driver, and googletest are pre-built into a shared toolchain image `localhost/xpmile-cpp-builder:bootstrap` (built from `docker/Dockerfile.bootstrap`). Both `docker/Dockerfile` (uniservice) and `docker/Dockerfile.wsdbagent` start with `FROM ${BUILDER_IMAGE}` so the ~30 min toolchain compile is done once and reused across services. CI publishes the same image to `docker.io/naushada/xpmile-cpp-builder:bootstrap` so the workflow doesn't re-build it on every push.
 
 ### Container stack
 
 Use `run.sh` for common operations (wraps `podman-compose`):
 
 ```sh
-./run.sh build          # full build — C++ + Angular (30–40 min first run)
-./run.sh build-ui       # rebuild Angular only, reuses C++ cache (~3 min)
-./run.sh start          # start MongoDB + app
-./run.sh start remote   # start in --remote-db mode (wsdbagent on another machine)
-./run.sh stop           # stop containers (data preserved)
-./run.sh restart        # stop then start
-./run.sh logs           # follow logs from both containers
-./run.sh logs app       # app (uniservice) logs only
-./run.sh logs db        # MongoDB logs only
-./run.sh status         # show container status
-./run.sh clean          # stop + delete MongoDB data volume
+./run.sh build              # full build — C++ + Angular (auto-builds bootstrap on first run)
+./run.sh build-bootstrap    # build the shared C++ toolchain image (one-time, ~30 min cold)
+./run.sh build-ui           # rebuild Angular only, reuses C++ cache (~3 min)
+./run.sh start              # start MongoDB + app
+./run.sh start remote       # start in --remote-db mode (wsdbagent on another machine)
+./run.sh stop               # stop containers (data preserved)
+./run.sh restart            # stop then start
+./run.sh logs               # follow logs from both containers
+./run.sh logs app           # app (uniservice) logs only
+./run.sh logs db            # MongoDB logs only
+./run.sh status             # show container status
+./run.sh clean              # stop + delete MongoDB data volume
 ```
+
+`build` and `build-ui` auto-invoke `build-bootstrap` when `localhost/xpmile-cpp-builder:bootstrap` is missing — no manual two-step required after a `podman prune`.
 
 Raw `podman-compose` equivalents (if needed):
 
@@ -39,19 +42,22 @@ The `app` service is the only service name relevant for rebuilds. `mongodb` has 
 
 ### Heroku deployment
 
-Use `deploy-heroku.sh` (wraps podman + heroku CLI):
+**Pushes to `main` auto-deploy** via `.github/workflows/publish-images.yml` — see the *Continuous integration* section below. `deploy-heroku.sh` is the manual escape hatch (hotfixes, branch builds, offline use). Use `deploy-heroku.sh` (wraps podman + heroku CLI):
 
 ```sh
-./deploy-heroku.sh login          # authenticate with registry.heroku.com (once per session)
-./deploy-heroku.sh deploy         # rebuild Angular only + push + release  (typical redeploy)
-./deploy-heroku.sh deploy full    # full C++ + Angular build + push + release
-./deploy-heroku.sh build          # full build only (no push)
-./deploy-heroku.sh build-ui       # Angular-only rebuild (no push)
-./deploy-heroku.sh push           # push previously built image
-./deploy-heroku.sh release        # release (activate) the pushed image
-./deploy-heroku.sh logs           # tail live Heroku logs
-./deploy-heroku.sh open           # open the app in the browser
+./deploy-heroku.sh login              # authenticate with registry.heroku.com (once per session)
+./deploy-heroku.sh build-bootstrap    # build the shared C++ toolchain image (amd64, ~30 min cold)
+./deploy-heroku.sh deploy             # rebuild Angular only + push + release  (typical redeploy)
+./deploy-heroku.sh deploy full        # full C++ + Angular build + push + release
+./deploy-heroku.sh build              # full build only (no push)
+./deploy-heroku.sh build-ui           # Angular-only rebuild (no push)
+./deploy-heroku.sh push               # push previously built image
+./deploy-heroku.sh release            # release (activate) the pushed image
+./deploy-heroku.sh logs               # tail live Heroku logs
+./deploy-heroku.sh open               # open the app in the browser
 ```
+
+`build` / `build-ui` / `deploy` auto-invoke `build-bootstrap` when the toolchain image is missing or wrong arch.
 
 Default app is `marvel`. Override with `HEROKU_APP=<name> ./deploy-heroku.sh deploy`.
 
@@ -66,13 +72,24 @@ heroku container:release web --app marvel
 
 `docker-compose.heroku.yml` handles `--platform linux/amd64` and the image tag automatically. See `docs/app.md` for config vars, UI_BUST cache-busting, and wsdbagent setup.
 
+### Continuous integration
+
+`.github/workflows/publish-images.yml` runs on every push to `main` that touches `docker/Dockerfile*`, `modules/**`, `ui/**`, `test/**`, `certs/**`, `CMakeLists.txt`, or the workflow file itself. Four jobs:
+
+1. **bootstrap** — builds `docker.io/naushada/xpmile-cpp-builder:{bootstrap,<sha>}` (multi-arch: amd64 + arm64).
+2. **test** — builds `docker/Dockerfile.test` against the just-published bootstrap and runs the `offtarget` GTest binary. Three Mongo-dependent tests are excluded by the Dockerfile.test CMD filter. A failed test (or compile error) blocks jobs 3 and 4.
+3. **wsdbagent** — publishes `docker.io/naushada/xpmile-wsdbagent:{latest,<sha>}` (multi-arch).
+4. **uniservice + release** — builds amd64-only, pushes to both `docker.io/naushada/xpmile-uniservice:{latest,<sha>}` and `registry.heroku.com/marvel/web`, then PATCHes the Heroku Platform API to release the new digest on the `web` dyno.
+
+Required repo secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (write-scope token), `HEROKU_API_KEY`. A `concurrency` block auto-cancels older in-flight runs for the same ref.
+
 ### Clean up dangling images
 
 ```sh
 podman rmi $(podman images -f "dangling=true" -q)
 ```
 
-**Warning:** this also evicts the `cpp-builder` intermediate image. The next `./deploy-heroku.sh deploy` (even the UI-only variant) will then be a cold build (~30–40 min) instead of cached (~5–8 min). Only prune when `podman system df` shows >80 % reclaimable, or when you can afford the rebuild. Full timing table in `codebase.md` → Build & deploy timing.
+**Warning:** this also evicts `localhost/xpmile-cpp-builder:bootstrap` and the per-service `cpp-builder` intermediate images. The next `./deploy-heroku.sh deploy` (even the UI-only variant) will then auto-rebuild bootstrap (~30 min) before the per-service compile. Only prune when `podman system df` shows >80 % reclaimable, or when you can afford the rebuild. Full timing table in `codebase.md` → Build & deploy timing.
 
 ### wsdbagent stack (MongoDB machine behind NAT)
 

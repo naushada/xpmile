@@ -483,14 +483,24 @@ Both are stubs — empty `.hpp`/`.cpp` pairs compiled into `uniservice` but cont
 
 ## Infrastructure
 
+### Docker — shared toolchain image (`docker/Dockerfile.bootstrap`)
+
+Single-stage `ubuntu:focal` image that pre-builds the entire C++ toolchain (ACE/TAO 7.0.0 with SSL, mongo-c-driver 1.19.1, mongo-cxx-driver v3.6, googletest) under `/usr/local`. Every downstream Dockerfile starts with:
+
+```dockerfile
+ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
+FROM ${BUILDER_IMAGE} AS cpp-builder
+```
+
+so the ~30 min toolchain compile is done once and reused across `uniservice`, `wsdbagent`, and `offtarget`. CI publishes the same image to `docker.io/naushada/xpmile-cpp-builder:bootstrap` (multi-arch) and downstream jobs override `BUILDER_IMAGE` to point at the Docker Hub tag. `run.sh build-bootstrap` / `deploy-heroku.sh build-bootstrap` build the local copy.
+
 ### Docker — main app image (`docker/Dockerfile`)
 
 Three build stages:
 
-**Stage 1 (`cpp-builder` / `ubuntu:focal`):**
-- Builds ACE/TAO 7.0.0 from source (make install, SSL enabled)
-- Builds mongo-c-driver 1.19.1 and mongo-cxx-driver v3.6 from source
-- Builds googletest
+**Stage 1 (`cpp-builder` / `FROM ${BUILDER_IMAGE}`):**
+- Inherits the pre-built ACE/TAO + mongo-cxx + gtest from the bootstrap image
+- Generates a per-build Heroku server cert signed by the committed CA (`certs/ca.crt`)
 - Compiles `uniservice` and the `offtarget` test binary via CMake (`-j2` to avoid OOM; `-fconcepts` for GCC 9)
 
 **Stage 2 (`ui-builder` / `node:18-alpine`):**
@@ -503,11 +513,15 @@ Three build stages:
 
 ### Docker — wsdbagent image (`docker/Dockerfile.wsdbagent`)
 
-Two build stages, similar cpp-builder base:
-- Passes `-DBUILD_TESTS=OFF` so GTest is not required
+Two build stages; cpp-builder is `FROM ${BUILDER_IMAGE}`:
+- Passes `-DBUILD_TESTS=OFF` so GTest is not required at compile time
 - Builds only the `wsdbagent` target (`make -j2 wsdbagent`)
 - Runtime stage copies the binary and shared libs; all flags passed via `ENV ARGS=""`
 - No volume needed — agent connects outbound only; certs mounted read-only via `-v /path/to/certs:/certs:ro`
+
+### Docker — test image (`docker/Dockerfile.test`)
+
+Single-stage `FROM ${BUILDER_IMAGE}` image. Builds `offtarget` with `-DBUILD_TESTS=ON`, copies `certs/` for the InnerTLS handshake tests, and sets `CMD ["./offtarget", "--gtest_color=yes", "--gtest_filter=-..."]` excluding three Mongo-dependent tests. CI's `test` job builds this image, loads it into the local docker daemon (`docker/build-push-action@v5` with `load: true`), then runs `docker run --rm xpmile-test:ci` as the quality gate before any publish or release.
 
 ### docker-compose.yml
 
@@ -579,32 +593,42 @@ Container build times on an M1/M2 Mac with podman, fibre internet, healthy `~/.l
 
 | Path | What runs | Time (cached) | Time (cold) |
 |---|---|---|---|
-| `./run.sh build-ui` / `./deploy-heroku.sh deploy` | Angular `ng build` only; cpp-builder + base layers reused | **2–4 min** | n/a (UI rebuilds only) |
-| `./run.sh build` / `./deploy-heroku.sh deploy full` | Full C++ + Angular | **5–8 min** | **30–40 min** |
+| `./run.sh build-bootstrap` / `./deploy-heroku.sh build-bootstrap` | ACE/TAO + mongo-c/cxx + gtest into `xpmile-cpp-builder:bootstrap` | n/a (one-shot) | **25–35 min** |
+| `./run.sh build-ui` / `./deploy-heroku.sh deploy` | Angular `ng build` only; bootstrap + cpp-builder + base layers reused | **2–4 min** | n/a (UI rebuilds only) |
+| `./run.sh build` / `./deploy-heroku.sh deploy full` | uniservice compile + Angular (bootstrap reused) | **5–8 min** | **5–8 min** + bootstrap cold if missing |
 | `./deploy-heroku.sh push` | Push image to `registry.heroku.com` | **3–6 min** (network-bound) | — |
 | `./deploy-heroku.sh release` | Heroku activates the new image; dyno restarts | **<1 min** | — |
 
-Inside the cold full build, the dominant costs are:
+Bootstrap is a one-time cost per host. Subsequent `build` / `build-ui` / `deploy` runs reuse it.
+
+Inside the cold bootstrap build, the dominant costs are:
 
 | Step | Time | Notes |
 |---|---|---|
 | ACE/TAO compile from source | ~15 min | Single-threaded for many sub-targets; biggest single contributor |
 | mongo-cxx-driver + bsoncxx | ~5 min | CMake reconfigure + compile |
 | googletest | ~30 s | Header + library compile |
+
+Inside a per-service warm build (bootstrap already cached):
+
+| Step | Time | Notes |
+|---|---|---|
 | `uniservice` + `offtarget` link | ~3 min | Includes all C++ modules + the test binary |
 | `npm ci` (Angular deps) | ~3 min | 1 100+ packages from npm |
 | `ng build --configuration production --aot` | ~3 min | With `NODE_OPTIONS=--max_old_space_size=1536` to avoid OOM on vfs_fonts |
 
 ### The cache-eviction trap
 
-`podman rmi $(podman images -f "dangling=true" -q)` (the cleanup snippet in this file) frees disk *and* drops the `cpp-builder` intermediate image. The next deploy then has nothing to reuse and takes the cold-build path (~30–40 min) even when you only changed UI code.
+`podman rmi $(podman images -f "dangling=true" -q)` (the cleanup snippet in this file) frees disk *and* drops the per-service `cpp-builder` intermediate images. The next deploy then has nothing to reuse from the *uniservice compile* layer and re-links from scratch (~3–5 min extra).
 
-**Symptom:** you run `./deploy-heroku.sh deploy` expecting a 3-minute UI redeploy, and instead see `STEP 9/29: RUN make install ssl=1 ...` from ACE/TAO.
+The `xpmile-cpp-builder:bootstrap` tag is named, not dangling, so dangling-prune leaves it alone. A broader `podman image prune -a` or a manual `podman rmi xpmile-cpp-builder:bootstrap` does drop it, after which the next `build` / `build-ui` / `deploy` triggers `cmd_build_bootstrap` and rebuilds the toolchain from scratch (~25–35 min).
+
+**Symptom:** you run `./deploy-heroku.sh deploy` expecting a 3-minute UI redeploy, and instead see `STEP N: RUN make install ssl=1 ...` from ACE/TAO.
 
 **Avoid by:**
-- Pruning only when `podman system df` shows >80 % reclaimable space — otherwise the eviction cost exceeds the disk-reclaim benefit.
-- Tagging the `cpp-builder` stage so `podman rmi -f dangling` leaves it alone (one-time setup; not currently done).
-- Reserving the prune for off-hours when a 30-minute rebuild is acceptable.
+- Pruning only when `podman system df` shows >80 % reclaimable space.
+- Pulling the cached bootstrap from Docker Hub when CI has a fresher one: `podman pull docker.io/naushada/xpmile-cpp-builder:bootstrap && podman tag ... localhost/xpmile-cpp-builder:bootstrap`.
+- Reserving aggressive prunes for off-hours when a 30-minute rebuild is acceptable.
 
 ### Deploy disk space
 
@@ -615,6 +639,45 @@ error: write /ui/node_modules/esbuild-linux-64/bin/esbuild: no space left on dev
 ```
 
 `podman system df` reports current usage; `podman system reset` (destructive — wipes everything) is the nuclear option if a prune isn't enough.
+
+---
+
+## Continuous integration
+
+`.github/workflows/publish-images.yml` is the single CI/CD entry point. Triggers: push to `main` touching `docker/Dockerfile*`, `modules/**`, `ui/**`, `test/**`, `certs/**`, `CMakeLists.txt`, or the workflow file; plus `workflow_dispatch`.
+
+### Pipeline shape
+
+```
+bootstrap  ─┬─►  test  ─┬─►  wsdbagent     (Docker Hub, multi-arch)
+            │            │
+            │            └─►  uniservice    (Docker Hub amd64 + registry.heroku.com/marvel/web)
+            │                     │
+            │                     └─► PATCH Heroku Platform API → release on web dyno
+            └─ (no fan-out without test; concurrency block cancels older runs on same ref)
+```
+
+| Job | Runner | Platforms | Output |
+|---|---|---|---|
+| **bootstrap** | `ubuntu-latest` | linux/amd64, linux/arm64 | `docker.io/naushada/xpmile-cpp-builder:{bootstrap,<sha>}` + `:buildcache` |
+| **test** | `ubuntu-latest` | linux/amd64 | `xpmile-test:ci` (loaded into local docker daemon, then `docker run --rm`); 3 Mongo-dependent tests skipped by `--gtest_filter` |
+| **wsdbagent** | `ubuntu-latest` | linux/amd64, linux/arm64 | `docker.io/naushada/xpmile-wsdbagent:{latest,<sha>}` |
+| **uniservice** | `ubuntu-latest` | linux/amd64 | `docker.io/naushada/xpmile-uniservice:{latest,<sha>}` + `registry.heroku.com/marvel/web`, then `curl PATCH https://api.heroku.com/apps/marvel/formation` with the buildx digest |
+
+### Required repo secrets
+
+| Secret | Source | Use |
+|---|---|---|
+| `DOCKERHUB_USERNAME` | `naushada` | Docker Hub login |
+| `DOCKERHUB_TOKEN` | https://hub.docker.com/settings/security (write scope) | Docker Hub push |
+| `HEROKU_API_KEY` | `heroku auth:token` | Heroku registry push + Platform API release |
+
+### Caveats
+
+- **`provenance: false`** on the uniservice build — Heroku's registry rejects buildx attestation manifests; turning provenance off makes buildx emit a plain Docker manifest that both Docker Hub and Heroku accept.
+- **Concurrency block** cancels older in-flight runs only for runs queued *after* the block was added. Runs queued before continue to completion.
+- **Mongo-dependent tests** (`AccountLoginTest.ValidCredentials_*`, `AccountLoginTest.ResponseBody_*`, `WsDbServer.SecondAgentRejected_When_FirstAlive`) are excluded by `Dockerfile.test`'s CMD filter. Wire a Mongo sidecar into the `test` job and drop the filter to include them.
+- **`deploy-heroku.sh`** is still the manual escape hatch — useful for hotfixes from a feature branch, offline deploys, or when CI is down.
 
 ---
 

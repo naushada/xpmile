@@ -191,9 +191,14 @@ public interface and `src/` for the implementation.
 │           └── src/whatsapp_service.cpp
 ├── ui/                             Angular frontend
 ├── docker/
-│   ├── Dockerfile                  Multi-stage build (C++ → UI → runtime)
+│   ├── Dockerfile                  Multi-stage build (FROM bootstrap → UI → runtime)
+│   ├── Dockerfile.bootstrap        Shared C++ toolchain (ACE/TAO + mongo-cxx + gtest)
+│   ├── Dockerfile.test             offtarget GTest image (CI quality gate)
+│   ├── Dockerfile.wsdbagent        Standalone NAT-side DB agent (FROM bootstrap)
 │   ├── Dockerfile.mongo            Custom mongo:7 image with init script baked in
 │   └── mongo-init.js               DB user creation + bootstrap admin document
+├── .github/workflows/
+│   └── publish-images.yml          CI: bootstrap → test → wsdbagent ∥ uniservice + Heroku release
 └── docker-compose.yml
 ```
 
@@ -227,11 +232,12 @@ needed — this is already the default configuration.
 
 `modules/module/webservice/src/webservice.cpp` is a large translation unit.
 Building it with full parallelism (`-j$(nproc)`) can exhaust available
-memory on machines with less than ~4 GB RAM per core.  The Dockerfile caps
-the uniservice build at `-j2` and passes `-DCMAKE_CXX_FLAGS="-fconcepts"`
-to suppress a GCC 9 concepts warning from
-`modules/module/email/inc/emailservice.hpp`.  If builds still OOM,
-reduce Docker's memory limit or set `make -j1` in the Dockerfile.
+memory on machines with less than ~4 GB RAM per core.  Both `Dockerfile`
+and `Dockerfile.wsdbagent` cap the per-service compile at `-j2` and pass
+`-DCMAKE_CXX_FLAGS="-fconcepts"` to suppress a GCC 9 concepts warning
+from `modules/module/email/inc/emailservice.hpp`.  `Dockerfile.bootstrap`
+also uses `-j2` for the mongo-cxx-driver build for the same reason.
+If builds still OOM, reduce Docker's memory limit or set `make -j1`.
 
 ### `docker compose up` uses a stale image
 

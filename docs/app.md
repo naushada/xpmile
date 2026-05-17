@@ -2,6 +2,13 @@
 
 App name used in these examples: **`marvel`**
 
+> **Heads-up:** every push to `main` auto-deploys to Heroku via
+> `.github/workflows/publish-images.yml` (bootstrap → test → uniservice
+> + Heroku release). The flow documented below is the **manual escape
+> hatch** — useful for hotfixes from a feature branch, offline deploys,
+> or when CI is down. See `CLAUDE.md` → Continuous integration for the
+> CI pipeline overview.
+
 ---
 
 ## Compose files
