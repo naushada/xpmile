@@ -238,6 +238,27 @@ std::int32_t MicroService::process_request(ACE_HANDLE handle, std::string &req,
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l METHOD:%s URI:%s\n"),
              http.method().c_str(), http.uri().c_str()));
 
+  // In remote-DB mode, fail every /api/v1/* request fast with 503 when
+  // the wsdbagent is disconnected. Without this, downstream handlers
+  // call dbInst.get_document(...) which returns empty (wsdbproxy has
+  // no agent to forward to), and the handlers map empty → 4xx
+  // "Invalid Credentials" / "Account Not Found" — making the on-prem
+  // UI's StatusService (which counts JSON 4xx as agentOk=true) show a
+  // false-green AGENT/DB badge. Only gates /api/v1/* so static asset
+  // routes (/webui/...) keep working when the agent is offline.
+  //
+  // Guard via the m_parent pointer directly because parent() (= *m_parent)
+  // crashes when MicroService is constructed by the default ctor used in
+  // unit tests.
+  if (http.uri().rfind("/api/v1/", 0) == 0 && m_parent != nullptr &&
+      m_parent->wsDbServer() != nullptr &&
+      !m_parent->wsDbServer()->is_connected()) {
+    std::string err = "{\"status\":\"failure\","
+                      "\"cause\":\"wsdbagent not connected\","
+                      "\"error\":503}";
+    return http_send(handle, build_responseERROR(err, "503 Service Unavailable"));
+  }
+
   std::string rsp;
   if (http.method() == "OPTIONS")
     rsp = handle_OPTIONS(req);
