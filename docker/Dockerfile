@@ -1,66 +1,18 @@
 # ============================================================
-# Stage 1: Build C++ backend
+# Stage 1: Build C++ backend (uniservice)
 # ============================================================
-FROM ubuntu:focal AS cpp-builder
-
-ENV TZ=Asia/Calcutta DEBIAN_FRONTEND=noninteractive
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    cmake \
-    build-essential \
-    libboost-all-dev \
-    libssl-dev \
-    libzstd-dev \
-    libsasl2-dev \
-    zlib1g-dev \
-    wget \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Build ACE/TAO
-ENV ACE_SRC=/root/ACE_wrappers ACE_PREFIX=/usr/local/ACE_TAO-7.0.0
-WORKDIR /root
-RUN wget -q https://github.com/DOCGroup/ACE_TAO/releases/download/ACE%2BTAO-7_0_0/ACE+TAO-7.0.0.tar.gz \
-    && tar -xzf ACE+TAO-7.0.0.tar.gz \
-    && rm ACE+TAO-7.0.0.tar.gz \
-    && echo '#include "ace/config-linux.h"' > /root/ACE_wrappers/ace/config.h \
-    && echo 'include $(ACE_SRC)/include/makeinclude/platform_linux.GNU' \
-          > /root/ACE_wrappers/include/makeinclude/platform_macros.GNU
-WORKDIR /root/ACE_wrappers
-RUN make install ssl=1 INSTALL_PREFIX=${ACE_PREFIX} ACE_ROOT=${ACE_SRC} SSL_ROOT=/usr/include/openssl \
-    && ldconfig
-
-# Build mongo-c-driver
-WORKDIR /root
-RUN git clone -b 1.19.1 --depth 1 https://github.com/mongodb/mongo-c-driver.git mongo-c-driver
-WORKDIR /root/mongo-c-driver/build
-RUN cmake .. -DCMAKE_BUILD_TYPE=Release \
-             -DCMAKE_INSTALL_PREFIX=/usr/local \
-             -DENABLE_TESTS=OFF \
-             -DENABLE_EXAMPLES=OFF \
-    && make -j$(nproc) && make install && ldconfig
-
-# Build mongo-cxx-driver
-WORKDIR /root
-RUN git clone -b releases/v3.6 --depth 1 https://github.com/mongodb/mongo-cxx-driver.git mongo-cxx-driver
-WORKDIR /root/mongo-cxx-driver/build
-RUN cmake .. \
-    -DBSONCXX_POLY_USE_MNMLSTC=1 \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr/local \
-    -DBUILD_TESTING=OFF \
-    -DCMAKE_SKIP_INSTALL_ALL_DEPENDENCY=TRUE \
-    && make -j2 mongocxx_shared bsoncxx_shared \
-    && make install \
-    && ldconfig
-
-# Build googletest
-WORKDIR /root
-RUN git clone --depth 1 https://github.com/google/googletest.git
-WORKDIR /root/googletest/build
-RUN cmake .. && make -j$(nproc) install && ldconfig
+# BUILDER_IMAGE overrides the FROM tag so the same Dockerfile works in
+# three contexts:
+#   - dev:  localhost/xpmile-cpp-builder:bootstrap   (built by run.sh /
+#                                                     deploy-heroku.sh)
+#   - CI:   docker.io/naushada/xpmile-cpp-builder:bootstrap (multi-arch
+#                                                            image the
+#                                                            publish
+#                                                            workflow
+#                                                            builds first)
+#   - prod: same as CI — pulled from Docker Hub if not present locally
+ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
+FROM ${BUILDER_IMAGE} AS cpp-builder
 
 # Build uniservice
 # -j2: webservice.cpp is large enough that full parallelism OOMs the builder

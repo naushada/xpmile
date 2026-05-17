@@ -1,0 +1,217 @@
+# Publish xpmile container images and release marvel on Heroku.
+#
+# Triggered on every push to main + on demand via the Actions UI.
+#
+# Job 1 — xpmile-cpp-builder:bootstrap — the shared toolchain layer
+# (ACE/TAO 7.0.0 + mongo-c-driver + mongo-cxx-driver + googletest, on
+# ubuntu:focal). Slow (~30 min per arch when not cached). Pushed first
+# so Jobs 2 and 3 can `FROM` it via the BUILDER_IMAGE ARG.
+#
+# Job 2 — xpmile-wsdbagent — the on-prem NAT-side DB agent. Multi-arch
+# (amd64/arm64) so customers on either architecture can pull `:latest`.
+# Compile + assembly only (~5 min/arch after bootstrap is cached).
+#
+# Job 3 — xpmile-uniservice + Heroku release — the main web app. Built
+# linux/amd64 only (Heroku Common Runtime is amd64). Same image is
+# pushed to both Docker Hub (mirror) and registry.heroku.com/marvel/web
+# in one buildx invocation, then the Heroku Platform API is PATCHed to
+# release the new image on the `web` dyno.
+#
+# Tags published:
+#   docker.io/naushada/xpmile-cpp-builder:bootstrap        (rolling)
+#   docker.io/naushada/xpmile-cpp-builder:<sha>            (immutable)
+#   docker.io/naushada/xpmile-wsdbagent:latest             (rolling)
+#   docker.io/naushada/xpmile-wsdbagent:<sha>              (immutable)
+#   docker.io/naushada/xpmile-uniservice:latest            (rolling)
+#   docker.io/naushada/xpmile-uniservice:<sha>             (immutable)
+#   registry.heroku.com/marvel/web                         (released)
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   DOCKERHUB_USERNAME = naushada
+#   DOCKERHUB_TOKEN    = a Docker Hub access token with write scope
+#                        (NOT your account password; create one at
+#                        https://hub.docker.com/settings/security)
+#   HEROKU_API_KEY     = output of `heroku auth:token` (long-lived API
+#                        key, used to both push to registry.heroku.com
+#                        and call the Platform API release endpoint)
+
+name: Publish container images & release marvel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Skip the workflow when nothing publishable changed — saves
+      # ~1 GB of registry pulls per docs-only PR.
+      - 'docker/Dockerfile'
+      - 'docker/Dockerfile.bootstrap'
+      - 'docker/Dockerfile.wsdbagent'
+      - 'CMakeLists.txt'
+      - 'modules/**'
+      - 'test/**'
+      - 'ui/**'
+      - 'certs/**'
+      - '.github/workflows/publish-images.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY:         docker.io
+  ORG:              naushada
+  BOOTSTRAP_IMAGE:  docker.io/naushada/xpmile-cpp-builder
+  WSDBAGENT_IMAGE:  docker.io/naushada/xpmile-wsdbagent
+  UNISERVICE_IMAGE: docker.io/naushada/xpmile-uniservice
+  HEROKU_APP:       marvel
+
+jobs:
+
+  bootstrap:
+    name: Publish xpmile-cpp-builder:bootstrap (multi-arch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build + push xpmile-cpp-builder:bootstrap
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.bootstrap
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.BOOTSTRAP_IMAGE }}:bootstrap
+            ${{ env.BOOTSTRAP_IMAGE }}:${{ github.sha }}
+          # Buildx registry-side cache so re-runs reuse layers.
+          # `mode=max` exports every intermediate layer; without it we
+          # only cache the final stage and lose most of the speedup.
+          cache-from: type=registry,ref=${{ env.BOOTSTRAP_IMAGE }}:buildcache
+          cache-to:   type=registry,ref=${{ env.BOOTSTRAP_IMAGE }}:buildcache,mode=max
+
+  wsdbagent:
+    name: Publish xpmile-wsdbagent (multi-arch)
+    needs: bootstrap
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build + push xpmile-wsdbagent
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.wsdbagent
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            BUILDER_IMAGE=${{ env.BOOTSTRAP_IMAGE }}:bootstrap
+          tags: |
+            ${{ env.WSDBAGENT_IMAGE }}:latest
+            ${{ env.WSDBAGENT_IMAGE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.WSDBAGENT_IMAGE }}:buildcache
+          cache-to:   type=registry,ref=${{ env.WSDBAGENT_IMAGE }}:buildcache,mode=max
+
+  uniservice:
+    name: Publish xpmile-uniservice + release marvel on Heroku
+    needs: bootstrap
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to Heroku container registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.heroku.com
+          username: _
+          password: ${{ secrets.HEROKU_API_KEY }}
+
+      # Build amd64 only (Heroku is amd64). The same manifest is pushed
+      # to both Docker Hub (mirror) and registry.heroku.com/marvel/web
+      # in one shot, so the next "release" step can use the digest
+      # without an extra pull.
+      #
+      # provenance: false — Heroku's registry rejects OCI manifest
+      # lists that include the buildx attestation manifest. With
+      # provenance off, buildx emits a plain Docker manifest that
+      # Heroku accepts and that the Platform API can release from.
+      - name: Build + push uniservice (amd64) to Docker Hub + Heroku
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          build-args: |
+            BUILDER_IMAGE=${{ env.BOOTSTRAP_IMAGE }}:bootstrap
+            UI_BUST=${{ github.sha }}
+          tags: |
+            ${{ env.UNISERVICE_IMAGE }}:latest
+            ${{ env.UNISERVICE_IMAGE }}:${{ github.sha }}
+            registry.heroku.com/${{ env.HEROKU_APP }}/web
+          cache-from: type=registry,ref=${{ env.UNISERVICE_IMAGE }}:buildcache
+          cache-to:   type=registry,ref=${{ env.UNISERVICE_IMAGE }}:buildcache,mode=max
+
+      # Release on Heroku by PATCHing the Platform API with the image
+      # digest that buildx just pushed. This is the headless equivalent
+      # of `heroku container:release web --app marvel`; running the
+      # heroku CLI on the runner would require pulling the image first
+      # to read its ID from the local daemon. The Platform API takes
+      # the digest directly.
+      #
+      # Docs: https://devcenter.heroku.com/articles/container-registry-and-runtime#api
+      - name: Release marvel on Heroku
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          IMAGE_DIGEST:   ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          echo "Releasing image digest: ${IMAGE_DIGEST}"
+          curl -fsSL -X PATCH \
+            "https://api.heroku.com/apps/${HEROKU_APP}/formation" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/vnd.heroku+json; version=3.docker-releases" \
+            -H "Authorization: Bearer ${HEROKU_API_KEY}" \
+            -d "{\"updates\":[{\"type\":\"web\",\"docker_image\":\"${IMAGE_DIGEST}\"}]}"
+          echo ""
+          echo "Release triggered. Dyno is restarting."

@@ -1,0 +1,92 @@
+# docker/Dockerfile.bootstrap — shared C++ toolchain image used by
+# every downstream xpmile build (uniservice, wsdbagent, offtarget).
+# Bakes ACE/TAO 7.0.0 + mongo-c-driver 1.19.1 + mongo-cxx-driver v3.6
+# + googletest into an ubuntu:focal base (matches the runtime stage
+# glibc in Dockerfile and Dockerfile.wsdbagent).
+#
+# Cold build ~30 min. Cached locally as `localhost/xpmile-cpp-builder:bootstrap`
+# and on Docker Hub as `docker.io/naushada/xpmile-cpp-builder:bootstrap`.
+# Downstream Dockerfiles consume it via:
+#
+#   ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
+#   FROM ${BUILDER_IMAGE} AS cpp-builder
+#
+# Build locally (amd64, for Heroku):
+#   podman build --platform linux/amd64 \
+#     -f docker/Dockerfile.bootstrap \
+#     -t localhost/xpmile-cpp-builder:bootstrap .
+#
+# Build multi-arch in CI:
+#   see .github/workflows/publish-images.yml (bootstrap job)
+#
+# Build context is empty — every source is fetched from upstream
+# inside the Dockerfile.
+
+FROM ubuntu:focal
+
+ENV TZ=Asia/Calcutta DEBIAN_FRONTEND=noninteractive
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    cmake \
+    build-essential \
+    libboost-all-dev \
+    libssl-dev \
+    libzstd-dev \
+    libsasl2-dev \
+    zlib1g-dev \
+    wget \
+    git \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# ACE/TAO 7.0.0. `ssl=1` on the install line is load-bearing — without
+# it the link step later fails with `cannot find -lACE_SSL`.
+ENV ACE_SRC=/root/ACE_wrappers ACE_PREFIX=/usr/local/ACE_TAO-7.0.0
+WORKDIR /root
+RUN wget -q https://github.com/DOCGroup/ACE_TAO/releases/download/ACE%2BTAO-7_0_0/ACE+TAO-7.0.0.tar.gz \
+    && tar -xzf ACE+TAO-7.0.0.tar.gz \
+    && rm ACE+TAO-7.0.0.tar.gz \
+    && echo '#include "ace/config-linux.h"' > /root/ACE_wrappers/ace/config.h \
+    && echo 'include $(ACE_SRC)/include/makeinclude/platform_linux.GNU' \
+          > /root/ACE_wrappers/include/makeinclude/platform_macros.GNU
+WORKDIR /root/ACE_wrappers
+RUN make install ssl=1 INSTALL_PREFIX=${ACE_PREFIX} ACE_ROOT=${ACE_SRC} SSL_ROOT=/usr/include/openssl \
+    && echo "${ACE_PREFIX}/lib" > /etc/ld.so.conf.d/ace-tao.conf \
+    && ldconfig
+
+# mongo-c-driver 1.19.1 — install prefix must be /usr/local so the
+# mongo-cxx-driver pkg-config probe finds it.
+WORKDIR /root
+RUN git clone -b 1.19.1 --depth 1 https://github.com/mongodb/mongo-c-driver.git mongo-c-driver
+WORKDIR /root/mongo-c-driver/build
+RUN cmake .. -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_INSTALL_PREFIX=/usr/local \
+             -DENABLE_TESTS=OFF \
+             -DENABLE_EXAMPLES=OFF \
+    && make -j$(nproc) && make install && ldconfig
+
+# mongo-cxx-driver v3.6 — BSONCXX_POLY_USE_MNMLSTC=1 avoids the boost
+# variant linkage that v3.6 defaults to. -j2 because the build is
+# memory-hungry; full parallelism OOMs the GHA runner.
+WORKDIR /root
+RUN git clone -b releases/v3.6 --depth 1 https://github.com/mongodb/mongo-cxx-driver.git mongo-cxx-driver
+WORKDIR /root/mongo-cxx-driver/build
+RUN cmake .. \
+    -DBSONCXX_POLY_USE_MNMLSTC=1 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DBUILD_TESTING=OFF \
+    -DCMAKE_SKIP_INSTALL_ALL_DEPENDENCY=TRUE \
+    && make -j2 mongocxx_shared bsoncxx_shared \
+    && make install \
+    && ldconfig
+
+# googletest — offtarget's link target.
+WORKDIR /root
+RUN git clone --depth 1 https://github.com/google/googletest.git
+WORKDIR /root/googletest/build
+RUN cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+    && make -j$(nproc) install \
+    && ldconfig

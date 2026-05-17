@@ -19,6 +19,8 @@ set -euo pipefail
 COMPOSE_FILE="docker-compose.yml"
 COMPOSE_CMD="podman-compose"
 APP_URL="http://localhost:${HOST_PORT:-8080}/webui/"
+BOOTSTRAP_TAG="localhost/xpmile-cpp-builder:bootstrap"
+BOOTSTRAP_DOCKERFILE="docker/Dockerfile.bootstrap"
 
 # ── colours ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -35,16 +37,36 @@ section() { echo -e "\n${BOLD}── $* ──${RESET}"; }
 command -v "$COMPOSE_CMD" &>/dev/null || die "'$COMPOSE_CMD' not found. Install podman-compose first."
 
 # ── subcommands ───────────────────────────────────────────────────────────────
+
+# Ensure `localhost/xpmile-cpp-builder:bootstrap` exists locally.
+# docker/Dockerfile and docker/Dockerfile.wsdbagent both start with
+#   FROM ${BUILDER_IMAGE}   (default: localhost/xpmile-cpp-builder:bootstrap)
+# — without this image present, the build fails with a "pull from
+# localhost" error. Auto-invoked by cmd_build / cmd_build_ui so the
+# common flows keep working after a podman prune.
+cmd_build_bootstrap() {
+  if podman image exists "$BOOTSTRAP_TAG" 2>/dev/null; then
+    return 0
+  fi
+  section "Building C++ toolchain bootstrap image (one-time, ~30 min cold)"
+  warn "$BOOTSTRAP_TAG not present — building."
+  [[ -f "$BOOTSTRAP_DOCKERFILE" ]] \
+    || die "$BOOTSTRAP_DOCKERFILE not found — run this script from the repo root."
+  podman build -f "$BOOTSTRAP_DOCKERFILE" -t "$BOOTSTRAP_TAG" .
+  ok "$BOOTSTRAP_TAG built — cached for every subsequent build."
+}
+
 cmd_build() {
-  section "Building images (full — C++ + Angular)"
-  info "This compiles ACE/TAO, mongo-cxx-driver, uniservice, and the Angular UI."
-  info "First run takes 30–40 minutes; subsequent builds use the layer cache."
+  cmd_build_bootstrap
+  section "Building images (uniservice + Angular UI)"
+  info "Toolchain is pre-built (bootstrap image); compile + UI takes ~5–8 min."
   echo ""
   $COMPOSE_CMD -f "$COMPOSE_FILE" build
   ok "Build complete."
 }
 
 cmd_build_ui() {
+  cmd_build_bootstrap
   section "Rebuilding Angular UI only"
   info "Reuses the cached C++ layer — takes ~3 minutes."
   UI_BUST=$(date +%s) $COMPOSE_CMD -f "$COMPOSE_FILE" build app
@@ -165,13 +187,14 @@ CMD="${1:-}"
 ARG="${2:-}"
 
 case "$CMD" in
-  build)    cmd_build ;;
-  build-ui) cmd_build_ui ;;
-  start)    cmd_start   "$ARG" ;;
-  stop)     cmd_stop ;;
-  restart)  cmd_restart "$ARG" ;;
-  logs)     cmd_logs    "$ARG" ;;
-  status)   cmd_status ;;
-  clean)    cmd_clean ;;
-  *)        usage; exit 1 ;;
+  build)           cmd_build ;;
+  build-bootstrap) cmd_build_bootstrap ;;
+  build-ui)        cmd_build_ui ;;
+  start)           cmd_start   "$ARG" ;;
+  stop)            cmd_stop ;;
+  restart)         cmd_restart "$ARG" ;;
+  logs)            cmd_logs    "$ARG" ;;
+  status)          cmd_status ;;
+  clean)           cmd_clean ;;
+  *)               usage; exit 1 ;;
 esac
