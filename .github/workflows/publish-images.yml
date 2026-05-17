@@ -62,6 +62,23 @@ on:
       - 'ui/**'
       - 'certs/**'
       - '.github/workflows/publish-images.yml'
+  # PR runs are the merge gate: bootstrap + test only (no publish, no
+  # Heroku release — see `if:` guards on wsdbagent + uniservice jobs).
+  # Branch protection on `main` requires the test job's check to pass
+  # before merge — see CLAUDE.md → Continuous integration.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/Dockerfile'
+      - 'docker/Dockerfile.bootstrap'
+      - 'docker/Dockerfile.test'
+      - 'docker/Dockerfile.wsdbagent'
+      - 'CMakeLists.txt'
+      - 'modules/**'
+      - 'test/**'
+      - 'ui/**'
+      - 'certs/**'
+      - '.github/workflows/publish-images.yml'
   workflow_dispatch:
 
 # Latest-push-wins: a newer push to main auto-cancels any earlier
@@ -166,6 +183,10 @@ jobs:
   wsdbagent:
     name: Publish xpmile-wsdbagent (multi-arch)
     needs: [bootstrap, test]
+    # Skip on PR runs — PRs validate (bootstrap + test) but do not
+    # publish to Docker Hub. Publish only on push to main / manual
+    # dispatch.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -202,6 +223,9 @@ jobs:
   uniservice:
     name: Publish xpmile-uniservice + release marvel on Heroku
     needs: [bootstrap, test]
+    # Skip on PR runs — never push to Docker Hub or release on Heroku
+    # from a PR branch. Only on push to main / manual dispatch.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
