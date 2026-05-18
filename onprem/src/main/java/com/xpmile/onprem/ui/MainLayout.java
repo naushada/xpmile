@@ -49,7 +49,7 @@ public class MainLayout extends AppLayout {
                 .set("letter-spacing", "-0.3px");
 
         Div agentBadge = createBadge("Agent");
-        Div dbBadge    = createBadge("DB");
+        Div dbBadge    = createBadge("Database");
 
         // One full-width HorizontalLayout containing everything; this is the
         // only thing added to the navbar so the dark background stretches the

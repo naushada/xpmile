@@ -12,6 +12,6 @@
         [class.down]="(status.db$ | async) === 'down'"
         [title]="'Database ' + ((status.db$ | async) ?? 'unknown') + ((status.lastChecked$ | async) ? (' · last checked ' + ((status.lastChecked$ | async) | date:'HH:mm:ss')) : '')">
     <span class="dot"></span>
-    <span class="label">DB</span>
+    <span class="label">Database</span>
   </span>
 </div>
