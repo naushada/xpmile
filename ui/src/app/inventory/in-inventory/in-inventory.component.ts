@@ -77,7 +77,7 @@ export class InInventoryComponent implements OnInit, OnDestroy {
         // Generate A10 labels for the newly registered stock so the user
         // can print them immediately — fixes the gap where users had to
         // re-enter SKU+qty on the Create Manifest page after creation.
-        this.labels.createA10LabelPdf(sku, qty);
+        this.labels.createLabelPdf(sku, qty, 'A10');
         alert(`Inventory created. ${qty} A10 label(s) downloaded for SKU "${sku}".`);
         this.resetForm();
       },
