@@ -8,14 +8,15 @@ pdfMake.vfs = pdfFonts.pdfMake.vfs;
 
 export type LabelSize = 'A2' | 'A4' | 'A6' | 'A10';
 
-// Landscape dimensions in points (1 mm ≈ 2.835 pt). barWidth/barHeight are
-// JsBarcode pixel sizes; together they shape the raster canvas to roughly
-// match the landscape page aspect for a short (~26-module) SKU so the
-// barcode visibly fills bigger pages instead of becoming a thin strip.
-// Longer SKUs grow the canvas wider than the page; fit: scales to width
-// and leaves vertical whitespace, which is the better failure mode.
+// Landscape dimensions in points (1 mm ≈ 2.835 pt). The barcode is rendered
+// as SVG (vector) so it stays crisp at every size — barWidth/barHeight only
+// shape the SVG's intrinsic aspect ratio, which we tune so a short
+// (~26-module) SKU roughly matches the landscape page aspect and the barcode
+// visibly fills bigger pages instead of becoming a thin strip. Longer SKUs
+// grow wider than the page; fit: scales to width and leaves vertical
+// whitespace, which is the better failure mode.
 // fontSize is the pdfMake text size for the SKU below the bars (rendered
-// separately, not baked into the barcode PNG).
+// separately, not baked into the barcode itself).
 const SIZE_SPEC: Record<LabelSize, { w: number; h: number; barWidth: number; barHeight: number; fontSize: number }> = {
   A2:  { w: 1684, h: 1191, barWidth: 60, barHeight: 1100, fontSize: 48 },
   A4:  { w:  842, h:  595, barWidth: 30, barHeight:  540, fontSize: 24 },
@@ -48,13 +49,13 @@ export class LabelService {
     const textGap    = 4;
     const textBlockH = spec.fontSize + textGap;
     const barFitH    = fitH - textBlockH;
-    const barcode    = this.barcodeDataUrl(safeSku, spec.barWidth, spec.barHeight);
+    const barcode    = this.barcodeSvg(safeSku, spec.barWidth, spec.barHeight);
 
     const content: any[] = [];
     for (let i = 0; i < count; i++) {
       content.push({
         stack: [
-          { image: barcode, fit: [fitW, barFitH], alignment: 'center' },
+          { svg: barcode, fit: [fitW, barFitH], alignment: 'center' },
           { text: safeSku, alignment: 'center', fontSize: spec.fontSize, bold: true, margin: [0, textGap, 0, 0] }
         ],
         pageBreak: i < count - 1 ? 'after' : undefined
@@ -77,14 +78,18 @@ export class LabelService {
     pdfMake.createPdf(docDef).download(`${fileName ?? size + '-label'}-${safeSku}`);
   }
 
-  private barcodeDataUrl(text: string, width: number, height: number): string {
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, text, {
+  // SVG rather than a canvas PNG: a canvas always exports RGBA, pdfMake
+  // embeds the alpha channel as a PDF soft-mask, and Adobe Acrobat drops
+  // soft-masked images intermittently on scroll/zoom. Vector output has no
+  // raster, no alpha, no soft-mask — so the barcode stays put.
+  private barcodeSvg(text: string, width: number, height: number): string {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    JsBarcode(svg, text, {
       format:       'CODE128',
       width,
       height,
       displayValue: false
     });
-    return canvas.toDataURL('image/png');
+    return new XMLSerializer().serializeToString(svg);
   }
 }
