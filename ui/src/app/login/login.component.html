@@ -42,6 +42,16 @@
         <button type="button" (click)="onPasswordReset()"
                 class="btn btn-outline btn-block">RESET PASSWORD</button>
       </div>
+
+      <!-- ── Single Sign-On providers (rendered from /api/v1/sso/providers) ── -->
+      <div class="sso-group" *ngIf="ssoProviders.length">
+        <div class="sso-divider"><span>or continue with</span></div>
+        <button type="button" *ngFor="let provider of ssoProviders"
+                (click)="onSsoLogin(provider)"
+                class="btn btn-outline btn-block">
+          {{ provider.displayName || provider.id }}
+        </button>
+      </div>
     </form>
   </div>
 

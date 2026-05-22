@@ -2,8 +2,13 @@
 #include "emailservice.hpp"
 #include "http_parser.hpp"
 #include "json.hpp"
+#include "saml_provider.hpp"
+#include "sso_cookie.hpp"
+#include "sso_endpoints.hpp"
 #include "wsframe.hpp"
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <vector>
@@ -18,13 +23,23 @@ struct WorkCtx {
   std::string request;
 };
 
-std::string http_build_created() {
+// CORS headers for an allowed origin. An empty origin yields no headers — a
+// request without a usable Origin needs none (only browsers send Origin).
+// A specific origin (never "*") is required so credentialed requests work.
+std::string cors_headers(const std::string &cors_origin) {
+  if (cors_origin.empty()) return {};
+  return "Access-Control-Allow-Origin: " + cors_origin +
+         "\r\n"
+         "Access-Control-Allow-Credentials: true\r\n";
+}
+
+std::string http_build_created(const std::string &corsOrigin) {
   std::string hdr = "HTTP/1.1 201 Created\r\n"
                     "Connection: keep-alive\r\n"
-                    "Keep-Alive: timeout=5, max=100\r\n"
-                    "Access-Control-Allow-Origin: *\r\n"
-                    "Content-Length: 0\r\n"
-                    "\r\n";
+                    "Keep-Alive: timeout=5, max=100\r\n";
+  hdr += cors_headers(corsOrigin);
+  hdr += "Content-Length: 0\r\n"
+         "\r\n";
   ACE_DEBUG(
       (LM_DEBUG,
        ACE_TEXT("%D [Worker:%t] %M %N:%l response length:%zu response:%s\n"),
@@ -33,11 +48,12 @@ std::string http_build_created() {
 }
 
 std::string http_build_ok(std::string body, const std::string &contentType,
-                          const std::string &cacheControl = "") {
+                          const std::string &cacheControl,
+                          const std::string &corsOrigin) {
   std::string hdr = "HTTP/1.1 200 OK\r\n"
                     "Connection: keep-alive\r\n"
-                    "Keep-Alive: timeout=5, max=100\r\n"
-                    "Access-Control-Allow-Origin: *\r\n";
+                    "Keep-Alive: timeout=5, max=100\r\n";
+  hdr += cors_headers(corsOrigin);
   if (!body.empty()) {
     hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
     hdr += "Content-Type: " + contentType + "\r\n";
@@ -54,12 +70,13 @@ std::string http_build_ok(std::string body, const std::string &contentType,
   return body.empty() ? hdr : hdr + std::move(body);
 }
 
-std::string http_build_error(std::string body, const std::string &status) {
+std::string http_build_error(std::string body, const std::string &status,
+                             const std::string &corsOrigin) {
   std::string hdr = "HTTP/1.1 " + status +
                     " \r\n"
                     "Connection: keep-alive\r\n"
-                    "Keep-Alive: timeout=5, max=100\r\n"
-                    "Access-Control-Allow-Origin: *\r\n";
+                    "Keep-Alive: timeout=5, max=100\r\n";
+  hdr += cors_headers(corsOrigin);
   if (!body.empty()) {
     hdr += "Content-Length: " + std::to_string(body.length()) + "\r\n";
     hdr += "Content-Type: application/json\r\n";
@@ -234,6 +251,7 @@ std::string MicroService::handle_DELETE(std::string &in,
 std::int32_t MicroService::process_request(ACE_HANDLE handle, std::string &req,
                                            IMongodbClient &dbInst) {
   Http http(req);
+  m_requestOrigin = http.get_element("origin");
 
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l METHOD:%s URI:%s\n"),
              http.method().c_str(), http.uri().c_str()));
@@ -257,6 +275,13 @@ std::int32_t MicroService::process_request(ACE_HANDLE handle, std::string &req,
                       "\"cause\":\"wsdbagent not connected\","
                       "\"error\":503}";
     return http_send(handle, build_responseERROR(err, "503 Service Unavailable"));
+  }
+
+  // Session middleware — runs only after the 503 fast-path above, since the
+  // session lookup needs the DB. m_parent is null in unit tests.
+  if (m_parent != nullptr) {
+    m_authContext = resolve_session(http.get_element("cookie"),
+                                    m_parent->sessionManager());
   }
 
   std::string rsp;
@@ -360,7 +385,10 @@ std::string MicroService::handle_POST(std::string &in, IMongodbClient &dbInst) {
   ACE_DEBUG((LM_DEBUG, ACE_TEXT("%D [Worker:%t] %M %N:%l METHOD:%s URI:%s\n"),
              http.method().c_str(), http.uri().c_str()));
 
-  if (!uri.compare(0, 16, "/api/v1/shipment")) {
+  if (!uri.compare(0, 12, "/api/v1/sso/")) {
+    return (handle_sso(in, dbInst));
+
+  } else if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_POST(in, dbInst));
 
   } else if (!uri.compare(0, 14, "/api/v1/config")) {
@@ -869,14 +897,35 @@ std::string MicroService::handle_account_login_POST(std::string &in,
     return build_responseERROR(err.dump(), "401 Unauthorized");
   }
 
-  // Strip sensitive fields from the response
+  // Strip sensitive fields, mint a server-side session, set the cookie.
   try {
     auto account = json::parse(record);
+
+    std::string role;
+    if (account.contains("personalInfo") &&
+        account["personalInfo"].is_object() &&
+        account["personalInfo"].contains("role") &&
+        account["personalInfo"]["role"].is_string()) {
+      role = account["personalInfo"]["role"].get<std::string>();
+    }
+
     if (account.contains("loginCredentials") && account["loginCredentials"].is_object()) {
       account["loginCredentials"].erase("passwordHash");
       account["loginCredentials"].erase("accountPassword");
     }
-    return build_responseOK(account.dump());
+
+    // A local SessionManager is fine here: create_session only writes the
+    // session document — it touches no shared cache state.
+    sso::SystemClock clock;
+    sso::SessionManager sm(dbInst, clock);
+    sso::NewSessionParams params;
+    params.account_code = userId;
+    params.role         = role;
+    params.auth_method  = sso::AuthMethod::Password;
+    const std::string sid = sm.create_session(params);
+
+    return attach_set_cookie(build_responseOK(account.dump()),
+                             sso::build_session_cookie(sid));
   } catch (...) {
     json err = {{"status", "failure"}, {"cause", "Internal error"}, {"error", 500}};
     return build_responseERROR(err.dump(), "500 Internal Server Error");
@@ -1037,7 +1086,9 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
 
   /* Action based on uri in get request */
   std::string uri(http.uri());
-  if (!uri.compare(0, 16, "/api/v1/shipment")) {
+  if (!uri.compare(0, 12, "/api/v1/sso/")) {
+    return (handle_sso(in, dbInst));
+  } else if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_GET(in, dbInst));
   } else if (!uri.compare(0, 17, "/api/v1/inventory")) {
     return (handle_inventory_GET(in, dbInst));
@@ -1524,7 +1575,8 @@ std::string MicroService::handle_OPTIONS(std::string &in) {
       "Access-Control-Allow-Headers: DNT, User-Agent, X-Requested-With, "
       "If-Modified-Since, Cache-Control, Content-Type, Range\r\n";
   http_header += "Access-Control-Max-Age: 1728000\r\n";
-  http_header += "Access-Control-Allow-Origin: *\r\n";
+  http_header +=
+      cors_headers(cors_allowed_origin(m_requestOrigin, m_corsAllowList));
   http_header += "Content-Type: text/plain; charset=utf-8\r\n";
   http_header += "Content-Length: 0\r\n";
   http_header += "\r\n\r\n";
@@ -1540,24 +1592,218 @@ std::string MicroService::handle_OPTIONS(std::string &in) {
   return (http_header);
 }
 
+std::string MicroService::cors_allowed_origin(
+    const std::string &request_origin,
+    const std::vector<std::string> &allow_list) {
+  if (request_origin.empty()) return {};
+  // The Angular dev server is always permitted — a browser at localhost is
+  // the developer's own machine, not an attacker-controlled origin.
+  if (request_origin == "http://localhost:4200") return request_origin;
+  if (std::find(allow_list.begin(), allow_list.end(), request_origin) !=
+      allow_list.end())
+    return request_origin;
+  return {};
+}
+
 std::string MicroService::build_responseCreated() {
-  return http_build_created();
+  return http_build_created(
+      cors_allowed_origin(m_requestOrigin, m_corsAllowList));
 }
 
 std::string MicroService::build_responseOK(std::string httpBody,
                                            std::string contentType) {
-  return http_build_ok(std::move(httpBody), contentType, "");
+  return http_build_ok(std::move(httpBody), contentType, "",
+                       cors_allowed_origin(m_requestOrigin, m_corsAllowList));
 }
 
 std::string MicroService::build_responseOK(std::string httpBody,
                                            std::string contentType,
                                            const std::string &cacheControl) {
-  return http_build_ok(std::move(httpBody), contentType, cacheControl);
+  return http_build_ok(std::move(httpBody), contentType, cacheControl,
+                       cors_allowed_origin(m_requestOrigin, m_corsAllowList));
 }
 
 std::string MicroService::build_responseERROR(std::string httpBody,
                                               std::string error) {
-  return http_build_error(std::move(httpBody), error);
+  return http_build_error(std::move(httpBody), error,
+                          cors_allowed_origin(m_requestOrigin, m_corsAllowList));
+}
+
+std::string MicroService::build_redirect(const std::string &location) {
+  std::string hdr = "HTTP/1.1 302 Found\r\n"
+                    "Connection: keep-alive\r\n"
+                    "Keep-Alive: timeout=5, max=100\r\n";
+  hdr += cors_headers(cors_allowed_origin(m_requestOrigin, m_corsAllowList));
+  hdr += "Location: " + location + "\r\n";
+  hdr += "Content-Length: 0\r\n";
+  hdr += "\r\n";
+  return hdr;
+}
+
+std::string MicroService::attach_set_cookie(const std::string &response,
+                                            const std::string &cookie) {
+  const std::size_t hdr_end = response.find("\r\n\r\n");
+  if (hdr_end == std::string::npos) return response;  // malformed — leave as-is
+  return response.substr(0, hdr_end) + "\r\nSet-Cookie: " + cookie +
+         response.substr(hdr_end);
+}
+
+sso::AuthContext MicroService::resolve_session(const std::string &cookie_header,
+                                               sso::SessionManager &sm) {
+  const std::string sid = sso::parse_session_cookie(cookie_header);
+  if (sid.empty()) return {};  // no session cookie → unauthenticated
+  return sm.lookup(sid);
+}
+
+namespace {
+
+// Percent-decode an application/x-www-form-urlencoded token ('+' is a space).
+std::string sso_url_decode(const std::string &s) {
+  auto hex = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+  };
+  std::string out;
+  for (std::size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '%' && i + 2 < s.size()) {
+      const int hi = hex(s[i + 1]);
+      const int lo = hex(s[i + 2]);
+      if (hi >= 0 && lo >= 0) {
+        out += static_cast<char>(hi * 16 + lo);
+        i += 2;
+        continue;
+      }
+      out += s[i];
+    } else if (s[i] == '+') {
+      out += ' ';
+    } else {
+      out += s[i];
+    }
+  }
+  return out;
+}
+
+// Extract one field from an application/x-www-form-urlencoded body.
+std::string sso_form_field(const std::string &body, const std::string &key) {
+  std::size_t pos = 0;
+  while (pos < body.size()) {
+    const std::size_t amp = body.find('&', pos);
+    const std::string pair = body.substr(
+        pos, amp == std::string::npos ? std::string::npos : amp - pos);
+    const std::size_t eq = pair.find('=');
+    if (eq != std::string::npos && pair.substr(0, eq) == key)
+      return sso_url_decode(pair.substr(eq + 1));
+    if (amp == std::string::npos) break;
+    pos = amp + 1;
+  }
+  return {};
+}
+
+} // namespace
+
+// ── SSO endpoints (/api/v1/sso/*) ──────────────────────────────────────────────
+// Thin adapter: parse the request, dispatch to the transport-agnostic logic in
+// sso_endpoints.hpp, then render the SsoHttpResult onto the wire. See
+// docs/design/sso/sso-design.md §8.
+std::string MicroService::handle_sso(std::string &in, IMongodbClient &dbInst) {
+  Http http(in);
+  const std::string uri(http.uri());
+  const std::string method(http.method());
+
+  // handle_sso is only reachable from the live server; m_parent is null only
+  // in unit tests, which exercise the sso_endpoints logic directly instead.
+  if (m_parent == nullptr) {
+    json err = {{"status", "failure"},
+                {"cause", "SSO unavailable"},
+                {"error", 500}};
+    return build_responseERROR(err.dump(), "500 Internal Server Error");
+  }
+  WebServer &srv = *m_parent;
+
+  sso::SsoHttpResult res;
+  bool routed = true;
+
+  if (method == "GET" && uri == "/api/v1/sso/providers") {
+    res = sso::sso_list_providers(srv.ssoConfig());
+
+  } else if (method == "GET" && uri == "/api/v1/sso/login") {
+    std::string return_to = http.get_element("return_to");
+    if (return_to.empty()) return_to = "/";
+    // Hold the shared_ptr for the whole call — a concurrent hot-reload may
+    // drop the provider from the registry mid-request.
+    const std::shared_ptr<sso::IIdentityProvider> provider =
+        srv.ssoProvider(http.get_element("provider"));
+    res = sso::sso_begin_login(provider.get(), return_to);
+
+  } else if (method == "GET" &&
+             !uri.compare(0, 21, "/api/v1/sso/callback/")) {
+    const std::string pid(uri.substr(21));
+    const std::shared_ptr<sso::IIdentityProvider> provider =
+        srv.ssoProvider(pid);
+    const sso::SsoConfig cfg = srv.ssoConfig();
+    const sso::ProviderConfig *pc = nullptr;
+    for (const sso::ProviderConfig &c : cfg.providers)
+      if (c.id == pid) { pc = &c; break; }
+    res = sso::sso_complete_callback(provider.get(), pc,
+                                     http.get_element("code"),
+                                     http.get_element("state"), dbInst,
+                                     srv.sessionManager());
+
+  } else if (method == "POST" &&
+             !uri.compare(0, 21, "/api/v1/sso/callback/")) {
+    // SAML HTTP-POST binding: the IdP posts SAMLResponse + RelayState as an
+    // application/x-www-form-urlencoded body to the ACS URL.
+    const std::string pid(uri.substr(21));
+    const std::shared_ptr<sso::IIdentityProvider> provider =
+        srv.ssoProvider(pid);
+    const sso::SsoConfig cfg = srv.ssoConfig();
+    const sso::ProviderConfig *pc = nullptr;
+    for (const sso::ProviderConfig &c : cfg.providers)
+      if (c.id == pid) { pc = &c; break; }
+    const std::string body = http.body();
+    res = sso::sso_complete_callback(provider.get(), pc,
+                                     sso_form_field(body, "SAMLResponse"),
+                                     sso_form_field(body, "RelayState"),
+                                     dbInst, srv.sessionManager());
+
+  } else if (method == "GET" && uri == "/api/v1/sso/session") {
+    res = sso::sso_session_info(http.get_element("cookie"),
+                                srv.sessionManager());
+
+  } else if (method == "POST" && uri == "/api/v1/sso/logout") {
+    res = sso::sso_logout(http.get_element("cookie"), srv.sessionManager());
+
+  } else {
+    routed = false;
+  }
+
+  if (!routed) {
+    json err = {{"status", "failure"},
+                {"cause", "Not Found"},
+                {"error", 404}};
+    return build_responseERROR(err.dump(), "404 Not Found");
+  }
+
+  std::string rsp;
+  switch (res.status) {
+  case 302:
+    rsp = build_redirect(res.location);
+    break;
+  case 400:
+    rsp = build_responseERROR(res.body, "400 Bad Request");
+    break;
+  case 401:
+    rsp = build_responseERROR(res.body, "401 Unauthorized");
+    break;
+  default:
+    rsp = build_responseOK(res.body, res.content_type);
+    break;
+  }
+  if (!res.set_cookie.empty())
+    rsp = attach_set_cookie(rsp, res.set_cookie);
+  return rsp;
 }
 
 ACE_INT32 MicroService::handle_signal(int signum, siginfo_t *s, ucontext_t *u) {
@@ -1755,6 +2001,93 @@ ACE_INT32 WebServer::handle_close(ACE_HANDLE handle, ACE_Reactor_Mask mask) {
 
 ACE_HANDLE WebServer::get_handle() const { return (m_server.get_handle()); }
 
+// Load the SSO configuration once, then start the hot-reload poll. SSO is
+// simply disabled (password login unaffected) when no valid config is present.
+void WebServer::init_sso() {
+  m_ssoHttp = std::make_unique<sso::HttpClient>();
+  reload_sso();  // first load — synchronous, before the server accepts traffic
+
+  // Poll the sso_config document every ~60 s so an operator edit in the
+  // on-prem Vaadin admin UI takes effect without a redeploy (design §10).
+  // The sleep is split into 1 s slices so shutdown stays responsive.
+  m_ssoReloadThread = std::thread([this] {
+    while (!m_ssoReloadStop.load()) {
+      for (int i = 0; i < 60 && !m_ssoReloadStop.load(); ++i)
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      if (!m_ssoReloadStop.load())
+        reload_sso();
+    }
+  });
+}
+
+// Re-read the sso_config document and, on a change, rebuild the providers.
+// The sso_config collection is the single source of truth (design §10) — the
+// on-prem Vaadin admin UI manages SSO by writing it directly, and this poll
+// picks up the change. A blocking network discovery happens per OIDC provider;
+// a provider whose discovery fails is skipped, leaving the rest usable.
+void WebServer::reload_sso() {
+  json projection = {{"_id", false}};
+  const std::string raw =
+      mMongodbc->get_document("sso_config", "{}", projection.dump());
+  if (raw.empty())
+    return;  // collection not seeded / unreadable — SSO stays as it was
+
+  // Change detection + parse-or-keep-last-good, guarding m_ssoRegistry.
+  sso::SsoConfig cfg;
+  {
+    std::lock_guard<std::mutex> guard(m_ssoMutex);
+    if (!m_ssoRegistry.reload_if_changed(raw))
+      return;  // unchanged, or changed-but-invalid (last-good kept)
+    cfg = m_ssoRegistry.config();
+  }
+
+  // Build the providers outside the lock — OIDC discovery is a blocking call.
+  std::map<std::string, std::shared_ptr<sso::IIdentityProvider>> built;
+  for (const sso::ProviderConfig &p : cfg.providers) {
+    if (p.protocol == sso::Protocol::Saml) {
+      // SAML needs no discovery — the IdP endpoints and signing certificate
+      // are static configuration.
+      built[p.id] = std::make_shared<sso::SamlProvider>(
+          p, cfg.public_base_url, *mMongodbc, m_clock);
+      continue;
+    }
+
+    sso::OidcEndpoints endpoints;
+    std::string err;
+    if (!sso::fetch_discovery(*m_ssoHttp, p.issuer, endpoints, err)) {
+      ACE_ERROR((LM_ERROR,
+                 ACE_TEXT("%D [WebServer:%t] %M %N:%l OIDC discovery failed "
+                          "for provider '%s': %s\n"),
+                 p.id.c_str(), err.c_str()));
+      continue;  // skip this provider; the rest stay usable
+    }
+    built[p.id] = std::make_shared<sso::OidcProvider>(
+        p, endpoints, cfg.public_base_url, *mMongodbc, *m_ssoHttp, m_clock);
+  }
+
+  const std::size_t ready = built.size();
+  {
+    std::lock_guard<std::mutex> guard(m_ssoMutex);
+    m_ssoProviders = std::move(built);
+  }
+  ACE_DEBUG((LM_DEBUG,
+             ACE_TEXT("%D [WebServer:%t] %M %N:%l SSO config loaded — %u "
+                      "OIDC provider(s) ready\n"),
+             static_cast<unsigned>(ready)));
+}
+
+sso::SsoConfig WebServer::ssoConfig() {
+  std::lock_guard<std::mutex> guard(m_ssoMutex);
+  return m_ssoRegistry.config();
+}
+
+std::shared_ptr<sso::IIdentityProvider>
+WebServer::ssoProvider(const std::string &id) {
+  std::lock_guard<std::mutex> guard(m_ssoMutex);
+  auto it = m_ssoProviders.find(id);
+  return it != m_ssoProviders.end() ? it->second : nullptr;
+}
+
 WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
                      ACE_UINT32 workerPool, std::string dbUri,
                      std::string dbConnPool, std::string dbName) {
@@ -1795,6 +2128,8 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
 
   // mMongodbc = new MongodbClient(uri);
   mMongodbc = std::make_unique<MongodbClient>(uri);
+  m_sessionManager = std::make_unique<sso::SessionManager>(*mMongodbc, m_clock);
+  init_sso();
 
   m_semaphore = std::make_unique<ACE_Semaphore>();
 
@@ -1840,6 +2175,8 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
 
   m_stopMe    = false;
   mMongodbc   = std::move(db);
+  m_sessionManager = std::make_unique<sso::SessionManager>(*mMongodbc, m_clock);
+  init_sso();
   m_wsDbServer = std::move(wsServer);
   m_semaphore = std::make_unique<ACE_Semaphore>();
 
@@ -1869,11 +2206,11 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
 }
 
 WebServer::~WebServer() {
-  /*
-  if(nullptr != mMongodbc) {
-      delete mMongodbc;
-      mMongodbc = nullptr;
-  }*/
+  // Stop the SSO hot-reload poll before tearing down the resources it touches.
+  m_ssoReloadStop.store(true);
+  if (m_ssoReloadThread.joinable())
+    m_ssoReloadThread.join();
+
   mMongodbc.reset(nullptr);
 
   // unique_ptr elements are deleted automatically on erase/clear

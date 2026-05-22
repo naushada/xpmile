@@ -1,6 +1,7 @@
 #include "http_parser.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <sstream>
 #include <zlib.h>
 
@@ -146,9 +147,16 @@ void Http::parse_uri(const std::string &in) {
   auto crlf = in.find("\r\n");
   const std::string req = (crlf != std::string::npos) ? in.substr(0, crlf) : in;
 
-  // ACE_DEBUG((LM_DEBUG,
-  //            ACE_TEXT("%D [worker:%t] %M %N:%l The uri string is %s\n"),
-  //            req.c_str()));
+  // A response begins with a status line ("HTTP/x.x <code> <reason>") rather
+  // than a request line. Parse the status code and stop — a response has no
+  // method or URI. (A request line always starts with the method, never
+  // "HTTP/", so this branch never triggers for a request.)
+  if (req.rfind("HTTP/", 0) == 0) {
+    auto sp = req.find(' ');
+    if (sp != std::string::npos)
+      m_status = std::atoi(req.c_str() + sp + 1);
+    return;
+  }
 
   // Split: METHOD<SP>path[?qs]<SP>HTTP/x.x
   auto first_sp = req.find(' ');

@@ -1,6 +1,6 @@
-import { LOCALE_ID, NgModule } from '@angular/core';
+import { APP_INITIALIZER, LOCALE_ID, NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { HttpClientModule } from '@angular/common/http';
+import { HTTP_INTERCEPTORS, HttpClientModule } from '@angular/common/http';
 
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
 import { ClarityModule} from "@clr/angular";
@@ -46,6 +46,8 @@ import { AltrefBulkComponent } from './shipping/altref-bulk/altref-bulk.componen
 import { CollectShipmentComponent } from './shipping/collect-shipment/collect-shipment.component';
 import { StatusBadgeComponent } from './common/status-badge/status-badge.component';
 import { DatePipe } from '@angular/common';
+import { SsoAuthInterceptor } from 'src/common/sso-auth.interceptor';
+import { SessionService, initSession } from 'src/common/session.service';
 
 
 @NgModule({
@@ -98,7 +100,13 @@ import { DatePipe } from '@angular/common';
     HttpClientModule
     
   ],
-  providers: [ { provide: LOCALE_ID, useValue: 'en-US'}, {provide: DatePipe}],
+  providers: [
+    { provide: LOCALE_ID, useValue: 'en-US'},
+    { provide: DatePipe},
+    { provide: HTTP_INTERCEPTORS, useClass: SsoAuthInterceptor, multi: true },
+    { provide: APP_INITIALIZER, useFactory: initSession,
+      deps: [SessionService], multi: true },
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

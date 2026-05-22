@@ -283,3 +283,31 @@ TEST(HttpParser, HeaderIncludesTrailingCrLfCrLf)
     EXPECT_EQ("\r\n\r\n", h.header().substr(h.header().size() - 4));
     EXPECT_EQ(body, h.body());
 }
+
+// ── Response status line ──────────────────────────────────────────────────────
+
+TEST(HttpParser, ResponseStatusLineParsed)
+{
+    std::string resp =
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: application/json\r\n"
+        "Content-Length: 2\r\n"
+        "\r\n"
+        "{}";
+    Http h(resp);
+    EXPECT_EQ(200, h.status());
+    EXPECT_EQ("application/json", h.get_element("Content-Type"));
+    EXPECT_EQ("{}", h.body());
+}
+
+TEST(HttpParser, ResponseErrorStatusParsed)
+{
+    Http h("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+    EXPECT_EQ(404, h.status());
+}
+
+TEST(HttpParser, RequestHasZeroStatus)
+{
+    Http h("GET / HTTP/1.1\r\nHost: x\r\n\r\n");
+    EXPECT_EQ(0, h.status());
+}

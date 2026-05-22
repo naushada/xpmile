@@ -124,7 +124,7 @@ cd /src/build && ctest --output-on-failure
 ./offtarget --gtest_filter='EmailService*'  # SMTP FSM tests only
 ```
 
-There are 46 tests across three modules (http, webservice, email). Zero failures is the baseline.
+The suite spans every module with tests (http, webservice, email, mongodb, wsdbproxy, security, oauth2). The SSO phases alone added 127 tests — see `docs/design/sso/sso-tdd-plan.md`. Zero failures is the baseline.
 
 ### Angular UI (local development)
 
@@ -176,6 +176,26 @@ struct WorkCtx { ACE_HANDLE handle; MongodbClient *db; std::string request; };
 **Collection name:** Shipments are stored in the `shipping` collection — not `shipment`. The API path `/api/v1/shipment/...` is unrelated to the collection name.
 
 **AWB generation:** If `shipment.isAutoGenerate == true`, the backend looks up `awbPrefix` from the sender's account, then calls `MongodbClient::next_awbno(prefix)` — an atomic `findOneAndUpdate + $inc` on the `counters` collection. This runs before any insert, in both single and bulk handlers.
+
+---
+
+## Single sign-on (SSO)
+
+The `modules/module/oauth2/` directory implements SSO — server-side sessions, OIDC, and SAML 2.0. The directory name is a leftover from an old empty stub; **all code is in the `sso::` namespace**, not `oauth2`. Design: `docs/design/sso/sso-design.md`; test plan: `sso-tdd-plan.md`. `codebase.md` → *oauth2 module* has the file-by-file reference.
+
+**Backend-for-frontend (BFF):** the C++ backend runs the entire IdP handshake; IdP tokens never reach the browser. Every login — federated *and* password — mints a `sessions` record and sets an opaque `HttpOnly` cookie (`xpmile_session`). The cookie is a random id, not a JWT, so a session is revocable by deleting the record.
+
+**SSO routing:** `/api/v1/sso/*` is dispatched in `process_request()` to `MicroService::handle_sso()`. Keep endpoint *logic* in the transport-agnostic functions in `sso_endpoints.hpp` — they return a `SsoHttpResult` and know nothing about ACE or the `Http` parser; `handle_sso()` only parses the request and renders the result onto the wire. That split is what keeps the SSO endpoints unit-testable with mocks.
+
+**Adding a provider protocol:** implement `sso::IIdentityProvider` (`begin_login` / `handle_callback`). `OidcProvider` and `SamlProvider` are the existing two; the endpoint handlers depend only on the interface, so callers do not change.
+
+**SSO config lives in MongoDB, not git:** the `sso_config` collection holds one secret-bearing document, authored by the on-prem Vaadin admin UI (`onprem/.../SsoConfigView.java`). The backend hot-reloads it every ~60 s via `WebServer::init_sso()` / `reload_sso()`; a document that fails `parse_sso_config()` is rejected and the last-good `ProviderRegistry` kept. Never put SSO secrets in a Heroku config var or commit them.
+
+**Security invariants — do not weaken:** `verify_jwt()` accepts RS256 only (reject `none` and every HMAC variant — algorithm-confusion attack). SAML signatures are verified by xmlsec1 against the configured IdP cert only; an embedded `<KeyInfo>` is ignored. Callback URLs are pinned to `publicBaseUrl`, never derived from request headers. The response builders echo a *specific* allowed origin plus `Access-Control-Allow-Credentials: true` — never reintroduce `Access-Control-Allow-Origin: *` on a cookie-bearing endpoint; browsers reject that pair.
+
+**xmlsec1 dependency:** SAML XML-DSig needs `libxml2` + `xmlsec1`. The root `CMakeLists.txt` does `pkg_check_modules(XMLSEC REQUIRED xmlsec1-openssl)`, which cmake resolves at configure time for *every* target — so all three builder Dockerfiles (`Dockerfile`, `Dockerfile.test`, `Dockerfile.wsdbagent`) `apt-get install libxmlsec1-dev`, including `wsdbagent` even though its binary never links xmlsec1. Only the `uniservice` runtime stage ships the `libxmlsec1`/`libxmlsec1-openssl` runtime libs.
+
+**Unit tests:** `modules/module/oauth2/test/sso_test.cc` (114 tests), plus the session / CORS / middleware tests in `webservice_test.cc`. All run against mocks behind `IMongodbClient` / `IHttpClient` — no live MongoDB, no network — inside the standard `offtarget` binary.
 
 ---
 

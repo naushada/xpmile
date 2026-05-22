@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams, HttpHeaders, HttpErrorResponse} from '@angular/common/http';
 import { catchError, forkJoin, Observable, switchMap } from 'rxjs';
-import { Shipment, Account, ShipmentStatus, Inventory, UriMap, Email, SenderInformation, activityOnShipment } from './app-globals';
+import { Shipment, Account, ShipmentStatus, Inventory, UriMap, Email, SenderInformation, activityOnShipment, SsoProvider, SsoSession } from './app-globals';
 import { environment } from 'src/environments/environment';
 
 
@@ -442,9 +442,37 @@ export class HttpsvcService {
   }
 
   createJob(job:any) : Observable<any> {
-    return this.http.post<any>(this.getUri("from_web_job"), 
-                                    job, 
+    return this.http.post<any>(this.getUri("from_web_job"),
+                                    job,
                                     this.httpOptions);
+  }
+
+  /** SSO Section — see docs/design/sso/sso-design.md §8. */
+
+  /** List the identity providers configured for the login screen. */
+  getSsoProviders(): Observable<SsoProvider[]> {
+    return this.http.get<SsoProvider[]>(this.getUri("from_web_sso_providers"));
+  }
+
+  /** Return the account behind the current session cookie (401 when none). */
+  getSession(): Observable<SsoSession> {
+    return this.http.get<SsoSession>(this.getUri("from_web_sso_session"));
+  }
+
+  /** Revoke the current session server-side and clear the session cookie. */
+  ssoLogout(): Observable<any> {
+    return this.http.post<any>(this.getUri("from_web_sso_logout"), {});
+  }
+
+  /**
+   * Absolute URL that begins an SSO login. Used with window.location.href —
+   * the round trip leaves the SPA for the IdP and the backend redirects the
+   * browser back to returnTo once authenticated.
+   */
+  ssoLoginUrl(providerId: string, returnTo: string): string {
+    return this.getUri("from_web_sso_login") +
+           `?provider=${encodeURIComponent(providerId)}` +
+           `&return_to=${encodeURIComponent(returnTo)}`;
   }
 
 }

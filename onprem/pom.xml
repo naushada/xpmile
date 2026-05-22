@@ -49,6 +49,13 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
     </dependency>
+    <!-- MongoDB driver: the SSO-config admin view writes the sso_config
+         document directly to the co-located on-prem MongoDB (design §10).
+         Version is managed by the Spring Boot parent BOM. -->
+    <dependency>
+      <groupId>org.mongodb</groupId>
+      <artifactId>mongodb-driver-sync</artifactId>
+    </dependency>
     <!-- OpenPDF: Apache 2.0 licensed PDF generation, AGPL-compatible -->
     <dependency>
       <groupId>com.github.librepdf</groupId>

@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.16.3)
 project(offtarget)
 find_package(GTest REQUIRED)
 
+# xmlsec1 — SAML XML-DSig verification + the test-side signing scaffold.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(XMLSEC REQUIRED xmlsec1-openssl)
+
 include_directories(/usr/local/include/mongocxx/v_noabi)
 include_directories(/usr/local/include/bsoncxx/v_noabi)
 include_directories(../modules/module/webservice/inc)
@@ -12,12 +16,14 @@ include_directories(../modules/module/mongodb/inc)
 include_directories(../modules/module/email/inc)
 include_directories(../modules/module/email/test)
 include_directories(../modules/module/oauth2/inc)
+include_directories(../modules/module/oauth2/test)
 include_directories(../modules/module/whatsapp/inc)
 include_directories(../modules/module/thirdparty)
 include_directories(../modules/module/wsdbproxy/inc)
 include_directories(../modules/module/wsdbproxy/test)
 include_directories(../modules/module/security/inc)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
+include_directories(/usr/include/libxml2)
 
 link_directories(/usr/local/ACE_TAO-7.0.0/lib)
 
@@ -43,6 +49,22 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/wsdbproxy/test/wsdbserver_test.cc"
     "../modules/module/wsdbproxy/test/wsproxy_test.cc"
     "../modules/module/security/test/innertls_test.cc"
+    "../modules/module/oauth2/src/sso_cookie.cpp"
+    "../modules/module/oauth2/src/sso_config.cpp"
+    "../modules/module/oauth2/src/sso_session.cpp"
+    "../modules/module/oauth2/src/sso_http_client.cpp"
+    "../modules/module/oauth2/src/sso_util.cpp"
+    "../modules/module/oauth2/src/sso_oidc.cpp"
+    "../modules/module/oauth2/src/sso_jwt.cpp"
+    "../modules/module/oauth2/src/sso_registry.cpp"
+    "../modules/module/oauth2/src/sso_provisioning.cpp"
+    "../modules/module/oauth2/src/sso_endpoints.cpp"
+    "../modules/module/oauth2/src/saml_provider.cpp"
+    "../modules/module/oauth2/src/saml_response.cpp"
+    "../modules/module/oauth2/src/saml_signature.cpp"
+    "../modules/module/oauth2/src/sso_csrf.cpp"
+    "../modules/module/oauth2/src/sso_authz.cpp"
+    "../modules/module/oauth2/test/sso_test.cc"
     "../modules/module/mongodb/test/mongodbc_test.cc")
 
 enable_testing()
@@ -57,6 +79,10 @@ target_link_libraries(offtarget ssl crypto)
 target_link_libraries(offtarget mongodbcxx)
 target_link_libraries(offtarget gtest)
 target_link_libraries(offtarget z)
+target_link_libraries(offtarget xml2)
+target_include_directories(offtarget PRIVATE ${XMLSEC_INCLUDE_DIRS})
+target_compile_options(offtarget PRIVATE ${XMLSEC_CFLAGS_OTHER})
+target_link_libraries(offtarget ${XMLSEC_LIBRARIES})
 
 add_test(offtarget_gtests offtarget)
 gtest_discover_tests(offtarget)

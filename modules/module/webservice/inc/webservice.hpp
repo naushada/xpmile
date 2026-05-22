@@ -2,10 +2,13 @@
 #define WEBSERVICE_HPP
 
 #include <algorithm>
+#include <atomic>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 #include "ace/Basic_Types.h"
@@ -27,6 +30,10 @@
 #include "ace/Timer_Queue_T.h"
 
 #include "mongodbc.hpp"
+#include "sso_http_client.hpp"
+#include "sso_oidc.hpp"
+#include "sso_registry.hpp"
+#include "sso_session.hpp"
 #include "wsdbproxy.hpp"
 
 /* Forward declarations */
@@ -130,6 +137,42 @@ public:
   std::int32_t process_request(ACE_HANDLE handle, std::string &req,
                                IMongodbClient &dbInst);
 
+  /** @name Per-request CORS context */
+  ///@{
+  /// Record the request's Origin header (called by process_request).
+  void set_request_origin(const std::string &origin) {
+    m_requestOrigin = origin;
+  }
+  /// Set the configured list of allowed cross-origin callers.
+  void set_cors_allow_list(const std::vector<std::string> &origins) {
+    m_corsAllowList = origins;
+  }
+  /**
+   * @brief Resolve the Access-Control-Allow-Origin value for a request.
+   *
+   * Credentialed (cookie-bearing) requests require a specific echoed origin —
+   * browsers reject the wildcard "*" alongside credentials. The dev origin
+   * http://localhost:4200 is always allowed.
+   *
+   * @param request_origin  The request's Origin header (may be empty).
+   * @param allow_list      Configured allowed origins.
+   * @return The origin to echo, or "" when no CORS header must be emitted.
+   */
+  static std::string cors_allowed_origin(
+      const std::string &request_origin,
+      const std::vector<std::string> &allow_list);
+  ///@}
+
+  /**
+   * @brief Resolve a request's session cookie to an AuthContext.
+   *
+   * Static and pure given the session manager, so it is unit-testable without
+   * a running server. Returns an invalid AuthContext when the cookie is absent
+   * or the session is unknown/expired.
+   */
+  static sso::AuthContext resolve_session(const std::string &cookie_header,
+                                          sso::SessionManager &sm);
+
   /** @name HTTP method dispatchers */
   ///@{
   std::string handle_OPTIONS(std::string &in);
@@ -153,6 +196,14 @@ public:
   std::string handle_inventory_PUT(std::string &in, IMongodbClient &dbInst);
   std::string handle_account_PUT(std::string &in, IMongodbClient &dbInst);
   std::string handle_DELETE(std::string &in, IMongodbClient &dbInst);
+
+  /**
+   * @brief Adapter for the @c /api/v1/sso/* endpoints.
+   *
+   * Parses the request, calls the transport-agnostic logic in
+   * @c sso_endpoints.hpp, and renders the @c SsoHttpResult onto the wire.
+   */
+  std::string handle_sso(std::string &in, IMongodbClient &dbInst);
   ///@}
 
   /** @name HTTP response builders */
@@ -171,6 +222,14 @@ public:
 
   /// Build a @c 201 Created response with no body.
   std::string build_responseCreated();
+
+  /// Build a @c 302 Found redirect to @p location.
+  std::string build_redirect(const std::string &location);
+
+  /// Return @p response with a @c Set-Cookie header inserted into its header
+  /// block. Returns @p response unchanged if it has no header terminator.
+  static std::string attach_set_cookie(const std::string &response,
+                                       const std::string &cookie);
 
   /**
    * @brief Map a file extension to its MIME content-type string.
@@ -194,6 +253,9 @@ private:
   ACE_thread_t m_threadId;
   bool m_iAmDone;
   WebServer *m_parent;
+  std::string m_requestOrigin;
+  std::vector<std::string> m_corsAllowList;
+  sso::AuthContext m_authContext;
 };
 
 /**
@@ -327,6 +389,17 @@ public:
   /// start()).
   IMongodbClient *mongodbcInst() { return (mMongodbc.get()); }
 
+  /// Return the shared session manager (created in the constructor).
+  sso::SessionManager &sessionManager() { return (*m_sessionManager); }
+
+  /// A consistent snapshot of the live SSO configuration, by value — the
+  /// hot-reload thread may swap the live config at any moment.
+  sso::SsoConfig ssoConfig();
+
+  /// The built identity provider for @p id, or null. Shared ownership keeps
+  /// the provider alive for the caller even across a concurrent hot-reload.
+  std::shared_ptr<sso::IIdentityProvider> ssoProvider(const std::string &id);
+
   /// Return the WsDbServer (null in local-MongoDB mode).
   WsDbServer *wsDbServer() { return m_wsDbServer.get(); }
 
@@ -334,6 +407,14 @@ public:
   ACE_Semaphore &semaphore() const { return (*m_semaphore.get()); }
 
 private:
+  /// Read the `sso_config` collection once, build the providers, then start
+  /// the ~60s hot-reload poll. Called once from each constructor.
+  void init_sso();
+
+  /// Re-read the `sso_config` document; on a change, rebuild the providers.
+  /// Runs at startup and on the hot-reload poll thread.
+  void reload_sso();
+
   ACE_SOCK_Stream m_stream;
   ACE_INET_Addr m_listen;
   ACE_SOCK_Acceptor m_server;
@@ -342,6 +423,18 @@ private:
   std::vector<std::unique_ptr<MicroService>> m_workerPool;
   std::vector<std::unique_ptr<MicroService>>::iterator m_currentWorker;
   std::unique_ptr<IMongodbClient> mMongodbc;
+  sso::SystemClock                     m_clock;
+  std::unique_ptr<sso::SessionManager> m_sessionManager;
+  // SSO members. m_ssoMutex guards m_ssoRegistry and m_ssoProviders, which the
+  // hot-reload poll thread swaps. Declared after mMongodbc/m_clock, and
+  // m_ssoHttp before m_ssoProviders, so the providers (which reference all
+  // three) are destroyed first.
+  std::mutex                       m_ssoMutex;
+  std::unique_ptr<sso::HttpClient> m_ssoHttp;
+  sso::ProviderRegistry            m_ssoRegistry;
+  std::map<std::string, std::shared_ptr<sso::IIdentityProvider>> m_ssoProviders;
+  std::thread                      m_ssoReloadThread;
+  std::atomic<bool>                m_ssoReloadStop{false};
   std::unique_ptr<WsDbServer>     m_wsDbServer;
   std::unique_ptr<ACE_Semaphore>  m_semaphore;
 };

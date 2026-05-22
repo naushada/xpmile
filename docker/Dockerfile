@@ -14,6 +14,16 @@
 ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
 FROM ${BUILDER_IMAGE} AS cpp-builder
 
+# Phase E (SAML) XML-DSig needs an XML library. apt packages, not
+# compiled-from-source, so no bootstrap rebuild is required.
+# -o Acquire::Check-Date=false tolerates build-host clock skew (the repo
+# Release files still read as "not valid yet" otherwise). Packages stay
+# GPG- and hash-verified; only the Release-file freshness check is relaxed.
+RUN apt-get -o Acquire::Check-Date=false update \
+ && apt-get install -y --no-install-recommends \
+        pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl \
+ && rm -rf /var/lib/apt/lists/*
+
 # Build uniservice
 # -j2: webservice.cpp is large enough that full parallelism OOMs the builder
 # -fconcepts: suppresses the set_state(auto) warning from emailservice.hpp
@@ -89,7 +99,8 @@ FROM ubuntu:focal AS runtime
 ENV TZ=Asia/Calcutta DEBIAN_FRONTEND=noninteractive
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Check-Date=false update \
+ && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl1.1 \
     libboost-filesystem1.71.0 \
@@ -99,6 +110,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsasl2-2 \
     zlib1g \
     libicu66 \
+    libxml2 \
+    libxmlsec1 \
+    libxmlsec1-openssl \
     && rm -rf /var/lib/apt/lists/*
 
 # ACE/TAO shared libraries (installed at non-standard prefix)

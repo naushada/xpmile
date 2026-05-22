@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormControl, FormControlName, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ClrLoadingState } from '@clr/angular';
-import { Account } from 'src/common/app-globals';
+import { Account, SsoProvider } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
 import { __values } from 'tslib';
@@ -15,6 +15,7 @@ import { __values } from 'tslib';
 export class LoginComponent implements OnInit {
 
   isPasswordReset:boolean = false;
+  ssoProviders: SsoProvider[] = [];
   loginForm: FormGroup;
   get username() {
     return this.loginForm.value.username;
@@ -39,6 +40,16 @@ export class LoginComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.http.getSsoProviders().subscribe({
+      next: list => { this.ssoProviders = list || []; },
+      error: () => { this.ssoProviders = []; }
+    });
+  }
+
+  onSsoLogin(provider: SsoProvider) {
+    // Full-page navigation: the SSO round trip leaves the SPA for the IdP,
+    // then the backend redirects the browser back to return_to (/main).
+    window.location.href = this.http.ssoLoginUrl(provider.id, '/main');
   }
 
   onLogin() {

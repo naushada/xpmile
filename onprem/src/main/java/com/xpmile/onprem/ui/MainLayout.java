@@ -15,6 +15,7 @@ import com.xpmile.onprem.service.StatusService.BackendStatus;
 import com.xpmile.onprem.ui.account.AccountsView;
 import com.xpmile.onprem.ui.dashboard.DashboardView;
 import com.xpmile.onprem.ui.shipment.ShipmentListView;
+import com.xpmile.onprem.ui.sso.SsoConfigView;
 
 /**
  * Application shell for the on-prem Vaadin tool.
@@ -69,6 +70,7 @@ public class MainLayout extends AppLayout {
         nav.addItem(new SideNavItem("Dashboard", DashboardView.class));
         nav.addItem(new SideNavItem("Shipments", ShipmentListView.class));
         nav.addItem(new SideNavItem("Accounts",  AccountsView.class));
+        nav.addItem(new SideNavItem("SSO Configuration", SsoConfigView.class));
         addToDrawer(nav);
 
         UI ui = UI.getCurrent();

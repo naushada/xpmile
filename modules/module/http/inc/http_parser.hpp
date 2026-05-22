@@ -1,6 +1,7 @@
 #ifndef HTTP_PARSER_HPP
 #define HTTP_PARSER_HPP
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 
@@ -52,6 +53,14 @@ public:
    * @return Method string, e.g. @c "GET", @c "POST", @c "PUT".
    */
   const std::string &method() const { return m_method; }
+
+  /**
+   * @brief Return the HTTP response status code.
+   *
+   * Populated when the parsed message begins with a response status line
+   * (@c "HTTP/x.x <code> <reason>"). Returns @c 0 for a request message.
+   */
+  std::int32_t status() const { return m_status; }
 
   /**
    * @brief Store a key/value pair (query-string parameter or MIME header).
@@ -140,6 +149,7 @@ private:
   std::string m_header;
   std::string m_body;
   std::string m_method;
+  std::int32_t m_status = 0;
 };
 
 #endif // HTTP_PARSER_H
