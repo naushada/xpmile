@@ -55,7 +55,7 @@ Logistics management platform. C++ HTTP server (ACE + MongoDB) serving an Angula
 │   │   │   └── wstransport.hpp   WebSocketTransport (ITransport adapter)
 │   │   ├── src/innertls.cpp
 │   │   └── test/innertls_test.cc
-│   ├── oauth2/             OAuth2 stub
+│   ├── oauth2/             SSO — server-side sessions, OIDC, SAML (sso:: namespace)
 │   ├── whatsapp/           WhatsApp stub
 │   └── thirdparty/         nlohmann/json (header-only)
 ├── ui/                     Angular frontend (served from /webui/)
@@ -170,6 +170,7 @@ struct WorkCtx {
 | Method | URI prefix | Handler |
 |---|---|---|
 | OPTIONS | * | `handle_OPTIONS` — returns 200 + CORS headers |
+| GET | `/api/v1/sso` | `handle_sso` — SSO endpoints (`providers`, `login`, `callback/<id>`, `session`) |
 | GET | `/api/v1/shipment` | `handle_shipment_GET` |
 | GET | `/api/v1/account` | `handle_account_GET` |
 | GET | `/api/v1/inventory` | `handle_inventory_GET` |
@@ -177,6 +178,7 @@ struct WorkCtx {
 | GET | `/api/v1/document` | `handle_document_GET` |
 | GET | `/api/v1/config` | `handle_config_GET` |
 | GET | (static) | serve Angular dist files from `../webgui/webui/` |
+| POST | `/api/v1/sso` | `handle_sso` — SAML ACS callback (`callback/<id>`) + `logout` |
 | POST | `/api/v1/shipment` | `handle_shipment_POST` |
 | POST | `/api/v1/account` | `handle_account_POST` |
 | POST | `/api/v1/inventory` | `handle_inventory_POST` |
@@ -299,6 +301,9 @@ Stub states (`RESET`, `VRFY`, `NOOP`, `EXPN`, `HELP`) return `REMAIN_IN_SAME_STA
 | `inventory` | Inventory items |
 | `config` | Application configuration |
 | `counters` | AWB sequence counter (`{"_id":"awbno","seq":N}`) |
+| `sessions` | Server-side login/SSO sessions; TTL index on `expiresAt` |
+| `sso_transactions` | One-time login correlators (OIDC `state`, SAML `InResponseTo`); TTL-expired |
+| `sso_config` | Single document — SSO provider configuration (see the oauth2 module) |
 | `fs.files` / `fs.chunks` | GridFS document storage |
 
 Note: the collection is named `shipping`, not `shipment`. The URL path is `/api/v1/shipment/...` but the MongoDB collection is `shipping`.
@@ -469,9 +474,76 @@ Re-run `generate.sh` to rotate. Both sides must be updated together.
 
 ---
 
-## oauth2 and whatsapp modules
+## oauth2 module — single sign-on (SSO)
 
-Both are stubs — empty `.hpp`/`.cpp` pairs compiled into `uniservice` but containing no logic. Placeholders for future OAuth2 and WhatsApp notification integrations.
+`modules/module/oauth2/` implements the SSO feature: server-side sessions, OIDC, and SAML 2.0. The directory name is a leftover from the original empty OAuth2 stub — every type now lives in the **`sso::` namespace**, not an `oauth2` one. The full design is `docs/design/sso/sso-design.md`; the test-first plan is `sso-tdd-plan.md`.
+
+**Model — backend-for-frontend (BFF).** The C++ backend is the OAuth/SAML client and runs the entire IdP handshake; IdP tokens never reach the browser. Every login — federated *or* password — mints a server-side session in the `sessions` collection, handed to the browser as an opaque `HttpOnly` cookie (`xpmile_session`). The cookie is a random id, not a JWT, so the session is revocable.
+
+### Files
+
+| File pair | Role |
+|---|---|
+| `sso_util.*` | base64 / base64url codecs; CSPRNG `random_token()` |
+| `sso_cookie.*` | build/parse the `xpmile_session` cookie (`HttpOnly; Secure; SameSite=Lax`) |
+| `sso_session.*` | `SessionManager` (create/lookup/revoke), `SessionCache` (TTL'd LRU), `AuthContext`, `IClock` / `SystemClock` |
+| `sso_config.*` | `parse_sso_config()` → `SsoConfig` / `ProviderConfig` from the `sso_config` JSON document |
+| `sso_registry.*` | `ProviderRegistry` — holds the live config, hot-reloads it, keeps last-good on a bad parse |
+| `sso_identity.hpp` | `IIdentityProvider` interface + `AuthnRequest` / `IdentityClaims` — OIDC and SAML behind one shape |
+| `sso_http_client.*` | `IHttpClient` + `HttpClient` (ACE_SOCK + OpenSSL outbound HTTPS), `encode_form()` |
+| `sso_jwt.*` | `Jwks` parsing + `verify_jwt()` — RS256-only `id_token` verification |
+| `sso_oidc.*` | `OidcProvider`, PKCE helpers (`make_code_verifier` / `code_challenge`), `fetch_discovery()` |
+| `sso_provisioning.*` | `resolve_account()` — hybrid match-by-subject / match-by-email / JIT-create |
+| `sso_endpoints.*` | transport-agnostic logic for the six `/api/v1/sso/*` endpoints → `SsoHttpResult` |
+| `sso_csrf.*` | double-submit CSRF token (`XSRF-TOKEN` cookie) — Phase F |
+| `sso_authz.*` | `sso_requires_session()` / `sso_authorize()` predicate — decision logic only, **not yet wired as live 401 enforcement** (design §14 Q1) |
+| `saml_provider.*` | `SamlProvider`; SAML deflate/inflate for the HTTP-Redirect binding |
+| `saml_response.*` | decode/parse a `SAMLResponse`; `validate_saml_conditions()` |
+| `saml_signature.*` | `verify_saml_signature()` — XML-DSig via libxml2 + xmlsec1 |
+
+### Sessions
+
+A session is an ordinary document in the `sessions` collection keyed by a 256-bit opaque id (the cookie value); a TTL index on `expiresAt` expires stale ones. `SessionManager` is shared across `MicroService` workers, and a per-process `SessionCache` (TTL'd LRU, ~60 s) fronts the DB lookup so a hot session resolves without a `wsdbagent` round trip. `revoke()` purges the cache entry **synchronously** so a logout takes effect at once. The store is reached through `IMongodbClient`, so it works unchanged in `--remote-db` mode.
+
+### The `IIdentityProvider` abstraction
+
+`OidcProvider` and `SamlProvider` both implement `sso::IIdentityProvider` — `begin_login()` returns the IdP redirect, `handle_callback()` returns `IdentityClaims`. The endpoint handlers depend only on the interface, so a third protocol could be added without touching callers.
+
+- **OIDC** — discovery-driven (no IdP-specific code), Authorization Code flow + PKCE (S256). `handle_callback()` atomically claims the one-time `sso_transactions` document by `state` (a guarded `update_collection`, the same atomic-document primitive `next_awbno` uses), exchanges the `code` at the token endpoint, then verifies the `id_token`. `verify_jwt()` accepts **RS256 only** — `none` and every HMAC variant are rejected before any signature work, closing the algorithm-confusion attack class.
+- **SAML 2.0** — SP-initiated. `AuthnRequest` via HTTP-Redirect (deflate + base64), `Response` via HTTP-POST to the ACS. `verify_saml_signature()` checks the XML-DSig against the configured IdP cert **only** — an embedded `<KeyInfo>` is ignored, and a signature-wrapping decoy is caught by requiring exactly one `<Signature>` and one `<Assertion>`. XML parsing is XXE-safe (no network, no DTD, no external entities). Needs **libxml2 + xmlsec1** — added to the bootstrap toolchain image and linked by the root `CMakeLists.txt`.
+
+### Configuration — the `sso_config` collection
+
+SSO config is secret-bearing (OIDC `clientSecret`) and lives in the `sso_config` MongoDB collection as a single document — **not** in git or a Heroku config var. It is authored by the on-prem Vaadin admin UI (`onprem/.../SsoConfigView.java` + `SsoConfigService.java`), which writes directly to its co-located MongoDB; there is no internet-facing config-write endpoint. The C++ backend reads it over the wsdbagent channel and **hot-reloads** every ~60 s on a background thread (`WebServer::init_sso()` / `reload_sso()`). A document that fails to parse is rejected and the last-good `ProviderRegistry` is kept, so a bad operator edit can never take down login.
+
+### Provisioning — hybrid
+
+`resolve_account()` resolves a verified `IdentityClaims` to an `account`: (1) match an account already linked via `ssoIdentities: [{provider, subject}]`; (2) else, within the provider's `allowedEmailDomains`, match by **verified** email and link the identity; (3) else JIT-create an account with a configurable default role. `email_verified == true` is required for the email-match path; a matched account keeps its existing DB role — the IdP never overrides it.
+
+### Endpoints
+
+`MicroService::process_request()` routes the `/api/v1/sso/` URI prefix to `handle_sso()`, which parses the request, calls the transport-agnostic `sso_endpoints.hpp` functions, and renders the returned `SsoHttpResult` onto the wire.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/sso/providers` | configured providers for the login screen |
+| GET | `/api/v1/sso/login?provider=&return_to=` | 302 to the IdP |
+| GET | `/api/v1/sso/callback/<id>` | OIDC redirect callback → session + 302 |
+| POST | `/api/v1/sso/callback/<id>` | SAML ACS (HTTP-POST `SAMLResponse`) → session + 302 |
+| GET | `/api/v1/sso/session` | current account for the cookie, or 401 |
+| POST | `/api/v1/sso/logout` | revoke session, expire cookie |
+
+`handle_account_login_POST` also mints a session (`authMethod: "password"`), so the whole app uses one session model regardless of how the user authenticated. Because a credentialed (cookie-bearing) request is incompatible with `Access-Control-Allow-Origin: *`, the response builders now echo a specific allowed origin (`MicroService::cors_allowed_origin()`, validated against an allow-list) and add `Access-Control-Allow-Credentials: true`.
+
+### Tests
+
+`modules/module/oauth2/test/sso_test.cc` — 114 unit tests; the matching session/CORS/middleware tests live in `webservice_test.cc`. None touch a live MongoDB or the network — they run against mocks behind `IMongodbClient` / `IHttpClient`, inside the standard `offtarget` binary.
+
+---
+
+## whatsapp module
+
+A stub — empty `.hpp`/`.cpp` pair compiled into `uniservice` but containing no logic. Placeholder for a future WhatsApp notification integration.
 
 ---
 
@@ -514,6 +586,7 @@ Three build stages:
 ### Docker — wsdbagent image (`docker/Dockerfile.wsdbagent`)
 
 Two build stages; cpp-builder is `FROM ${BUILDER_IMAGE}`:
+- `apt-get install`s `libxmlsec1-dev` in the build stage — the root `CMakeLists.txt`'s `pkg_check_modules(XMLSEC REQUIRED ...)` is resolved at configure time even for a `wsdbagent`-only build, though the binary never links xmlsec1
 - Passes `-DBUILD_TESTS=OFF` so GTest is not required at compile time
 - Builds only the `wsdbagent` target (`make -j2 wsdbagent`)
 - Runtime stage copies the binary and shared libs; all flags passed via `ENV ARGS=""`
@@ -567,11 +640,12 @@ Runs once on first container start (when `mongo-data` volume is empty):
 
 | Module | Location | What is tested |
 |---|---|---|
-| `http` | `modules/module/http/test/` | `Http` parser: URI, query strings, headers, body (Content-Length, chunked, gzip, combined), `header()` boundary |
-| `webservice` | `modules/module/webservice/test/` | `MicroService`: response builders (200, 201, 4xx, 5xx), `get_contentType()`, OPTIONS handler |
+| `http` | `modules/module/http/test/` | `Http` parser: URI, query strings, headers, body (Content-Length, chunked, gzip, combined), `header()` boundary, response `status()` |
+| `webservice` | `modules/module/webservice/test/` | `MicroService`: response builders (200, 201, 302, 4xx, 5xx), `get_contentType()`, OPTIONS handler, CORS origin echo, session middleware, password-login session minting |
 | `email` | `modules/module/email/test/` | `SMTP::User` FSM: GREETING state transition via `rx()`, `SMTP::Account` population from JSON |
+| `oauth2` | `modules/module/oauth2/test/` | SSO (`sso_test.cc`): cookies, sessions + LRU cache, config parse + hot-reload, OIDC discovery/PKCE/JWKS/JWT, SAML parse/conditions/XML-DSig, hybrid provisioning, endpoint logic, CSRF |
 
-**46 tests, 0 failures** (as of last run).
+The SSO phases added **127 tests** (`docs/design/sso/sso-tdd-plan.md`); zero failures is the baseline across the whole `offtarget` suite. None of the SSO tests touch a live MongoDB or the network.
 
 Note: `EmailServiceTest` is a `testing::Test` subclass with a custom constructor that accepts a JSON string and initializes `mMongodbc`/`mUser` directly, because `SetUp()` is only invoked by the gtest fixture machinery — not when the object is constructed directly in a `TEST()` body.
 
@@ -595,6 +669,7 @@ Heroku router latency. Caveats and usage details in
 Root `CMakeLists.txt`:
 - `add_subdirectory(modules/module/mongodb)` — builds `mongodbcxx` static library
 - `option(BUILD_TESTS "Build test suite" ON)` — guards `add_subdirectory(test)`; pass `-DBUILD_TESTS=OFF` when building `wsdbagent` without GTest
+- `pkg_check_modules(XMLSEC REQUIRED xmlsec1-openssl)` — pulls in `libxml2` + `xmlsec1`, linked into `uniservice` for SAML XML-DSig verification (the oauth2 module). `wsdbagent` does not use it.
 - `add_executable(uniservice ...)` — globs all `*.cpp` from webservice, http, email, oauth2, whatsapp `src/` directories; also links in wsdbproxy sources
 - `add_executable(wsdbagent ...)` — globs `wsdbagent/src/*.cpp`, adds `wsdbproxy/src/dbproto.cpp` and `wsdbproxy/src/wsframe.cpp`; links `pthread ACE ACE_SSL ssl crypto mongodbcxx z`
 

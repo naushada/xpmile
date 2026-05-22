@@ -5,6 +5,17 @@
 ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
 FROM ${BUILDER_IMAGE} AS cpp-builder
 
+# The root CMakeLists.txt does pkg_check_modules(XMLSEC REQUIRED ...) for the
+# SSO module's SAML XML-DSig. cmake resolves every find/pkg_check at configure
+# time regardless of which target is built — so even a `wsdbagent`-only build
+# (which never links xmlsec1) fails at `cmake ..` unless the dev packages are
+# present. apt packages, not compiled-from-source, so no bootstrap rebuild is
+# required. -o Acquire::Check-Date=false tolerates build-host clock skew.
+RUN apt-get -o Acquire::Check-Date=false update \
+ && apt-get install -y --no-install-recommends \
+        pkg-config libxml2-dev libxmlsec1-dev libxmlsec1-openssl \
+ && rm -rf /var/lib/apt/lists/*
+
 # Build wsdbagent
 COPY CMakeLists.txt /src/
 COPY modules/ /src/modules/
