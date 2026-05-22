@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.16.3)
 project(microservice)
 
+# xmlsec1 — SAML XML-DSig verification (Phase E). pkg-config supplies the exact
+# include dirs, defines, and libs the library was built with.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(XMLSEC REQUIRED xmlsec1-openssl)
+
 add_subdirectory(modules/module/mongodb)
 
 option(BUILD_TESTS "Build test suite (requires GTest)" ON)
@@ -21,6 +26,7 @@ include_directories(modules/module/wsdbproxy/inc)
 include_directories(modules/module/wsdbagent/inc)
 include_directories(modules/module/security/inc)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
+include_directories(/usr/include/libxml2)
 
 link_directories(/usr/local/ACE_TAO-7.0.0/lib)
 
@@ -49,6 +55,10 @@ target_link_libraries(uniservice ACE_SSL)
 target_link_libraries(uniservice ssl crypto)
 target_link_libraries(uniservice mongodbcxx)
 target_link_libraries(uniservice z)
+target_link_libraries(uniservice xml2)
+target_include_directories(uniservice PRIVATE ${XMLSEC_INCLUDE_DIRS})
+target_compile_options(uniservice PRIVATE ${XMLSEC_CFLAGS_OTHER})
+target_link_libraries(uniservice ${XMLSEC_LIBRARIES})
 
 file(GLOB MODULE_WSDBAGENT_SOURCES "modules/module/wsdbagent/src/*.cpp")
 

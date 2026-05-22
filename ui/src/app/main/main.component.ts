@@ -1,7 +1,10 @@
 import { Component, Input, OnDestroy, OnInit } from '@angular/core';
 import { formatDate } from '@angular/common';
+import { Router } from '@angular/router';
 import { Account } from 'src/common/app-globals';
+import { HttpsvcService } from 'src/common/httpsvc.service';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
+import { SessionService } from 'src/common/session.service';
 import { ShipmentStatsService } from 'src/common/shipment-stats.service';
 import { SubSink } from 'subsink';
 
@@ -21,7 +24,9 @@ export class MainComponent implements OnInit, OnDestroy {
 
   subsink = new SubSink();
 
-  constructor(private pubsub: PubsubsvcService, public stats: ShipmentStatsService) {
+  constructor(private pubsub: PubsubsvcService, public stats: ShipmentStatsService,
+              private http: HttpsvcService, private session: SessionService,
+              private router: Router) {
     this.subsink.sink = this.pubsub.onAccount.subscribe(
       rsp => { this.loggedInUser = { ...(rsp as Account) }; }
     );
@@ -40,6 +45,20 @@ export class MainComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.onMenuSelect('shipping');
     this.onReceiveEvt('singleShipment');
+  }
+
+  onLogout(): void {
+    // Revoke the session server-side, then clear local state and return to
+    // the login screen — whether or not the revoke call itself succeeds.
+    this.http.ssoLogout().subscribe({
+      next: () => this.afterLogout(),
+      error: () => this.afterLogout()
+    });
+  }
+
+  private afterLogout(): void {
+    this.session.clear();
+    this.router.navigateByUrl('/login');
   }
 
   ngOnDestroy(): void {

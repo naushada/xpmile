@@ -44,3 +44,17 @@ db.account.insertOne({
   }
 });
 print("Bootstrap admin document created — accountCode: admin (passwordHash: pbkdf2-sha256)");
+
+// SSO collections (docs/design/sso/sso-design.md §10, §13).
+// sso_config holds a single document — the source of truth for SSO providers,
+// managed by the on-prem Vaadin admin UI and hot-reloaded by the C++ backend.
+// Seeded empty: an empty publicBaseUrl keeps SSO disabled until an operator
+// configures it.
+db.sso_config.insertOne({ publicBaseUrl: "", providers: [] });
+print("SSO config document seeded — sso_config (empty)");
+
+// Server-side sessions and one-time OIDC transactions. The expiry check at
+// lookup time is authoritative; these TTL indexes are best-effort cleanup.
+db.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+db.sso_transactions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+print("SSO collections indexed — sessions, sso_transactions (TTL on expiresAt)");

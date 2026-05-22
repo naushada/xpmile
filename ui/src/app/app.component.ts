@@ -1,5 +1,4 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-root',
@@ -9,11 +8,12 @@ import { Router } from '@angular/router';
 export class AppComponent implements OnInit, OnDestroy {
   title = 'webui';
 
-  constructor(private rt: Router) {
-    
+  constructor() {
+
   }
   ngOnInit(): void {
-    this.rt.navigateByUrl('/login');
+    // Routing is handled by the router: the '' route redirects to /main and
+    // SsoAuthGuard bounces an unauthenticated visitor to /login.
   }
 
   ngOnDestroy(): void {

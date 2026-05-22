@@ -95,6 +95,13 @@ private:
   std::string m_db = "testdb";
 };
 
+// Deterministic, settable time source for session-expiry tests.
+class FakeClock : public sso::IClock {
+public:
+  std::int64_t t = 0;
+  std::int64_t now_unix() const override { return t; }
+};
+
 // Helper: build a minimal POST request with a JSON body
 std::string make_post(const std::string &uri, const std::string &body) {
   return "POST " + uri + " HTTP/1.1\r\n"
@@ -125,7 +132,9 @@ TEST(MicroService, ResponseOK_NoBody)
     std::string rsp = e.build_responseOK("");
     EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 200 OK"));
     EXPECT_NE(std::string::npos, rsp.find("Content-Length: 0"));
-    EXPECT_NE(std::string::npos, rsp.find("Access-Control-Allow-Origin: *"));
+    // No Origin on the request → no Access-Control-Allow-Origin header
+    // (the wildcard "*" is gone; a specific origin is echoed only when set).
+    EXPECT_EQ(std::string::npos, rsp.find("Access-Control-Allow-Origin"));
 }
 
 TEST(MicroService, ResponseOK_WithJsonBody)
@@ -170,7 +179,9 @@ TEST(MicroService, ResponseCreated)
 
     EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 201 Created"));
     EXPECT_NE(std::string::npos, rsp.find("Content-Length: 0"));
-    EXPECT_NE(std::string::npos, rsp.find("Access-Control-Allow-Origin: *"));
+    // No Origin on the request → no Access-Control-Allow-Origin header
+    // (the wildcard "*" is gone; a specific origin is echoed only when set).
+    EXPECT_EQ(std::string::npos, rsp.find("Access-Control-Allow-Origin"));
     EXPECT_NE(std::string::npos, rsp.find("Connection: keep-alive"));
 }
 
@@ -310,7 +321,9 @@ TEST(MicroService, HandleOptions_200OK)
 
     EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 200 OK"));
     EXPECT_NE(std::string::npos, rsp.find("Content-Length: 0"));
-    EXPECT_NE(std::string::npos, rsp.find("Access-Control-Allow-Origin: *"));
+    // No Origin on the request → no Access-Control-Allow-Origin header
+    // (the wildcard "*" is gone; a specific origin is echoed only when set).
+    EXPECT_EQ(std::string::npos, rsp.find("Access-Control-Allow-Origin"));
     EXPECT_NE(std::string::npos, rsp.find("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE"));
 }
 
@@ -738,4 +751,161 @@ TEST(WsDbAgentConfigTest, NoSslFlag_Rejected)
     // which is no longer allowed after Phase 7
     EXPECT_TRUE(ssl_disabled)
         << "--no-ssl should set the disable-ssl flag (to be rejected by main)";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase A.5 — CORS (credentialed requests need a specific origin, not "*")
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(CorsTest, AllowedOrigin_IsEchoed_NotWildcard)
+{
+    const std::string origin = "https://marvel-3a78bd953f5f.herokuapp.com";
+    const std::string got = MicroService::cors_allowed_origin(origin, {origin});
+    EXPECT_EQ(got, origin);
+    EXPECT_NE(got, "*");
+}
+
+TEST(CorsTest, DisallowedOrigin_NotEchoed)
+{
+    const std::string got = MicroService::cors_allowed_origin(
+        "https://evil.example", {"https://marvel-3a78bd953f5f.herokuapp.com"});
+    EXPECT_TRUE(got.empty());
+}
+
+TEST(CorsTest, LocalhostDevOrigin_Allowed)
+{
+    EXPECT_EQ(MicroService::cors_allowed_origin("http://localhost:4200", {}),
+              "http://localhost:4200");
+}
+
+TEST(CorsTest, AllowCredentials_HeaderPresent)
+{
+    const std::string origin = "https://marvel-3a78bd953f5f.herokuapp.com";
+    MicroService e;
+    e.set_cors_allow_list({origin});
+    e.set_request_origin(origin);
+
+    const std::string rsp = e.build_responseOK("{\"ok\":true}");
+    EXPECT_NE(std::string::npos,
+              rsp.find("Access-Control-Allow-Origin: " + origin));
+    EXPECT_NE(std::string::npos,
+              rsp.find("Access-Control-Allow-Credentials: true"));
+}
+
+TEST(CorsTest, OptionsPreflight_CarriesCorsHeaders)
+{
+    const std::string origin = "https://marvel-3a78bd953f5f.herokuapp.com";
+    MicroService e;
+    e.set_cors_allow_list({origin});
+    e.set_request_origin(origin);
+
+    std::string in;
+    const std::string rsp = e.handle_OPTIONS(in);
+    EXPECT_NE(std::string::npos,
+              rsp.find("Access-Control-Allow-Origin: " + origin));
+    EXPECT_NE(std::string::npos,
+              rsp.find("Access-Control-Allow-Credentials: true"));
+    EXPECT_NE(std::string::npos, rsp.find("Access-Control-Allow-Methods"));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase A.6 — 302/Set-Cookie builders + session-validation middleware
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(ResponseBuilderTest, Redirect_Emits302WithLocation)
+{
+    MicroService e;
+    const std::string rsp = e.build_redirect("/main");
+    EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 302 Found"));
+    EXPECT_NE(std::string::npos, rsp.find("Location: /main"));
+}
+
+TEST(ResponseBuilderTest, Response_CanAttachSetCookie)
+{
+    MicroService e;
+    const std::string rsp = e.build_responseOK("");
+    const std::string withCookie =
+        MicroService::attach_set_cookie(rsp, "xpmile_session=abc; HttpOnly");
+    EXPECT_NE(std::string::npos,
+              withCookie.find("Set-Cookie: xpmile_session=abc; HttpOnly"));
+    // Header block still terminates correctly.
+    EXPECT_NE(std::string::npos, withCookie.find("\r\n\r\n"));
+}
+
+TEST(SessionMiddlewareTest, ValidCookie_AttachesAuthContext)
+{
+    MockMongodbClient db;
+    db.getDocumentResult =
+        R"({"_id":"s1","accountCode":"acme-ops","role":"Admin",)"
+        R"("authMethod":"oidc","expiresAt":999999999})";
+    FakeClock clock;
+    clock.t = 1000;
+    sso::SessionManager sm(db, clock);
+
+    const sso::AuthContext ctx =
+        MicroService::resolve_session("xpmile_session=s1", sm);
+    EXPECT_TRUE(ctx.valid);
+    EXPECT_EQ(ctx.account_code, "acme-ops");
+    EXPECT_EQ(ctx.role, "Admin");
+}
+
+TEST(SessionMiddlewareTest, NoCookie_LeavesAuthContextEmpty)
+{
+    MockMongodbClient db;
+    FakeClock clock;
+    sso::SessionManager sm(db, clock);
+    EXPECT_FALSE(MicroService::resolve_session("", sm).valid);
+}
+
+TEST(SessionMiddlewareTest, InvalidCookie_LeavesAuthContextEmpty)
+{
+    MockMongodbClient db;
+    db.getDocumentResult = "";  // no such session
+    FakeClock clock;
+    sso::SessionManager sm(db, clock);
+    EXPECT_FALSE(
+        MicroService::resolve_session("xpmile_session=bogus", sm).valid);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Phase A.7 — password login mints a session
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST(AccountLoginSessionTest, ValidLogin_CreatesSession_SetsCookie)
+{
+    MicroService e;
+    MockMongodbClient db;
+    const std::string hash = MongodbClient::hash_password("secret");
+    // passwordHash inside loginCredentials — the schema handle_account_login_POST
+    // actually reads.
+    db.getDocumentResult =
+        "{\"loginCredentials\":{\"accountCode\":\"admin\",\"passwordHash\":\"" +
+        hash + "\"},\"personalInfo\":{\"role\":\"Admin\"}}";
+
+    std::string req = make_post("/api/v1/account/login",
+                                "{\"userId\":\"admin\",\"password\":\"secret\"}");
+    const std::string rsp = e.handle_account_login_POST(req, db);
+
+    EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 200 OK"));
+    EXPECT_NE(std::string::npos, rsp.find("Set-Cookie: xpmile_session="));
+    EXPECT_EQ(db.lastCreateColl, "sessions");
+    EXPECT_NE(std::string::npos,
+              db.lastCreateDoc.find("\"authMethod\":\"password\""));
+}
+
+TEST(AccountLoginSessionTest, FailedLogin_NoSession_NoCookie)
+{
+    MicroService e;
+    MockMongodbClient db;
+    db.getDocumentResult =
+        "{\"loginCredentials\":{\"accountCode\":\"admin\",\"passwordHash\":\"" +
+        MongodbClient::hash_password("secret") + "\"}}";
+
+    std::string req = make_post("/api/v1/account/login",
+                                "{\"userId\":\"admin\",\"password\":\"wrongpassword\"}");
+    const std::string rsp = e.handle_account_login_POST(req, db);
+
+    EXPECT_NE(std::string::npos, rsp.find("HTTP/1.1 401 Unauthorized"));
+    EXPECT_EQ(std::string::npos, rsp.find("Set-Cookie"));
+    EXPECT_TRUE(db.lastCreateColl.empty());  // no session document written
 }

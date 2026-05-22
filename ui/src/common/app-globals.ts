@@ -423,6 +423,20 @@ export interface JobDetails {
 
 };
 
+/** A configured SSO identity provider, as returned by GET /api/v1/sso/providers. */
+export interface SsoProvider {
+    id: string;
+    displayName: string;
+    protocol: string;
+}
+
+/** The current session, as returned by GET /api/v1/sso/session. */
+export interface SsoSession {
+    accountCode: string;
+    role: string;
+    authMethod: string;
+}
+
 export let UriMap = new Map<string, string>([
     ["from_web_shipment",               "/api/v1/shipment/shipping"],
     ["from_web_single_shipment",        "/api/v1/shipment/single/shipping"],
@@ -436,4 +450,8 @@ export let UriMap = new Map<string, string>([
     ["from_web_document",               "/api/v1/document"],
     ["from_web_email",                  "/api/v1/email"],
     ["from_web_job",                    "/api/v1/job"],
+    ["from_web_sso_providers",          "/api/v1/sso/providers"],
+    ["from_web_sso_login",              "/api/v1/sso/login"],
+    ["from_web_sso_session",            "/api/v1/sso/session"],
+    ["from_web_sso_logout",             "/api/v1/sso/logout"],
 ]);

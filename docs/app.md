@@ -190,11 +190,11 @@ Heroku terminates TLS at its edge router — no client certificate is needed.
 
 ```sh
 # On the MongoDB machine
-cp .env.agent .env          # set SERVER_HOST=marvel.herokuapp.com
+cp .env.agent .env          # set SERVER_HOST=marvel-3a78bd953f5f.herokuapp.com
 podman-compose -f docker-compose.agent.yml up --build -d
 ```
 
-The agent connects outbound to `wss://marvel.herokuapp.com/ws/db` on port 443.
+The agent connects outbound to `wss://marvel-3a78bd953f5f.herokuapp.com/ws/db` on port 443.
 No inbound firewall rules are needed on the MongoDB machine.
 
 See `docs/ws-db-agent.md` for full details including mTLS configuration and
