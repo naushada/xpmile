@@ -4,101 +4,102 @@
 
 ## Problem summary
 
-The v1.0 SSO federates against *external* IdPs — Okta, Entra, partner SAML systems. That works for customers who already have a corporate IdP, but it has two real costs:
+The v1.0 SSO federates against *external* IdPs — Okta, Entra, partner SAML. That works for customers who already have a corporate IdP, but it has two real costs:
 
 1. **Operational dependency on a third party.** Every login round-trip touches the IdP. If the IdP is degraded, the customer can't sign in.
 2. **No good story for customers without an IdP.** They're stuck on the existing password-only login, which doesn't share the cookie/session model SSO uses, lacks self-service password reset, and isn't a path other apps could federate against later.
 
-This design adds an **in-house OIDC identity provider** hosted on the same xpmile infrastructure. The cloud `uniservice` (ACE + our `Http` parser + Angular) exposes the OIDC protocol surface and a branded login portal. The customer's credentials and the JWT signing private key stay behind the on-prem NAT — the cloud talks to them only through `wsdbagent` + InnerTLS, the same channel the rest of the app already uses.
+This design adds an **in-house OIDC identity provider** hosted on its own dedicated Heroku app — `https://idp-63c97365e6ef.herokuapp.com` — built **out of the parts xpmile already has**: the same `uniservice` C++ binary used by marvel (ACE + our `Http` parser + nlohmann/json), the same `wsdbagent`/InnerTLS pattern for on-prem connectivity, and a small new Angular project for the branded login portal. Customer credentials and the JWT signing private key stay behind the on-prem NAT.
+
+The xpmile app (marvel) federates against the in-house IdP using the **existing v1.0 `OidcProvider` client code, unchanged** — the IdP is just one more entry in `sso_config`. Once the user authenticates at the IdP, the v1.0 OIDC code-exchange path mints the existing `xpmile_session` cookie on marvel, and the user can use the xpmile app exactly as today.
 
 ## Goals
 
-- Stand up an **OIDC identity provider** on the existing cloud uniservice — full discovery / authorize / token / JWKS endpoint surface, Authorization Code + PKCE.
-- All user credentials stay on the on-prem MongoDB. The cloud never sees a plaintext password.
-- The JWT signing **private key never leaves the on-prem side.** Signing happens on-prem via a new `wsdbagent` op; the cloud only ever holds the public key.
-- The xpmile SPA federates against this IdP using the **same `OidcProvider` client code** already shipped in v1.0 — zero client-side code changes; the in-house IdP is just one more entry in `sso_config`.
-- **Self-service password reset** via email-token (reuses the existing email module).
-- Single registered client (the xpmile SPA) for v1; architected so a second client can be added later by registering it, without code changes.
+- Stand up an **OIDC identity provider** on its own Heroku app, reusing the `uniservice` binary — just add the IdP HTTP handlers and deploy with a different Angular dist.
+- All user credentials stay on the on-prem MongoDB (the same one marvel already talks to via `wsdbagent`). Cloud never sees a plaintext password.
+- The JWT signing **private key never leaves the on-prem side.** Signing happens on-prem via a new `wsdbagent` op (`DbOp::SIGN_JWT`); the cloud only ever holds the public key.
+- **Zero client-side code changes** to the marvel SPA. The IdP is configured in `sso_config` like any other OIDC provider; the existing `OidcProvider` handles it.
+- **Self-service password reset** via email-token, reusing the existing email module.
+- Single registered client (the marvel SPA) for v1; architected so other clients can be added later by registering them, no code change.
 - Coexists with the v1.0 federated SSO — Okta/Entra/SAML providers stay as-is; the in-house IdP is an additional `sso_config` entry.
 
 ## Non-goals
 
 - Multi-factor authentication (TOTP / WebAuthn) — explicit follow-up.
-- Self-service registration — accounts continue to be created admin-only via the on-prem Vaadin Accounts view.
-- Acting as a general OAuth2 authorization server for third-party API access — this is an IdP for *sign-in*, not for delegating API access.
+- Self-service registration — accounts continue to be admin-created via the on-prem Vaadin Accounts view.
+- General OAuth2 authorization server for third-party API access — this is an IdP for *sign-in*, not for delegating API access.
 - IdP-initiated SSO (only RP-initiated authorization code flow).
-- Multi-tenancy at the cloud layer — per-customer Heroku deployment continues; one xpmile cloud = one in-house IdP for that customer's users.
+- Multi-tenancy at the cloud layer — per-customer Heroku deployment continues; one customer = one marvel app + one idp app + one on-prem MongoDB.
 
 ---
 
-## 1. Architecture
-
-The cloud is the public face; everything secret-bearing — user passwords *and* the JWT signing key — stays on-prem.
+## 1. Architecture — two Heroku apps, one on-prem MongoDB
 
 ```
- Browser (Angular)              Cloud uniservice              wsdbagent          On-prem MongoDB
-                                (ACE + Http parser)           (InnerTLS)
-   │                                  │                            │                    │
-   │  redirect from xpmile SPA        │                            │                    │
-   │  to /api/v1/idp/authorize?...    │                            │                    │
-   │ ────────────────────────────────►│                            │                    │
-   │                                  │  no IdP session yet —      │                    │
-   │  302 to /sso/login               │  store the auth request    │                    │
-   │ ◄────────────────────────────────│                            │                    │
-   │                                  │                            │                    │
-   │  GET /sso/login                  │                            │                    │
-   │  (branded portal, xpmile logo)   │                            │                    │
-   │ ────────────────────────────────►│                            │                    │
-   │                                  │                            │                    │
-   │  POST /api/v1/idp/login          │  verify password against   │                    │
-   │       {user, pass}               │  account.passwordHash      │                    │
-   │ ────────────────────────────────►│ ──── DB.findOne(...) ───── │ ─────────────────► │
-   │                                  │ ◄────── account doc ────── │ ◄───────────────── │
-   │                                  │  create xpmile_idp_session │                    │
-   │  302 back to /api/v1/idp/        │                            │                    │
-   │  authorize  (with cookie)        │                            │                    │
-   │  Set-Cookie: xpmile_idp_session  │                            │                    │
-   │ ◄────────────────────────────────│                            │                    │
-   │                                  │                            │                    │
-   │  GET /api/v1/idp/authorize       │  user has IdP session;     │                    │
-   │  (cookie sent automatically)     │  mint authz code; store    │                    │
-   │ ────────────────────────────────►│  in idp_codes              │                    │
-   │  302 to <RP-redirect_uri>?       │                            │                    │
-   │       code=...&state=...         │                            │                    │
-   │ ◄────────────────────────────────│                            │                    │
-   │                                  │                            │                    │
-   │  back at xpmile SPA's callback   │                            │                    │
-   │  (handled by existing v1.0       │                            │                    │
-   │   OidcProvider client code)      │                            │                    │
-   │                                  │                            │                    │
-   │  server-side POST                │  build header.payload      │                    │
-   │  /api/v1/idp/token               │  for id_token              │                    │
-   │  (from RP, with code + PKCE)     │                            │                    │
-   │                                  │  WsMongodbProxy.sign_jwt → │                    │
-   │                                  │ ─────────── SIGN_JWT ─────►│  load privateKey   │
-   │                                  │                            │  by kid; RS256-sign│
-   │                                  │ ◄────────── signature ──── │  the to-be-signed  │
-   │                                  │  assemble final JWT;       │                    │
-   │                                  │  return id_token+access_   │                    │
-   │                                  │  token in the response     │                    │
-   │                                  │                            │                    │
-   │  (existing v1.0 client code      │                            │                    │
-   │   verifies id_token via JWKS,    │                            │                    │
-   │   mints xpmile_session cookie,   │                            │                    │
-   │   redirects browser to /main)    │                            │                    │
+                     ┌─────────────────────────────────┐
+                     │     on-prem (behind NAT)        │
+                     │                                 │
+                     │   ┌──────────────────────────┐  │
+                     │   │   MongoDB (single)       │  │
+                     │   │  account, sessions,      │  │
+                     │   │  idp_signing_keys,       │  │
+                     │   │  idp_clients, ...        │  │
+                     │   └──────┬────────────┬──────┘  │
+                     │          │            │         │
+                     │   ┌──────┴──────┐ ┌──┴───────┐  │
+                     │   │ wsdbagent   │ │wsdbagent │  │
+                     │   │  -marvel    │ │  -idp    │  │   ← same binary, two
+                     │   │ (existing)  │ │  (new)   │  │     containers, different
+                     │   └──────┬──────┘ └──┬───────┘  │     SERVER_HOST
+                     └──────────│───────────│──────────┘
+                          InnerTLS    InnerTLS
+                          /ws/db      /ws/db (incl. SIGN_JWT)
+                                │           │
+        ┌───────────────────────│───────────│────────────────────┐
+        │                       ▼           ▼                    │
+        │  marvel-3a78bd953f5f             idp-63c97365e6ef      │
+        │  .herokuapp.com                  .herokuapp.com        │
+        │                                                        │
+        │  uniservice                      uniservice            │
+        │   (xpmile API +                   (IdP endpoints +     │
+        │    SSO client v1.0)               OIDC discovery,      │
+        │  + Angular xpmile SPA            + Angular branded     │
+        │                                    login portal)       │
+        │                                                        │
+        │       ▲                              ▲                 │
+        │       │                              │ user authenticates
+        │       │                              │ at the portal,
+        │       │                              │ /authorize redirects
+        │       │                              │ to /api/v1/sso/
+        │       │                              │ callback on marvel
+        │       │      OIDC federation         │                 │
+        │       └──────────────────────────────┘                 │
+        │       (marvel's existing OidcProvider client code,     │
+        │        configured with                                 │
+        │        issuer=https://idp-63c97365e6ef.herokuapp.com   │
+        │               /api/v1/idp)                             │
+        │                                                        │
+        └────────────────────────────────────────────────────────┘
+                                ▲
+                                │
+                            Browser
 ```
 
-**The two-cookie story** (worth being explicit about because they look similar):
-- `xpmile_idp_session` — the **IdP's** session cookie. Says "this browser has authenticated at the IdP" so `/authorize` can issue an authz code without prompting for credentials again. Scoped to `/api/v1/idp/`.
-- `xpmile_session` — the **RP's** (xpmile SPA's) session cookie. Exists today, unchanged. Says "this browser is signed in to the xpmile app".
+**The same uniservice binary runs on both Heroku apps.** Routes under `/api/v1/sso/*` (the OIDC *client* side, v1.0) are exercised on marvel when a user signs in; routes under `/api/v1/idp/*` (the OIDC *server* side, this design) are exercised on idp. Neither host's *Angular* uses the other host's API surface, so there's no UX confusion. The marvel host can technically respond to `/api/v1/idp/*` URLs too — it would happily return discovery JSON — but with the wrong `issuer` field, so any real OIDC client would reject it (issuer-URL/fetched-URL mismatch is a spec rejection per OIDC Discovery §4.3). Acceptable for v1; tightening this requires Host-header gating.
 
-When the xpmile SPA federates against the in-house IdP, **both** are set — `xpmile_idp_session` by the IdP after credential verification, `xpmile_session` by the SPA's callback handler after id_token verification. If the user then logs into another (hypothetical) RP, the existing `xpmile_idp_session` lets the IdP issue a token without re-prompting for credentials — that's the SSO experience.
+**The Angular dist differs per host.** The existing `ui/` produces the full xpmile SPA for marvel; a new `ui-idp/` produces a small (login + password reset) Angular app for idp. Same Dockerfile pattern (`docker/Dockerfile.idp` mirrors `docker/Dockerfile` but builds and packages `ui-idp` instead).
+
+**The on-prem stack runs two `wsdbagent` containers**, both reading the same MongoDB. They're the same binary with different `SERVER_HOST` env. The existing `docker-compose.agent.yml` is extended with a `wsdbagent-idp` service (and a matching cert-watcher rule, since each agent has its own client-cert family from its host's CA).
+
+**One InnerTLS CA per Heroku app.** Each uniservice deploy mints a fresh CA at build time (per `docker/Dockerfile`); the corresponding wsdbagent client cert family must match. So the on-prem `./run-agent.sh refresh-certs` is extended to refresh *both* families — one extracted from `docker.io/naushada/xpmile-uniservice:latest` (still used by marvel), one from `docker.io/naushada/xpmile-uniservice-idp:latest` (new image for idp). Or, if both Heroku apps deploy the *same* image — easier — they share one CA and one cert family. (See §11 open question.)
 
 ---
 
 ## 2. The on-prem signing service — new `wsdbagent` op `SIGN_JWT`
 
-The point of the on-prem-signs decision is: **the JWT private key never appears on the cloud, in any form.** Not in env vars, not in memory, not in a config var, not on disk. The cloud only ever holds the public key (for the JWKS endpoint and id_token verification). To produce a signature, the cloud sends the JWS to-be-signed bytes through `wsdbagent`; the on-prem side reads the private key from MongoDB, signs, and returns just the signature bytes.
+The point of the on-prem-signs decision: **the JWT private key never appears on the cloud, in any form.** Not in env vars, not in memory, not in a config var, not on disk. The cloud holds only the public key (for the JWKS endpoint). To produce a signature, the cloud sends the JWS to-be-signed bytes through `wsdbagent`; the on-prem side reads the private key from MongoDB, signs, and returns just the signature.
+
+This op is invoked by the **idp uniservice** at the `/api/v1/idp/token` endpoint. The marvel uniservice never calls it.
 
 ### Wire protocol extension
 
@@ -114,10 +115,10 @@ enum class DbOp : std::uint8_t {
 Request shape (BSON):
 ```json
 {
-  "op":     "SIGN_JWT",
-  "reqid":  42,
-  "kid":    "current",                  // or a specific key id
-  "alg":    "RS256",
+  "op":      "SIGN_JWT",
+  "reqid":   42,
+  "kid":     "current",                  // or a specific key id
+  "alg":     "RS256",
   "to_sign": "<base64url-header>.<base64url-payload>"
 }
 ```
@@ -128,16 +129,20 @@ Response:
   "reqid":     42,
   "ok":        true,
   "signature": "<base64url-signature>",
-  "kid":       "kid-2026-05-23"         // the key actually used (so cloud can stamp the right kid in the header)
+  "kid":       "kid-2026-05-23"          // the key actually used (so the cloud can stamp the right kid in the header)
 }
 ```
-
-On error (no active key, bad alg, etc.): `{ ok: false, error: "<reason>" }` — same shape as other ops.
 
 ### Cloud side — `WsMongodbProxy::sign_jwt`
 
 ```cpp
-// modules/module/wsdbproxy/inc/wsdbproxy.hpp
+struct SignJwtResult {
+  bool        ok = false;
+  std::string error;
+  std::string signature;   // base64url
+  std::string kid;
+};
+
 class WsMongodbProxy : public IMongodbClient {
 public:
   // ... existing methods ...
@@ -145,16 +150,9 @@ public:
                          const std::string &alg,
                          const std::string &to_sign);
 };
-
-struct SignJwtResult {
-  bool        ok = false;
-  std::string error;
-  std::string signature;   // base64url
-  std::string kid;
-};
 ```
 
-Adds one method to the proxy; reuses the existing BSON encode/decode + WebSocket framing. Same pattern as every other DB op.
+One new method on the proxy; reuses the existing BSON encode/decode + WebSocket framing. No new dependency.
 
 ### On-prem side — `wsdbagent` dispatcher
 
@@ -170,11 +168,11 @@ case DbOp::SIGN_JWT: {
 
 `sign_jwt_on_prem()`:
 1. Read `idp_signing_keys` by `kid` (or the active one if `kid == "current"`).
-2. Parse PEM, load private key with `EVP_PKEY` (OpenSSL — already linked).
+2. Parse the PEM, load private key with `EVP_PKEY` (OpenSSL — already linked into wsdbagent for InnerTLS).
 3. SHA-256 the `to_sign` bytes; sign with RSA-PKCS#1 v1.5 (RS256).
-4. Base64url the signature; return.
+4. base64url-encode the signature; return.
 
-No new dependencies — OpenSSL is already linked into `wsdbagent` for InnerTLS.
+No new dependency — OpenSSL is already linked for InnerTLS.
 
 ### The `idp_signing_keys` collection
 
@@ -185,46 +183,46 @@ No new dependencies — OpenSSL is already linked into `wsdbagent` for InnerTLS.
   "privateKeyPem": "-----BEGIN PRIVATE KEY----- ...",
   "publicKeyPem":  "-----BEGIN PUBLIC KEY----- ...",
   "createdAt":     { "$date": "2026-05-23T..." },
-  "notAfter":      { "$date": "2027-05-23T..." },  // when this key stops being eligible for *signing* (verification continues until token expiry)
+  "notAfter":      { "$date": "2027-05-23T..." },  // when this key stops being eligible for signing (verification continues until token expiry)
   "active":        true                          // exactly one doc has active: true at any time
 }
 ```
 
-- **One active key at a time** for signing. Multiple non-active keys may exist to keep verifying tokens still in flight (their `kid` is in JWKS until `notAfter` + max_token_ttl).
-- **Generated and rotated by the on-prem Vaadin admin** (new view, see §6). Cloud never sees or generates private key material.
+- **One active key at a time** for signing. Multiple non-active keys may exist to keep verifying tokens still in flight (their `kid` is in JWKS until `notAfter` + max token TTL).
+- **Generated and rotated by the on-prem Vaadin admin** (new view, §6). Cloud never sees or generates private key material.
 
 ---
 
-## 3. The OIDC endpoints (cloud uniservice)
+## 3. The OIDC endpoints (idp uniservice)
 
-All under `/api/v1/idp/`, wired into `process_request()` with the existing URI-prefix dispatch pattern.
+All under `/api/v1/idp/`, wired into `process_request()` with the existing URI-prefix dispatch pattern (`handle_idp`, alongside the existing `handle_sso`).
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET`  | `/api/v1/idp/.well-known/openid-configuration` | discovery document — issuer URL, all endpoint URLs, supported claims/scopes/algs |
-| `GET`  | `/api/v1/idp/jwks` | JSON Web Key Set — public keys (one per non-expired entry in `idp_signing_keys`) |
-| `GET`  | `/api/v1/idp/authorize` | authorization endpoint — validates the request, redirects to `/sso/login` or issues a code |
-| `POST` | `/api/v1/idp/login` | credential verification — invoked by the login portal form; on success sets `xpmile_idp_session` and redirects back to `/api/v1/idp/authorize` |
-| `POST` | `/api/v1/idp/token` | token endpoint — exchanges code (+ PKCE verifier) for id_token + access_token. Calls `sign_jwt` over wsdbagent. |
+| `GET`  | `/api/v1/idp/.well-known/openid-configuration` | discovery document — issuer URL, endpoint URLs, supported claims/scopes/algs |
+| `GET`  | `/api/v1/idp/jwks` | JSON Web Key Set — public keys (one entry per non-expired row in `idp_signing_keys`) |
+| `GET`  | `/api/v1/idp/authorize` | authorization endpoint — validates the request, redirects to the login portal or issues a code |
+| `POST` | `/api/v1/idp/login` | credential POST — invoked by the login portal form; on success sets `xpmile_idp_session` and redirects back to `/authorize` |
+| `POST` | `/api/v1/idp/token` | token endpoint — exchanges code (+ PKCE verifier) for id_token + access_token. Calls `WsMongodbProxy::sign_jwt`. |
 | `GET`  | `/api/v1/idp/userinfo` | (optional) returns user claims for a valid access_token |
-| `POST` | `/api/v1/idp/end_session` | RP-initiated logout — revokes IdP session, deletes `xpmile_idp_session`, redirects to `post_logout_redirect_uri` |
-| `POST` | `/api/v1/idp/password-reset/start` | initiate password reset — invoked by `/sso/password-reset`; sends email |
-| `POST` | `/api/v1/idp/password-reset/confirm` | confirm password reset — invoked by `/sso/password-reset/confirm`; updates the hashed password |
+| `POST` | `/api/v1/idp/end_session` | RP-initiated logout — revokes the IdP session, deletes `xpmile_idp_session`, redirects to `post_logout_redirect_uri` |
+| `POST` | `/api/v1/idp/password-reset/start` | initiate password reset — invoked by `/password-reset`; sends email |
+| `POST` | `/api/v1/idp/password-reset/confirm` | confirm password reset — invoked by `/password-reset/confirm`; updates the hashed password |
 
 ### Issuer URL
 
-Proposed: `https://<cloud-host>/api/v1/idp` — keeps the IdP scoped under `/api/v1/` so the rest of the URL space (notably `/` for the SPA) stays the SPA's. The discovery document then lives at `https://<cloud-host>/api/v1/idp/.well-known/openid-configuration`, which a standard OIDC client will check by appending `.well-known/openid-configuration` to the issuer URL. **Open question in §11.**
+`https://idp-63c97365e6ef.herokuapp.com/api/v1/idp` — the discovery document is at `<issuer>/.well-known/openid-configuration`, which a spec-compliant client will compute by appending. The marvel-side `OidcProvider` will fetch this when it first encounters the in-house IdP in `sso_config`.
 
-### Discovery document shape
+### Discovery document
 
 ```json
 {
-  "issuer":                                  "https://marvel-3a78bd953f5f.herokuapp.com/api/v1/idp",
-  "authorization_endpoint":                  ".../api/v1/idp/authorize",
-  "token_endpoint":                          ".../api/v1/idp/token",
-  "jwks_uri":                                ".../api/v1/idp/jwks",
-  "userinfo_endpoint":                       ".../api/v1/idp/userinfo",
-  "end_session_endpoint":                    ".../api/v1/idp/end_session",
+  "issuer":                                  "https://idp-63c97365e6ef.herokuapp.com/api/v1/idp",
+  "authorization_endpoint":                  "https://idp-.../api/v1/idp/authorize",
+  "token_endpoint":                          "https://idp-.../api/v1/idp/token",
+  "jwks_uri":                                "https://idp-.../api/v1/idp/jwks",
+  "userinfo_endpoint":                       "https://idp-.../api/v1/idp/userinfo",
+  "end_session_endpoint":                    "https://idp-.../api/v1/idp/end_session",
   "response_types_supported":                ["code"],
   "subject_types_supported":                 ["public"],
   "id_token_signing_alg_values_supported":   ["RS256"],
@@ -235,7 +233,7 @@ Proposed: `https://<cloud-host>/api/v1/idp` — keeps the IdP scoped under `/api
 }
 ```
 
-Static (or near-static) — built from `sso_config`'s in-house IdP entry + `publicBaseUrl`. Served with a short Cache-Control so config changes propagate.
+Static given `publicBaseUrl` (idp host) — built once at startup, hot-reloaded if config changes. Served with a short Cache-Control.
 
 ### JWKS endpoint
 
@@ -254,45 +252,34 @@ Static (or near-static) — built from `sso_config`'s in-house IdP entry + `publ
 }
 ```
 
-Cloud-side: cache the JWKS (built from `idp_signing_keys` public-key fields) for ~60 s with hot-reload — same pattern as `sso_config`'s hot-reload thread.
+Cloud-side cache built from `idp_signing_keys` (public-key fields only); hot-reloaded every ~60 s on the same background thread that already polls `sso_config` for v1.0.
 
-### `/authorize` (the main flow)
+### `/authorize` (the main entry from the marvel SPA)
 
 Inputs (query string per OIDC):
 
-`response_type=code` (only value supported) ·
-`client_id=<registered-id>` ·
-`redirect_uri=<exact-registered>` ·
-`scope=openid [email] [profile]` ·
-`state=<rp-csrf-token>` ·
-`nonce=<rp-replay-defense>` ·
-`code_challenge=<base64url-S256-of-verifier>` ·
-`code_challenge_method=S256`
+`response_type=code` (only value supported) · `client_id=<registered>` · `redirect_uri=<exact-registered>` · `scope=openid [email] [profile]` · `state=<rp-csrf-token>` · `nonce=<rp-replay-defense>` · `code_challenge=<base64url-S256-of-verifier>` · `code_challenge_method=S256`
 
 Behavior:
 
 1. Look up `client_id` in `idp_clients`. Reject if unknown.
 2. Validate `redirect_uri` is **exactly** in the client's registered list. (No prefix matching.)
 3. Validate `response_type == "code"`, `code_challenge_method == "S256"`, `scope` contains `"openid"`.
-4. Check for `xpmile_idp_session` cookie.
-   - **No / invalid session** → persist the authorization request in an `idp_pending_auth` document keyed by a random `req_token`; set a short-lived `xpmile_idp_pending` cookie with that `req_token`; redirect (302) to `/sso/login`.
-   - **Valid session** → resolve to the user; go to step 5.
-5. Generate an authorization `code` (32 bytes CSPRNG, base64url). Persist in `idp_codes` collection: `{ _id: code, client_id, user_sub, redirect_uri, nonce, code_challenge, scope, expiresAt: now+30s }`.
+4. Check for the `xpmile_idp_session` cookie.
+   - **No / invalid session:** persist the authorization request in an `idp_pending_auth` document keyed by a random `req_token`; set a short-lived `xpmile_idp_pending` cookie with that token; redirect (302) to `/login` (Angular route on idp host).
+   - **Valid session:** resolve to the user; go to step 5.
+5. Generate an authorization `code` (32 bytes CSPRNG, base64url). Persist in `idp_codes`: `{ _id: code, client_id, user_sub, redirect_uri, nonce, code_challenge, scope, expiresAt: now+30s }`.
 6. Redirect (302) to `<redirect_uri>?code=<code>&state=<state>`. Done.
 
 ### `/login` (the credential check)
 
-Invoked by the branded portal form. Validates the `xpmile_idp_pending` cookie (so we know which authorization request to resume), authenticates the credentials against the on-prem `account` collection (reusing the existing password verification path), creates an `xpmile_idp_session` cookie (HttpOnly, Secure, SameSite=Lax, `Path=/api/v1/idp/`), and redirects (302) back to `/api/v1/idp/authorize?...` with the original parameters from the pending-auth document. The user finishes the flow exactly as if they'd had a session to start with.
+Invoked by the branded portal form (POST). Validates `xpmile_idp_pending` (so we know which authorization request to resume); authenticates against the on-prem `account` collection (reusing the same password-verification path already used by `handle_account_login_POST`); creates the `xpmile_idp_session` cookie (HttpOnly, Secure, SameSite=Lax, `Path=/api/v1/idp/`); redirects (302) back to `/api/v1/idp/authorize?...` with the original parameters from the pending-auth document. The user finishes the flow exactly as if they'd had a session to begin with.
 
 ### `/token`
 
 Inputs (form-urlencoded body per OIDC):
 
-`grant_type=authorization_code` ·
-`code=<from /authorize>` ·
-`redirect_uri=<must match what was registered with the code>` ·
-`client_id` + (optional) `client_secret` if the client is confidential ·
-`code_verifier=<PKCE verifier matching the stored challenge>`
+`grant_type=authorization_code` · `code=<from /authorize>` · `redirect_uri=<must match what was registered with the code>` · `client_id` + (optional) `client_secret` if the client is confidential · `code_verifier=<PKCE verifier matching the stored challenge>`
 
 Behavior:
 
@@ -303,44 +290,62 @@ Behavior:
 5. Build the id_token header + payload:
    - header: `{ alg: "RS256", typ: "JWT", kid: <current-kid> }`
    - payload: `{ iss, sub: <accountCode>, aud: <client_id>, exp: <now+1h>, iat: <now>, nonce: <stored>, email, name, role }`
-6. base64url(header) + "." + base64url(payload) → `to_sign`.
-7. `WsMongodbProxy::sign_jwt(kid="current", alg="RS256", to_sign)` → signature.
-8. id_token = `to_sign + "." + signature`. access_token = random opaque 32 bytes (stored in `idp_access_tokens` collection with TTL).
-9. Respond JSON: `{ access_token, token_type: "Bearer", expires_in: 3600, id_token, scope: <granted> }`.
+6. `base64url(header) + "." + base64url(payload)` → `to_sign`.
+7. `WsMongodbProxy::sign_jwt("current", "RS256", to_sign)` → goes over the **idp** wsdbagent connection, returns `signature` + `kid`.
+8. id_token = `to_sign + "." + signature`. Backfill the header `kid` if a different key was used.
+9. access_token = random opaque 32 bytes; insert in `idp_access_tokens` collection with TTL.
+10. Respond JSON: `{ access_token, token_type: "Bearer", expires_in: 3600, id_token, scope: <granted> }`.
 
-### `/jwks` reuses the JWKS-cache thread
+### `/userinfo`, `/end_session`
 
-The same background thread that hot-reloads `sso_config` for the *consumer* side (v1.0) also hot-reloads `idp_signing_keys` for the *producer* side. One thread, two responsibilities, both ~60 s polling.
+`/userinfo`: validates `Authorization: Bearer <access_token>` against `idp_access_tokens`; returns the user's claims as JSON.
 
-### `/userinfo` (optional but standard)
-
-Validates the `Authorization: Bearer <access_token>` header against the `idp_access_tokens` collection; returns the user's claims as JSON. Useful for v2; v1 includes it for protocol completeness but the xpmile SPA doesn't need it (claims live in the id_token).
-
-### `/end_session`
-
-Validates the optional `id_token_hint` (just to identify the user; not strictly required), deletes the `xpmile_idp_session` cookie + the row in `sessions`, and redirects to `post_logout_redirect_uri` (must be in the client's registered list).
+`/end_session`: validates the optional `id_token_hint`; deletes the `xpmile_idp_session` cookie + the matching row in `sessions`; redirects to `post_logout_redirect_uri` (must be in the client's registered list).
 
 ---
 
-## 4. The branded Angular login portal — `/sso/login`
+## 4. The idp Angular project — `ui-idp/`
 
-A new Angular route, served as a static asset by the existing Angular dist. **Not** an SPA route in the existing routing module — it's a separate, standalone page so it can be the IdP's UI (which conceptually serves *any* RP, not just the xpmile SPA itself).
+A new, small Angular project sibling to the existing `ui/`. Lives at `ui-idp/`. **Not** part of the xpmile SPA; this is the IdP's own UI.
 
-Components:
+Why a separate project rather than reusing `ui/`:
+- The branded portal must look like the *IdP's* page, not the xpmile app's — different layout, no navbar, no app chrome.
+- The IdP UI doesn't need the bulk of the xpmile SPA's dependencies (Clarity components for shipments, accounts, pdfMake, etc.). Smaller bundle = faster first paint on a login page.
+- Keeps the projects' deployment lifecycles independent — bumping a Clarity version in the xpmile SPA doesn't touch the IdP UI.
 
-- `SsoLoginPortalComponent` (`/sso/login`):
-  - Xpmile logo (large, centered).
-  - Username + password form.
-  - "Forgot password?" link → `/sso/password-reset`.
-  - On submit: POST `/api/v1/idp/login` with `{user, pass}` + the `xpmile_idp_pending` cookie.
-  - On success: backend returns 302 to `/api/v1/idp/authorize?...`. Browser follows it; ends at the RP's `redirect_uri`.
-  - On failure: backend returns 401 with a JSON error; component shows an inline error message.
+Structure (mirrors `ui/` patterns):
+```
+ui-idp/
+├── package.json
+├── angular.json
+├── tsconfig.json
+├── src/
+│   ├── index.html
+│   ├── main.ts
+│   ├── styles.css
+│   ├── assets/
+│   │   └── images/xpmile-logo.svg        (the brand)
+│   └── app/
+│       ├── app.module.ts
+│       ├── app-routing.module.ts
+│       ├── login/
+│       │   ├── login.component.{ts,html,css}
+│       └── password-reset/
+│           ├── password-reset.component.{ts,html,css}
+│           └── password-reset-confirm.component.{ts,html,css}
+└── proxy.conf.json
+```
 
-- `SsoPasswordResetComponent` (`/sso/password-reset` and `/sso/password-reset/confirm?token=`):
-  - "Enter your email" → POST `/api/v1/idp/password-reset/start`. Always succeeds (no enumeration). Shows a "check your email" message regardless.
-  - The link in the email lands at `/sso/password-reset/confirm?token=...`. Component validates the token (via a `/api/v1/idp/password-reset/check?token=` probe), shows new-password form, POSTs to `/api/v1/idp/password-reset/confirm`. On success, redirects to `/sso/login` with a success flash.
+Routes:
 
-The portal is **deliberately disconnected from the SPA's authenticated UI**. No navbar, no app chrome. Just the xpmile brand and the form. That keeps it usable by any future RP without leaking xpmile-app UX into other apps' login experience.
+| Path | Component | Notes |
+|------|-----------|-------|
+| `/login` | `LoginComponent` | Branded login form (logo, username, password, "Forgot password" link). POST to `/api/v1/idp/login`. On success, server returns 302 to `/api/v1/idp/authorize?...`. |
+| `/password-reset` | `PasswordResetStartComponent` | "Enter your email." POST to `/api/v1/idp/password-reset/start`. Always shows "Check your email" (no enumeration). |
+| `/password-reset/confirm` | `PasswordResetConfirmComponent` | Reads `?token=` from URL, shows new-password form. POST to `/api/v1/idp/password-reset/confirm`. On success, redirects to `/login` with a success flash. |
+| `*` (fallback) | redirect to `/login` | |
+
+The Angular dist is packaged by a new `docker/Dockerfile.idp` (built from `ui-idp/`), parallel to the existing `docker/Dockerfile` (built from `ui/`). The C++ uniservice binary in the runtime stage is the same — it serves whatever sits at `../webgui/webui/`.
 
 ---
 
@@ -348,25 +353,25 @@ The portal is **deliberately disconnected from the SPA's authenticated UI**. No 
 
 Three collections involved:
 
-- `account` — existing. Holds `passwordHash` (already hashed today per the answer in design intake).
+- `account` — existing. Holds the hashed password.
 - `password_resets` — new. `{ _id: <random-32B-base64url>, accountCode, expiresAt }` with a TTL index on `expiresAt`.
 - `sessions` — existing (v1.0). Logging in after a reset mints a fresh session as usual.
 
 Flow:
 
-1. User → `/sso/password-reset` → enters email.
+1. User → `https://idp-.../password-reset` → enters email.
 2. `POST /api/v1/idp/password-reset/start` with `{ email }`:
    - Look up account by email.
    - **Same response whether found or not** (no enumeration leak).
    - If found: generate token, insert `password_resets` doc (TTL 30 min), send email via the existing email module.
-   - Email body: a short message + a link to `https://<cloud-host>/sso/password-reset/confirm?token=<token>`.
-3. User clicks link → `/sso/password-reset/confirm?token=...` → enters new password (twice for confirmation).
+   - Email body: a short message + a link to `https://idp-.../password-reset/confirm?token=<token>`.
+3. User clicks link → `/password-reset/confirm?token=...` → enters new password (twice).
 4. `POST /api/v1/idp/password-reset/confirm` with `{ token, new_password }`:
    - Look up `password_resets` by token; reject if missing / expired / already consumed.
    - Hash the new password (using the same scheme the rest of the app uses); `update_collection` the account.
    - Delete the `password_resets` doc.
-   - Optionally: invalidate all existing `sessions` for this account (force re-login). v1: yes — a password reset should kill stale sessions.
-5. Redirect to `/sso/login` with a success flash.
+   - Invalidate all existing `sessions` for this account (a password reset should kill stale sessions).
+5. Redirect to `/login` with a success flash.
 
 Reuses: the existing email module (SMTP::User FSM), the existing password-hashing function, the existing session-revocation code (`SessionManager::revoke`).
 
@@ -374,18 +379,47 @@ Reuses: the existing email module (SMTP::User FSM), the existing password-hashin
 
 ## 6. Vaadin admin views (on-prem)
 
-Two new views in the on-prem Vaadin app (`onprem/src/main/java/com/xpmile/onprem/ui/idp/`):
+Two new views in the existing Vaadin app (`onprem/src/main/java/com/xpmile/onprem/ui/idp/`):
 
-- **`IdpSigningKeysView` (`/idp-keys`)** — list keys (kid, alg, createdAt, notAfter, active flag); "Generate new key" button (creates a fresh RSA-2048 keypair in Java, stores both halves in `idp_signing_keys`, optionally activates it and deactivates the previous one); "Deactivate" / "Delete expired" actions.
-- **`IdpClientsView` (`/idp-clients`)** — list registered RP clients; per-client fields: `client_id`, `client_name`, `redirect_uris[]`, `post_logout_redirect_uris[]`, `client_secret` (write-only, hashed in storage), `grant_types[]` (initial: just `authorization_code`), `scopes[]`. The xpmile SPA gets a pre-seeded client.
+- **`IdpSigningKeysView` (`/idp-keys`)** — list keys (kid, alg, createdAt, notAfter, active flag); **"Generate new key"** button (creates RSA-2048 keypair in Java via `KeyPairGenerator`, PEM-encodes both halves, inserts into `idp_signing_keys`, optionally activates it and deactivates the previous active key); **"Deactivate"** / **"Delete expired"** actions.
 
-Both views write directly to MongoDB, no internet-facing config-write endpoint — same trust model as `SsoConfigView`.
+- **`IdpClientsView` (`/idp-clients`)** — list registered RP clients; per-client fields: `client_id`, `client_name`, `redirect_uris[]`, `post_logout_redirect_uris[]`, `client_secret` (write-only, hashed in storage), `grant_types[]` (initial: just `authorization_code`), `scopes[]`. The marvel SPA gets a pre-seeded client (`xpmile-spa`).
+
+Both write directly to the on-prem MongoDB — same trust model as the existing `SsoConfigView` (the Vaadin console sits behind the customer's physical/network access controls; no internet-facing config-write endpoint).
 
 ---
 
-## 7. Coexistence with v1.0 federated SSO
+## 7. The on-prem stack now runs two wsdbagent containers
 
-The in-house IdP appears as **one more entry in the existing `sso_config` collection**, with `protocol: "oidc"`:
+The existing `docker-compose.agent.yml` is extended. After the change:
+
+| Service | Image | Connects to | Cert family |
+|---------|-------|-------------|-------------|
+| `mongodb` | `xpmile-mongo:latest` (built locally) | — | — |
+| `agent-wsdbagent-marvel` | `docker.io/naushada/xpmile-wsdbagent:latest` | `marvel-3a78bd953f5f.herokuapp.com` | `./certs/cloud-issued/innertls-marvel/` |
+| `agent-wsdbagent-idp` | `docker.io/naushada/xpmile-wsdbagent:latest` | `idp-63c97365e6ef.herokuapp.com` | `./certs/cloud-issued/innertls-idp/` |
+| `xpmile-cert-watcher` | `docker.io/library/alpine:3.19` | — (watches both cert dirs) | — |
+
+The same `xpmile-wsdbagent` image runs both agents — no code change to the wsdbagent binary (other than adding the `SIGN_JWT` case in the dispatcher, which is harmless on either connection — only the idp connection ever sees the op).
+
+The cert-watcher is taught about both cert dirs and restarts the corresponding agent on change:
+
+```sh
+# pseudocode for the watcher
+for dir in /watch/marvel /watch/idp; do
+  md5=$(md5sum "$dir"/*.crt "$dir"/*.key | sort | md5sum)
+  ...
+  if changed -> POST restart to agent-wsdbagent-<which>
+done
+```
+
+The `./run-agent.sh refresh-certs` command extends to refresh both families. Simplification possible if both Heroku apps deploy the **same** uniservice image (see §11 open question on CI strategy) — then there's one CA, one cert family, and the on-prem story stays single-agent-ish.
+
+---
+
+## 8. Coexistence with v1.0 federated SSO
+
+The in-house IdP appears as **one more entry in `sso_config`** on the marvel side, with `protocol: "oidc"`:
 
 ```jsonc
 {
@@ -393,14 +427,14 @@ The in-house IdP appears as **one more entry in the existing `sso_config` collec
   "providers": [
     {
       "id":          "xpmile",                                       // the in-house IdP
-      "displayName": "xpmile login",
+      "displayName": "Sign in",
       "protocol":    "oidc",
-      "issuer":      "https://marvel-3a78bd953f5f.herokuapp.com/api/v1/idp",
-      "clientId":    "xpmile-spa",                                   // the SPA's client_id
-      "clientSecret":"...",                                          // the SPA's client_secret
+      "issuer":      "https://idp-63c97365e6ef.herokuapp.com/api/v1/idp",
+      "clientId":    "xpmile-spa",                                   // registered with the IdP via IdpClientsView
+      "clientSecret":"...",                                          // registered with the IdP via IdpClientsView
       "scopes":      ["openid", "email", "profile"],
       "defaultRole": "Customer",
-      "allowedEmailDomains": []                                      // unrestricted — these are our own users
+      "allowedEmailDomains": []                                      // our own users — no domain restriction
     },
     {
       "id":          "corp",                                         // an external IdP (existing v1.0)
@@ -413,114 +447,128 @@ The in-house IdP appears as **one more entry in the existing `sso_config` collec
 }
 ```
 
-**The v1.0 `OidcProvider` client code handles the in-house IdP identically to Okta** — discovery fetch + token exchange + JWT verify against JWKS. No client-side changes. The login page lists all configured providers; the in-house "xpmile login" sits alongside any external ones the customer has set up.
+**The v1.0 `OidcProvider` client code handles the in-house IdP identically to Okta** — discovery fetch + token exchange + JWT verify against JWKS. No client-side changes. The login page lists all configured providers; the in-house "Sign in" sits alongside any external ones the customer has set up.
 
-If a customer wants the in-house IdP to be the *only* option, they just remove the others from `sso_config`. If they want it default, they put it first in the array. If they want it absent, they don't list it (`sso_config` providers array can be `[]`, in which case only password login works — same as today).
+If a customer wants the in-house IdP to be the *only* option, they remove the others from `sso_config`. If they want it default, they put it first.
 
 ---
 
-## 8. Reuse map (what the existing code gives us)
+## 9. Reuse map — what the existing stack gives us, what's new
 
-| Need | Existing code |
-|------|---------------|
+What we reuse, unchanged:
+
+| Need | Code |
+|------|------|
 | HTTP request parsing | `Http` parser (`modules/module/http/`) |
 | HTTP response building (200 / 302 / 401) | `MicroService::build_responseOK`, `build_redirect`, `build_responseERROR`, `attach_set_cookie` |
-| Routing for the new `/api/v1/idp/*` endpoints | `MicroService::process_request` URI-prefix dispatch |
-| JSON serialisation everywhere | `nlohmann::json` (vendored) |
+| Routing for the new `/api/v1/idp/*` endpoints | `MicroService::process_request` URI-prefix dispatch (mirrors `handle_sso`) |
+| JSON serialization | `nlohmann::json` |
 | Cookie issue/parse | `sso_cookie.*` (extend with the IdP cookie name) |
-| Session storage + LRU cache + middleware | `sso_session.*` (a second `SessionManager` instance, scoped to the IdP cookie + collection) |
+| Session storage + LRU cache | `sso_session.*` (a second `SessionManager` instance on idp host) |
 | CSPRNG / base64url codecs | `sso_util.*` |
-| JWT **verify** (the v1.0 client side checks this against the JWKS) | `sso_jwt.*` (unchanged) |
-| JWT **sign** (the new bit) | extend `sso_jwt.*` with a thin signer that delegates the signature step to `WsMongodbProxy::sign_jwt` |
-| OIDC client to consume the in-house IdP | `OidcProvider` + `sso_endpoints.*` (unchanged — the SPA federates against the in-house IdP the same way it federates against Okta) |
-| Hot-reload of config / JWKS | reuse the existing `sso_config` hot-reload thread (extend to also poll `idp_signing_keys`) |
-| Outbound HTTP client (for the SPA's discovery fetch against the in-house IdP) | `sso_http_client.*` (unchanged — happens to make a request back to the same host, which is fine) |
-| MongoDB access from cloud (always via the on-prem agent) | `IMongodbClient` / `WsMongodbProxy` |
-| WebSocket DB proxy protocol | `dbproto` + `wsframe` — extended with the new `SIGN_JWT` op |
+| JWT *verify* (the v1.0 client side, on marvel) | `sso_jwt.*` (unchanged) |
+| OIDC *client* (marvel federating against the in-house IdP) | `OidcProvider` + `sso_endpoints.*` (unchanged — federates against the in-house IdP the same way it federates against Okta) |
+| Hot-reload of config / JWKS | the existing `sso_config` hot-reload thread (extended on idp host to also poll `idp_signing_keys`) |
+| Outbound HTTP client (for marvel's discovery fetch against the in-house IdP) | `sso_http_client.*` (unchanged — just fetches the discovery doc from the new host) |
+| MongoDB access from cloud (always via on-prem agent) | `IMongodbClient` / `WsMongodbProxy` |
+| WebSocket DB proxy protocol | `dbproto` + `wsframe` — *extended with the new `SIGN_JWT` op* |
 | Inner-TLS encryption of the wsdbagent tunnel | `security/innertls.*` (unchanged) |
-| Password verification | the existing `handle_account_login_POST` path (factor out the credential-check so both the legacy login *and* `/api/v1/idp/login` call the same function) |
+| Password verification | the existing `handle_account_login_POST` path (factor out the credential-check into a reusable helper called by both that handler and the new `handle_idp_login_POST`) |
 | Email delivery for the reset flow | `SMTP::User` (the existing email module) |
-| Admin UI for keys + clients | the existing Vaadin app (`onprem/`) — same patterns as `SsoConfigView` |
-| Branded login UI | the existing Angular `ui/src/app/login/` patterns (Clarity, FormBuilder, etc.) — add a new component, don't fork |
+| Admin UI for keys + clients | the existing Vaadin app — same patterns as `SsoConfigView` |
+| C++ binary | the *same* `uniservice` binary deploys to both marvel and idp Heroku apps |
+| wsdbagent binary | the *same* `xpmile-wsdbagent` image runs the marvel and idp agents on-prem |
+| Inner-TLS, cert rotation, cert-watcher | extended (two agents, two cert families) but the mechanism is unchanged |
 
-What's genuinely new — and the scope of the implementation work:
+What's genuinely new — the scope of the implementation work:
 
-1. The `SIGN_JWT` op end-to-end (cloud-side proxy method, wsdbagent dispatcher, dbproto schema, tests).
-2. The OIDC endpoint handlers in `webservice.cpp` (or a new `inhouse_idp.cpp` to keep `webservice.cpp` from growing) — ~8 handler functions.
-3. The `idp_clients`, `idp_codes`, `idp_access_tokens`, `password_resets`, `idp_signing_keys`, `idp_pending_auth` collections (TTL indexes on the time-bound ones, seeded by `mongo-init.js`).
-4. The two Vaadin admin views (`IdpSigningKeysView`, `IdpClientsView`).
-5. The two Angular components (`SsoLoginPortalComponent`, `SsoPasswordResetComponent`) + routing.
+1. **`SIGN_JWT` op end-to-end** — cloud proxy method, dbproto schema, wsdbagent dispatcher, tests.
+2. **OIDC server endpoints** in a new `modules/module/inhouseidp/` — ~8 handler functions + the helpers they call.
+3. **Six new collections** with TTL indexes where appropriate, seeded by `mongo-init.js`: `idp_signing_keys`, `idp_clients`, `idp_codes`, `idp_access_tokens`, `idp_pending_auth`, `password_resets`.
+4. **A small JWT *signer*** (cloud side) that builds `to_sign`, delegates the signature to `WsMongodbProxy::sign_jwt`, and assembles the final compact JWT.
+5. **Two Vaadin admin views** (`IdpSigningKeysView`, `IdpClientsView`).
+6. **`ui-idp/`** — a small Angular project (login + password reset).
+7. **`docker/Dockerfile.idp`** — mirrors `docker/Dockerfile`, but packages `ui-idp` dist.
+8. **`docker-compose.agent.yml`** extended — add `agent-wsdbagent-idp` + cert-watcher rule.
+9. **CI workflow** extended — build + push the IdP image to `registry.heroku.com/idp/web` after the test gate (parallel to the existing marvel push). One image build, two registry pushes.
+10. **`./run-agent.sh refresh-certs`** extended to refresh both cert families (or kept single if both Heroku apps share the same image — open question §11).
 
 ---
 
-## 9. Security analysis
+## 10. Security analysis
 
 | Threat | Mitigation |
 |--------|------------|
-| **Authorization-code interception** | PKCE (`S256`) required on every `/authorize`; stolen `code` is useless without the verifier, which never leaves the RP. |
+| **Authorization-code interception** | PKCE (`S256`) required on every `/authorize`; stolen code is useless without the verifier, which never leaves the RP. |
 | **Code replay** | Codes are one-time use (atomic `update_collection` to mark consumed) and short-lived (TTL 30 s in `idp_codes`). |
 | **CSRF on `/authorize` callback** | The RP's `state` round-trips and is validated by the v1.0 client code (unchanged). |
 | **id_token replay** | `nonce` is bound to the authorization request and embedded in the id_token; the v1.0 client verifies it (unchanged). |
-| **JWT algorithm-confusion** | Server signs only RS256 (no per-request alg negotiation); JWKS only advertises RS256; client (v1.0) already enforces an `alg` allow-list. |
-| **Private-key compromise on the cloud** | **The private key is never on the cloud.** Cloud holds only the public key. Compromise of the cloud (read of disk, env, RAM) yields no signing capability. |
-| **Forged signing key** | Public keys are served from `idp_signing_keys`, written only by the on-prem Vaadin admin. The RP fetches them through HTTPS to a URL pinned by the issuer config. The RP's TLS verifies the cloud's cert; the in-house IdP's JWKS is no more forgeable than any other cloud endpoint. |
-| **Open redirect via `redirect_uri`** | `redirect_uri` is matched **exactly** against the client's registered list (no prefix / wildcard / case-insensitive matching). |
+| **JWT algorithm-confusion** | Server signs only RS256 (no per-request alg negotiation); JWKS only advertises RS256; the client (v1.0) already enforces an `alg` allow-list. |
+| **Private-key compromise on the cloud** | **The private key is never on the cloud.** Cloud holds only the public key. Compromise of either Heroku app (read of disk, env, RAM) yields no signing capability. |
+| **Forged signing key** | Public keys come from `idp_signing_keys`, written only by the on-prem Vaadin admin. The RP fetches them through HTTPS to a URL pinned by the issuer config. TLS verifies the cloud's cert; the JWKS endpoint is no more forgeable than any other cloud endpoint. |
+| **Open redirect via `redirect_uri`** | Matched **exactly** against the client's registered list (no prefix / wildcard / case-insensitive matching). |
 | **Open redirect via `post_logout_redirect_uri`** | Same exact-match rule. |
-| **Open redirect via password-reset link** | The link is fixed to `/sso/password-reset/confirm?token=...` on the IdP host; no externally-controlled redirect target. |
-| **Password-reset token replay / leak via logs** | Tokens are CSPRNG, single-use (deleted on consumption), short TTL (30 min); stored hashed (not in plaintext) in `password_resets` to limit log-exposure damage. |
-| **Email enumeration on password reset** | Same response (and same timing, as far as feasible) whether the email exists or not. |
+| **Open redirect via password-reset link** | Link is fixed to `/password-reset/confirm?token=...` on the IdP host; no externally-controlled redirect target. |
+| **Password-reset token replay / log leak** | Tokens are CSPRNG, single-use (deleted on consumption), short TTL (30 min); stored hashed in `password_resets` to limit log-exposure damage. |
+| **Email enumeration on password reset** | Same response (and as far as feasible, same timing) whether the email exists or not. |
 | **Session cookie theft via XSS** | `HttpOnly` + `Secure` + `SameSite=Lax` on `xpmile_idp_session` and `xpmile_idp_pending`. |
-| **`Host`-header poisoning of issuer URL / redirect URL** | Both pinned to `publicBaseUrl` from `sso_config` (same rule as v1.0); never derived from request headers. |
-| **Brute-force on `/api/v1/idp/login`** | Initial: rely on Heroku's app-level rate limiting + a per-account exponential backoff stored in the account doc (open question §11; minimal v1 ships with backoff only). |
+| **`Host`-header poisoning of issuer URL / redirect URL** | Both pinned to `publicBaseUrl` from `sso_config` / IdP config (same rule as v1.0); never derived from request headers. |
+| **Brute-force on `/api/v1/idp/login`** | Per-account exponential backoff stored in the account doc (`lastFailedAt`, `failedCount`). v1 ships with backoff only; per-IP rate limiting is a v2 follow-up. |
 | **Brute-force on `/api/v1/idp/password-reset/start`** | Stateless rate-limit per requester IP (in-memory ring buffer) + same-response policy (an attacker can't tell which addresses exist). |
 | **Tampered authorization request between `/authorize` and `/login`** | The pending request is stored server-side in `idp_pending_auth`, keyed by an opaque `req_token` cookie. The browser only carries the cookie; the request parameters are not in the URL after the redirect. |
+| **Marvel host accidentally serves IdP endpoints** | The discovery doc returned would carry an `issuer` field pointing at idp host; standard OIDC clients reject on the issuer-URL/fetched-URL mismatch. Belt-and-braces follow-up: Host-header gating for the `/api/v1/idp/*` routes. |
 
 ---
 
-## 10. Phased delivery
+## 11. Phased delivery
 
-All seven phases ship in v1; the phasing is a build order.
+All ten phases ship in v1; phasing is build order.
 
 | Phase | Scope |
 |-------|-------|
-| **A. On-prem signing service** | New `DbOp::SIGN_JWT`, `WsMongodbProxy::sign_jwt`, wsdbagent dispatcher, `idp_signing_keys` collection seed. Unit-testable end-to-end through `MockWsMongodbProxy` on the cloud side and a `MockMongodbClient`-backed dispatcher on the wsdbagent side. |
-| **B. Signing-key admin** | `IdpSigningKeysView` Vaadin view — generate / activate / list / deactivate / delete-expired. Key generation in Java via `KeyPairGenerator`; PEM-encode both halves; insert. |
-| **C. JWKS + discovery endpoints** | Static-ish responses driven by the hot-reloaded `idp_signing_keys` + `sso_config` `publicBaseUrl`. Unit tests against a `MockMongodbClient`. |
-| **D. `/authorize` + `/login` + IdP session** | Full happy path: pending-auth storage, login form POST, credential check, session cookie issuance, code generation, redirect. Negative paths: bad client_id, bad redirect_uri, bad credentials, replayed pending request. |
-| **E. `/token` (with `SIGN_JWT` round-trip)** | Code consumption, PKCE validation, id_token assembly, JWT signing via wsdbagent, response. End-to-end test that the resulting token verifies under the JWKS endpoint's keys. |
-| **F. Angular login portal** | `SsoLoginPortalComponent`, routing, error handling. Manual verification (the project has no Karma setup, per the v1.0 SSO design's Phase D). |
-| **G. Password reset** | `password_resets` collection, the two backend endpoints, the two email templates, `SsoPasswordResetComponent`. Manual + unit tests on the backend pieces. |
+| **A. On-prem signing service** | New `DbOp::SIGN_JWT`; `WsMongodbProxy::sign_jwt`; wsdbagent dispatcher; `idp_signing_keys` collection seed. Unit-testable through `MockMongodbClient` on both sides. |
+| **B. Signing-key admin** | `IdpSigningKeysView` Vaadin view — generate / activate / list / deactivate. RSA-2048 keypair generation in Java via `KeyPairGenerator`; insert both halves PEM-encoded into `idp_signing_keys`. |
+| **C. JWKS + discovery endpoints** | Static-ish responses driven by hot-reloaded `idp_signing_keys` + IdP config. Unit tests against `MockMongodbClient`. |
+| **D. `/authorize` + `/login` + IdP session** | Full happy path: pending-auth storage, login form POST, credential check (reuses existing path), session cookie issuance, code generation, redirect. Negative paths: bad client_id, bad redirect_uri, bad credentials, replayed pending request. |
+| **E. `/token` (with `SIGN_JWT` round-trip)** | Code consumption, PKCE validation, id_token assembly, JWT signing via wsdbagent, response. End-to-end test: the resulting token verifies under the JWKS endpoint's keys. |
+| **F. `ui-idp/` Angular project** | New project; `LoginComponent`, `PasswordResetStart/ConfirmComponent`. Manual verification (the project has no Karma setup, per the v1.0 SSO design's Phase D). |
+| **G. Password reset (backend)** | `password_resets` collection, the two backend endpoints, the email template. Backend unit tests; manual + UI verification via `ui-idp/`. |
+| **H. `docker/Dockerfile.idp` + CI publish** | New Dockerfile packaging `ui-idp` dist + the existing uniservice binary. CI extended to push the idp image to `registry.heroku.com/idp/web` after the marvel push. Single build, two Heroku releases. |
+| **I. On-prem two-agent stack** | `docker-compose.agent.yml` gains `agent-wsdbagent-idp` + cert-watcher rule for the new cert dir. `./run-agent.sh refresh-certs` extended. End-to-end smoke test from the cloud idp app through to MongoDB on-prem. |
+| **J. Coexistence wiring** | Add the in-house IdP to `sso_config` on marvel (initially as an opt-in entry). Register the marvel SPA as `xpmile-spa` in `IdpClientsView`. Manual end-to-end test: user clicks "Sign in" on marvel → redirected to idp host → enters credentials → redirected back to marvel → has a valid `xpmile_session`. |
 
-`/userinfo` and `/end_session` are part of Phase E (small).
-
-The on-prem Vaadin `IdpClientsView` ships in Phase D (we need at least one registered client to exercise `/authorize`).
+`/userinfo` and `/end_session` come along with Phase E (small).
 
 ---
 
-## 11. Decisions and open questions
+## 12. Decisions and open questions
 
 ### Resolved (from the design intake)
 
-- **In-house IdP is a full OIDC provider** (Authorization Code + PKCE), single registered RP at v1, multi-RP-architected.
+- **Full OIDC provider** (Authorization Code + PKCE), single registered RP at v1.
 - **Coexists with v1.0 federated SSO** — appears as one more entry in `sso_config`.
 - **v1 auth features:** username + password + self-service password reset. No MFA, no self-registration.
 - **JWT signing happens on-prem** via a new `wsdbagent` SIGN_JWT op; the private key never leaves the on-prem MongoDB.
 - **Passwords are already hashed** in `account.passwordHash` (per design intake); no migration needed.
+- **Issuer URL:** `https://idp-63c97365e6ef.herokuapp.com/api/v1/idp`.
+- **The IdP is hosted on its own Heroku app** (idp-63c97365e6ef.herokuapp.com) — distinct from the existing marvel app. The same `uniservice` binary deploys to both; the Angular dist differs per host.
 
 ### Still open
 
-1. **Issuer URL placement.** Proposed `https://<cloud-host>/api/v1/idp` — keeps the IdP under the existing `/api/v1` namespace. Alternative: at the root (`https://<cloud-host>`), shorter but takes over the root namespace. Or on a subdomain (`https://idp.<cloud-host>`) — needs DNS work. Default: scoped under `/api/v1/idp`.
-2. **`idp_clients` storage vs `sso_config`.** Two options: (a) separate `idp_clients` collection with one document per registered client — cleaner separation, room for many clients; (b) inline into the in-house provider entry in `sso_config` — fewer moving parts, fine while there's exactly one client. Default: separate collection.
-3. **Brute-force protection on `/login`.** v1 lean: per-account exponential backoff stored in the account doc (`lastFailedAt`, `failedCount`). v1 thorough: separate `auth_attempts` collection + IP-level rate limit. Default: minimal (exponential backoff only).
-4. **Refresh tokens.** Not in v1 (sessions handle the "stay logged in" UX via the RP-side `xpmile_session` cookie). Worth confirming.
-5. **Key rotation cadence.** Manual via Vaadin only for v1; no scheduler. Confirm.
-6. **`/userinfo` scope.** Include in v1 for protocol completeness (returns claims for an opaque access_token) — but the xpmile SPA doesn't need it (claims live in the id_token). Confirm "build it but don't use it" is fine.
-7. **Account lockout policy.** v1: no hard lockout; just exponential backoff (so the legitimate user can still try again after the wait). Vaadin Accounts view gets a "reset failed attempts" button.
-8. **Logging out at the IdP vs the RP.** When the xpmile SPA's `POST /api/v1/sso/logout` fires (existing v1.0 code), should we also call the IdP's `/end_session`? For the in-house IdP this would clear the `xpmile_idp_session`, meaning the user has to re-enter credentials next login (rather than silently re-authing via the existing IdP session). v1 default: yes — call `/end_session` for the in-house provider on SPA logout (matches user expectation that "log out" means "log out").
+1. **Same image to both Heroku apps, or separate builds?** Same image (one CI build, two `heroku container:release`) → both apps always share the same InnerTLS CA → one cert family on-prem → no extension to refresh-certs needed. Separate builds → independent release cadence → two CAs → two cert families on-prem. Default: **same image**.
+2. **`idp_clients` storage shape.** Separate `idp_clients` collection (multi-client-ready, what this doc assumes) vs inline into the IdP config (simpler while there's exactly one client). Default: **separate collection**.
+3. **`/api/v1/idp/*` vs root-level OIDC paths on the idp host.** /api/v1/idp/* matches the existing convention. Root-level (`/authorize`, `/token`, `/jwks`) is more conventional for a dedicated IdP host. Default: **`/api/v1/idp/*`** to match the existing routing pattern.
+4. **Brute-force protection on `/login`.** v1 lean: per-account exponential backoff stored in the account doc. v1 thorough: separate `auth_attempts` collection + IP-level rate limit. Default: **minimal (per-account exponential backoff)**.
+5. **Refresh tokens.** Not in v1 (sessions handle the "stay logged in" UX via the RP-side `xpmile_session` cookie). Confirm.
+6. **Key rotation cadence.** Manual via Vaadin only for v1; no scheduler. Confirm.
+7. **`/userinfo` scope.** Include in v1 for protocol completeness — but the marvel SPA doesn't need it (claims live in the id_token). Confirm "build it but don't actively use it" is fine.
+8. **Account lockout policy.** v1: no hard lockout, just exponential backoff. Vaadin Accounts view gets a "reset failed attempts" button. Confirm.
+9. **Logging out at the IdP when the RP logs out.** When `POST /api/v1/sso/logout` fires on marvel, should it also call the IdP's `/end_session`? Default: **yes** — call `/end_session` for the in-house provider on SPA logout (matches user expectation that "log out" = "log out").
+10. **Host-header gating** for IdP routes on the marvel host. v1 default: **don't gate** (accept the spec-rejected-but-not-exploitable mismatch); revisit if we find a real attack vector.
 
 ---
 
-## 12. Files — new and changed
+## 13. Files — new and changed
 
 **New module — `modules/module/inhouseidp/`** (a sibling to `modules/module/sso/`; keeps the IdP server code separate from the SSO client code that lives in `sso/`):
 
@@ -533,7 +581,7 @@ The on-prem Vaadin `IdpClientsView` ships in Phase D (we need at least one regis
 | `inc/idp_discovery.hpp` / `src/idp_discovery.cpp` | `.well-known/openid-configuration` builder |
 | `inc/idp_client_registry.hpp` / `src/idp_client_registry.cpp` | Load/lookup registered clients from `idp_clients` |
 | `inc/idp_password_reset.hpp` / `src/idp_password_reset.cpp` | Reset start + confirm logic; email template |
-| `inc/idp_session.hpp` / `src/idp_session.cpp` | Second `SessionManager` instance scoped to the IdP cookie |
+| `inc/idp_session.hpp` / `src/idp_session.cpp` | A second `SessionManager` instance scoped to the IdP cookie |
 | `test/inhouseidp_test.cc` | Unit tests (see TDD plan) |
 
 **Extended existing modules:**
@@ -541,55 +589,59 @@ The on-prem Vaadin `IdpClientsView` ships in Phase D (we need at least one regis
 | File | Change |
 |------|--------|
 | `modules/module/sso/inc/sso_jwt.hpp` / `src/sso_jwt.cpp` | Add `make_jwt_unsigned(header, payload) → to_sign` and `assemble_jwt(to_sign, signature) → string` helpers |
-| `modules/module/wsdbproxy/inc/wsdbproxy.hpp` / `src/wsdbproxy.cpp` | Add `WsMongodbProxy::sign_jwt()` (cloud side of the new op) |
+| `modules/module/wsdbproxy/inc/wsdbproxy.hpp` / `src/wsdbproxy.cpp` | Add `WsMongodbProxy::sign_jwt()` |
 | `modules/module/wsdbproxy/inc/dbproto.hpp` / `src/dbproto.cpp` | Add `DbOp::SIGN_JWT` + request/response BSON schema |
-| `modules/module/wsdbagent/src/wsdbagent.cpp` | Add `SIGN_JWT` case in the dispatcher; new `sign_jwt_on_prem()` helper |
-| `modules/module/webservice/inc/webservice.hpp` / `src/webservice.cpp` | Route `/api/v1/idp/*` to a new `handle_idp` adapter (mirrors `handle_sso`) |
-| `modules/module/webservice/src/webservice.cpp` | Extract credential-check into a reusable helper; have both `handle_account_login_POST` and `handle_idp_login_POST` call it |
-| `docker/mongo-init.js` | Create the six new collections (`idp_signing_keys`, `idp_clients`, `idp_codes`, `idp_access_tokens`, `idp_pending_auth`, `password_resets`) with the appropriate TTL indexes |
+| `modules/module/wsdbagent/src/wsdbagent.cpp` | Add `SIGN_JWT` dispatcher case + `sign_jwt_on_prem()` helper |
+| `modules/module/webservice/inc/webservice.hpp` / `src/webservice.cpp` | Route `/api/v1/idp/*` to a new `handle_idp` adapter (mirrors `handle_sso`); extract the credential-check helper for reuse between `handle_account_login_POST` and `handle_idp_login_POST` |
+| `docker/mongo-init.js` | Create the six new collections with TTL indexes where appropriate |
 | `CMakeLists.txt` | `add_executable(uniservice ...)` globs the new `inhouseidp` module |
 | `test/CMakeLists.txt` | Add the new `inhouseidp` test sources |
 
-**Angular:**
+**Deployment:**
 
 | File | Change |
 |------|--------|
-| `ui/src/app/sso-login-portal/sso-login-portal.component.{ts,html,css}` (new) | Branded login portal at `/sso/login` |
-| `ui/src/app/sso-password-reset/sso-password-reset.component.{ts,html,css}` (new) | Two-step password reset at `/sso/password-reset` and `/sso/password-reset/confirm` |
-| `ui/src/app/app-routing.module.ts` | Add the two new routes (outside the auth-guarded set — they're public IdP UI) |
-| `ui/src/common/httpsvc.service.ts` | Add `idpLogin()`, `idpPasswordResetStart()`, `idpPasswordResetConfirm()` |
-| `ui/src/assets/images/` | The xpmile logo asset for the portal (likely already there) |
+| `docker/Dockerfile.idp` (new) | Mirrors `docker/Dockerfile`; uses `ui-idp/` for the Angular stage; uses the same C++ uniservice binary in the runtime stage |
+| `docker-compose.agent.yml` | Add `agent-wsdbagent-idp` service (same `xpmile-wsdbagent` image, different `SERVER_HOST`, separate cert bind-mount); extend `xpmile-cert-watcher` to watch both cert dirs |
+| `run-agent.sh` | Extend `refresh-certs` to also extract certs for the idp image (if §11 Q1 resolves to "separate images"); extend `start`/`stop`/`status`/`logs` to enumerate both agents |
+| `.github/workflows/publish-images.yml` | Add a parallel `heroku container:release` step targeting `idp` after the existing `marvel` release. **Or** (if single image): also push the existing uniservice image to `registry.heroku.com/idp/web` |
+
+**Angular — new project:**
+
+| File | Change |
+|------|--------|
+| `ui-idp/package.json`, `angular.json`, `tsconfig.json`, ... | Standalone Angular project at `ui-idp/`. Small dependency set — Angular core, Clarity (or vanilla CSS), Forms |
+| `ui-idp/src/app/login/login.component.{ts,html,css}` | Branded login form |
+| `ui-idp/src/app/password-reset/...component.{ts,html,css}` | Reset start + confirm components |
+| `ui-idp/src/assets/images/xpmile-logo.svg` | Brand asset |
 
 **On-prem Vaadin:**
 
 | File | Change |
 |------|--------|
-| `onprem/.../ui/idp/IdpSigningKeysView.java` (new) | Admin view: generate / list / activate / delete signing keys |
-| `onprem/.../ui/idp/IdpClientsView.java` (new) | Admin view: register / list / edit RP clients |
-| `onprem/.../service/IdpSigningKeyService.java` (new) | MongoDB CRUD for `idp_signing_keys`; RSA-2048 keypair generation in Java |
-| `onprem/.../service/IdpClientService.java` (new) | MongoDB CRUD for `idp_clients` |
-| `onprem/.../ui/MainLayout.java` | Add the two new side-nav items |
+| `onprem/src/main/java/com/xpmile/onprem/ui/idp/IdpSigningKeysView.java` (new) | Admin view: generate / list / activate / delete signing keys |
+| `onprem/src/main/java/com/xpmile/onprem/ui/idp/IdpClientsView.java` (new) | Admin view: register / list / edit RP clients |
+| `onprem/src/main/java/com/xpmile/onprem/service/IdpSigningKeyService.java` (new) | MongoDB CRUD for `idp_signing_keys`; RSA-2048 keypair generation |
+| `onprem/src/main/java/com/xpmile/onprem/service/IdpClientService.java` (new) | MongoDB CRUD for `idp_clients` |
+| `onprem/src/main/java/com/xpmile/onprem/ui/MainLayout.java` | Add the two new side-nav items |
 
 **Docs:**
 
 | File | Change |
 |------|--------|
-| `codebase.md` | New section for the `inhouseidp` module and the new `DbOp::SIGN_JWT`; new collections table rows |
+| `codebase.md` | New section for `modules/module/inhouseidp/` and the new `DbOp::SIGN_JWT`; new collections in the collections table |
 | `CLAUDE.md` | New section "In-house IdP" — working conventions for the new module |
 | `docs/design/sso/sso-design.md` | One sentence linking forward: "An in-house IdP is also available; see `inhouse-idp-design.md`." |
-| `docs/operator-guide.md` (on release/v1.0) | New section on configuring the in-house IdP, signing-key rotation, registering an RP |
-
-**CI workflow:**
-
-No new path-filter entries needed — `modules/**`, `CMakeLists.txt`, `test/**`, `ui/**`, `docker/mongo-init.js`, and `onprem/**` are all already covered (or implicitly covered via the modules they sit under).
+| `docs/operator-guide.md` (on release/v1.x) | New section on configuring the in-house IdP — signing-key rotation, registering an RP, the two-agent on-prem layout |
 
 ---
 
-## 13. Risks and known limitations
+## 14. Risks and known limitations
 
-- **The on-prem signing round-trip adds latency to token issuance.** Tokens are issued at login + (with refresh) at refresh — not per-request. Empirically the wsdbagent round-trip is a few ms on a healthy connection. Acceptable, but worth measuring once Phase E is up.
-- **wsdbagent reconnect during a `SIGN_JWT` round-trip** would surface as a transient `/token` failure. The RP retries cleanly via the standard OIDC error path (`temporarily_unavailable` → user gets a "try again" page). Frequency should be very low (only during deploys).
-- **Single registered client at v1 is a soft limit.** The schema is multi-client-ready (`idp_clients`); the Vaadin view is multi-client-ready; only the documentation calls out "v1 ships with one". Adding a second client is purely configuration.
-- **Brute-force resistance is minimal in v1** (exponential backoff only). A determined attacker with a botnet could still test passwords faster than a single source. Phase 2 should add an `auth_attempts` collection with per-IP limits and a real lockout policy.
-- **No MFA.** Federated customers can require MFA at their IdP; in-house customers can't until we ship MFA. Tracked as the largest follow-up.
-- **The IdP cookie is scoped to `/api/v1/idp/`**, so the SSO experience across multiple RPs requires all RPs to redirect through the same IdP host. For different-domain RPs that's not an issue; for same-domain different-path RPs it's actually the right scope. Worth re-checking when the second RP shows up.
+- **The on-prem signing round-trip adds latency to token issuance.** Tokens are issued at login + (with refresh) at refresh — not per-request. Empirically the wsdbagent round-trip is a few ms on a healthy connection.
+- **Two agent reconnects on a CI deploy.** Each Heroku app's deploy rotates *its* CA. If we go with the "same image to both" option (§11 Q1), there's still only one CA in play. If we go with "separate builds", the on-prem operator runs through two cert refreshes per release cycle.
+- **Single registered client at v1 is a soft limit.** The schema is multi-client-ready; the Vaadin view is multi-client-ready; only the documentation calls out "v1 ships with one". Adding a second is configuration only.
+- **Brute-force resistance is minimal in v1** (per-account exponential backoff only). A distributed attacker can still test passwords faster than a single source. Phase 2 should add `auth_attempts` with per-IP limits and a real lockout policy.
+- **No MFA.** Federated customers can require MFA at their IdP; in-house customers can't until we ship MFA. Largest follow-up.
+- **The IdP UI is a separate Angular project.** Two `package.json`s, two `npm install`s in CI. Acceptable for the cleanness win, but worth noting.
+- **The marvel host can technically serve `/api/v1/idp/*`.** Returns a discovery doc with the wrong `issuer` field; standard clients reject. Not exploitable but is awkward. Belt-and-braces: Host-header gating (§11 Q10), tracked as a follow-up.
