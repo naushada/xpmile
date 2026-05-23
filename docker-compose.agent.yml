@@ -194,7 +194,12 @@ services:
       mongodb:
         condition: service_healthy
     environment:
-      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-https://${SERVER_HOST}}"
+      # Nested defaults (e.g. ${VAR:-https://${OTHER}}) trip up podman-compose's
+      # parser — the outer expansion closes at the first `}` and the second is
+      # appended as a literal, giving https://host}/api/v1/... 500s in the
+      # Vaadin app. Require XPMILE_BACKEND_BASE_URL explicitly instead; the
+      # .env.agent template already sets it.
+      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:?XPMILE_BACKEND_BASE_URL must be set in .env}"
       XPMILE_MONGO_URI: "mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin"
       XPMILE_MONGO_DATABASE: "${MONGO_DB:-xpmile}"
     ports:
