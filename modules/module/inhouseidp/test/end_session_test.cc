@@ -142,7 +142,7 @@ TEST(IdpEndSession, NoPostLogoutUri_DefaultsTo_Login) {
 
   auto r = idp::end_session({}, "xpmile_idp_session=SID1", db, reg, sm);
   EXPECT_EQ(r.status, 302);
-  EXPECT_EQ(r.location, "/login");
+  EXPECT_EQ(r.location, "/idp/login");
 }
 
 TEST(IdpEndSession, PostLogoutWithoutClientId_Returns_400) {

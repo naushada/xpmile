@@ -151,7 +151,9 @@ sso::SsoHttpResult authorize(
 
     sso::SsoHttpResult r;
     r.status     = 302;
-    r.location   = "/login";
+    // SPA route — ui-idp lives under base href /idp/ with the login
+    // page mounted on /login under it (Phase F slice 1).
+    r.location   = "/idp/login";
     r.set_cookie = build_idp_pending_cookie(req_token);
     return r;
   }

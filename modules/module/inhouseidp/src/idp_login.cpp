@@ -124,7 +124,8 @@ sso::SsoHttpResult login(
     return error_response(500, "server_error", "could not mint session");
   }
 
-  // Redirect back to /authorize with the original parameters.
+  // Build the resume URL — back to /authorize with the original
+  // parameters reconstructed from the pending_auth doc.
   std::ostringstream loc;
   loc << "/api/v1/idp/authorize"
       << "?response_type=code"
@@ -138,10 +139,28 @@ sso::SsoHttpResult login(
                            << url_encode(pending.value("code_challenge_method",
                                                       std::string{"S256"}));
 
+  // Return 200 + JSON, not 302. The SPA (ui-idp, Phase F) drives
+  // the post-login navigation itself: on this 200 it does
+  // `window.location = body.redirect_to` so the browser walks
+  // /authorize → RP redirect naturally; on a 4xx
+  // (invalid_credentials etc) it surfaces error_description via
+  // PubsubsvcService.emit_loginError instead of letting the browser
+  // render the JSON body raw. Set-Cookie still rides on the 200 so
+  // the next /authorize call carries the new session.
+  //
+  // Trade-off vs the original 302 contract documented in design §3:
+  // the no-JS happy path is no longer functional (the browser just
+  // sees a JSON page). Acceptable — the IdP portal assumes JS, the
+  // 100-line SPA is the floor of what gets shipped.
+  nlohmann::json ok_body = {
+      {"ok",          true},
+      {"redirect_to", loc.str()},
+  };
   sso::SsoHttpResult r;
-  r.status     = 302;
-  r.location   = loc.str();
-  r.set_cookie = build_idp_session_cookie(sid);
+  r.status       = 200;
+  r.content_type = "application/json";
+  r.body         = ok_body.dump();
+  r.set_cookie   = build_idp_session_cookie(sid);
   return r;
 }
 

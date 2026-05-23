@@ -105,7 +105,11 @@ void seed_valid_account(MockMongodbClient &db) {
 
 } // namespace
 
-TEST(IdpLogin, ValidCredentials_CreatesSession_RedirectsToAuthorize) {
+TEST(IdpLogin, ValidCredentials_CreatesSession_Returns200_WithRedirectTo) {
+  // Success now returns 200 + JSON body {"ok":true,"redirect_to":"..."}
+  // instead of 302 — the SPA (ui-idp Phase F) navigates itself. The
+  // Set-Cookie still rides on the 200 so the next /authorize call
+  // carries the new session.
   MockMongodbClient db;
   MockPasswordVerifier verifier;
   TestClock clock;
@@ -118,14 +122,19 @@ TEST(IdpLogin, ValidCredentials_CreatesSession_RedirectsToAuthorize) {
                        "xpmile_idp_pending=RT1",
                        db, sm, verifier, clock);
 
-  EXPECT_EQ(r.status, 302);
-  EXPECT_TRUE(r.location.rfind("/api/v1/idp/authorize?", 0) == 0)
-      << "actual: " << r.location;
-  // Original params propagated:
-  EXPECT_NE(r.location.find("client_id=xpmile-spa"),            std::string::npos);
-  EXPECT_NE(r.location.find("redirect_uri="),                   std::string::npos);
-  EXPECT_NE(r.location.find("state=RP-STATE"),                  std::string::npos);
-  EXPECT_NE(r.location.find("code_challenge_method=S256"),      std::string::npos);
+  EXPECT_EQ(r.status,       200);
+  EXPECT_EQ(r.content_type, "application/json");
+
+  auto body = nlohmann::json::parse(r.body);
+  EXPECT_TRUE(body.value("ok", false));
+  const std::string redirect_to = body.value("redirect_to", std::string{});
+  EXPECT_TRUE(redirect_to.rfind("/api/v1/idp/authorize?", 0) == 0)
+      << "actual: " << redirect_to;
+  // Original params propagated through the JSON body:
+  EXPECT_NE(redirect_to.find("client_id=xpmile-spa"),           std::string::npos);
+  EXPECT_NE(redirect_to.find("redirect_uri="),                  std::string::npos);
+  EXPECT_NE(redirect_to.find("state=RP-STATE"),                 std::string::npos);
+  EXPECT_NE(redirect_to.find("code_challenge_method=S256"),     std::string::npos);
   // Session cookie was set:
   EXPECT_NE(r.set_cookie.find("xpmile_idp_session="),           std::string::npos);
 

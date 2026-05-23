@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal placeholder logo — replace with the real xpmile mark in
+     a follow-up. SVG is inline-embeddable so it survives without an
+     <img> request. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 36" width="120" height="36" role="img" aria-label="xpmile">
+  <text x="0" y="26"
+        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Helvetica Neue, Arial, sans-serif"
+        font-size="22" font-weight="700"
+        fill="#0072a3">xpmile</text>
+  <rect x="103" y="6" width="14" height="14" rx="3" fill="#0072a3"/>
+  <path d="M107 13 l3 3 l5 -6" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

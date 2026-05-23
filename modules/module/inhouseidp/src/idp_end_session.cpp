@@ -61,7 +61,7 @@ sso::SsoHttpResult end_session(
 
   sso::SsoHttpResult r;
   r.status     = 302;
-  r.location   = post_logout.empty() ? std::string{"/login"} : post_logout;
+  r.location   = post_logout.empty() ? std::string{"/idp/login"} : post_logout;
   r.set_cookie = build_expired_cookie(kIdpSessionCookieName);
   return r;
 }

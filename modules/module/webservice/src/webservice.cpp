@@ -1110,6 +1110,44 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
     return (handle_document_GET(in, dbInst));
   } else if (!uri.compare(0, 15, "/api/v1/account")) {
     return (handle_account_GET(in, dbInst));
+  } else if (!uri.compare(0, 5, "/idp/")) {
+    // IdP login portal — ui-idp dist, baked at /opt/xAPP/webgui/idp/.
+    // Same shape as the /webui/ branch below: serve a literal file if
+    // the URI has an extension (assets, JS, CSS), otherwise fall back
+    // to index.html so the Angular router takes over the route. The
+    // SPA was built with `--base-href /idp/`, so absolute asset URLs
+    // (main.js, styles.css, favicon.ico) all start with /idp/ — they
+    // route here cleanly.
+    std::string newFile;
+    std::string ext;
+    std::size_t found = uri.find_last_of('.');
+    if (found != std::string::npos) {
+      ext     = uri.substr(found + 1);
+      newFile = "../webgui/idp" + uri.substr(4);  // strip the "/idp" prefix
+    } else {
+      newFile = "../webgui/idp/index.html";
+      ext     = "html";
+    }
+    std::ifstream ifs(newFile.c_str(), std::ios::binary);
+    if (!ifs.is_open()) {
+      // Unknown path under /idp/ — fall back to index.html so any
+      // Angular client-side route renders the SPA, not a 404.
+      newFile = "../webgui/idp/index.html";
+      ext     = "html";
+      ifs.open(newFile.c_str(), std::ios::binary);
+      if (!ifs.is_open()) {
+        json err = {{"status", "failure"}, {"cause", newFile}, {"error", 404}};
+        return build_responseERROR(err.dump(), "404 Not Found");
+      }
+    }
+    std::stringstream _str("");
+    _str << ifs.rdbuf();
+    ifs.close();
+    return (build_responseOK(_str.str(),
+                              ext == "html" ? std::string{"text/html"}
+                                            : get_contentType(ext),
+                              get_cache_control(uri.substr(5), ext)));
+
   } else if ((!uri.compare(0, 7, "/webui/"))) {
     // ACE_DEBUG((LM_DEBUG,
     //            ACE_TEXT("%D [worker:%t] %M %N:%l frontend Request %s\n"),

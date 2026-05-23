@@ -211,7 +211,7 @@ TEST(IdpAuthorize, NoSession_PersistsPendingAuth_AndRedirectsToLogin) {
   auto r = idp::authorize(valid_query(), /*cookie_header=*/"", db, reg, sm, clock);
 
   EXPECT_EQ(r.status, 302);
-  EXPECT_EQ(r.location, "/login");
+  EXPECT_EQ(r.location, "/idp/login");
   EXPECT_NE(r.set_cookie.find("xpmile_idp_pending="), std::string::npos);
 
   // Verify the pending_auth doc was persisted.
@@ -291,7 +291,7 @@ TEST(IdpAuthorize, ExpiredSession_TreatedAsNoSession) {
 
   // Expired → falls through to the "no session" path.
   EXPECT_EQ(r.status, 302);
-  EXPECT_EQ(r.location, "/login");
+  EXPECT_EQ(r.location, "/idp/login");
   ASSERT_EQ(db.creates.size(), 1u);
   EXPECT_EQ(db.creates[0].coll, "idp_pending_auth");
 }

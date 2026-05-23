@@ -92,6 +92,34 @@ COPY ui/ ./
 RUN npx ng build --configuration production --aot --base-href /webui/ --progress=false --optimization=false --build-optimizer=false --extract-licenses=false
 
 # ============================================================
+# Stage 2b: Build the IdP login portal — ui-idp
+# ============================================================
+# Same node base, separate WORKDIR so `npm ci` doesn't collide with
+# ui/. Built under `--base-href /idp/` so the SPA's <base href> +
+# all asset URLs sit under /idp/* (mirrors the /webui/ pattern for
+# marvel). No package-lock yet — first build will resolve from
+# package.json; lockfile committed in a follow-up after a real
+# `npm install` produces one.
+#
+# Per design Q1 (same image to both Heroku apps), this stage runs
+# on EVERY build — both marvel and idp dynos ship the same image
+# with both SPAs baked in. Marvel users never navigate to /idp/*,
+# idp users never navigate to /webui/* — no conflict.
+FROM node:18-alpine AS ui-idp-builder
+ENV NG_BUILD_MAX_WORKERS=1
+ENV NODE_OPTIONS=--max_old_space_size=1024
+ARG UI_BUST=0
+
+WORKDIR /ui-idp
+COPY ui-idp/package.json ./
+# No package-lock.json yet — use `npm install` (slower, less reproducible)
+# until the first build commits one. Switch to `npm ci` afterwards.
+RUN npm install --no-audit --no-fund
+
+COPY ui-idp/ ./
+RUN npx ng build --configuration production --base-href /idp/ --progress=false
+
+# ============================================================
 # Stage 3: Minimal runtime image
 # ============================================================
 FROM ubuntu:focal AS runtime
@@ -141,9 +169,12 @@ RUN mkdir -p /opt/xAPP/granada/certs /opt/xAPP/granada/agent-certs
 COPY --from=cpp-builder /src/certs/       /opt/xAPP/granada/certs/
 COPY --from=cpp-builder /src/agent-certs/ /opt/xAPP/granada/agent-certs/
 
-# Angular distribution
+# Angular distributions — marvel SPA + IdP login portal.
+# Same image deploys to both Heroku apps; each dyno effectively
+# uses one of these two trees (marvel → /webui/, idp → /idp/).
 RUN mkdir -p /opt/xAPP/webgui
-COPY --from=ui-builder /ui/dist/webui /opt/xAPP/webgui/webui
+COPY --from=ui-builder     /ui/dist/webui    /opt/xAPP/webgui/webui
+COPY --from=ui-idp-builder /ui-idp/dist/ui-idp /opt/xAPP/webgui/idp
 
 # Set CWD so that relative paths ../webgui/webui/ resolve correctly
 WORKDIR /opt/xAPP/granada
