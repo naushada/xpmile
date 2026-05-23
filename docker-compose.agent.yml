@@ -166,6 +166,42 @@ services:
       wsdbagent:
         condition: service_started
 
+  # ------------------------------------------------------------------
+  # on-prem Vaadin admin UI — SSO provider configuration (opt-in).
+  #
+  # Writes the sso_config document directly to the co-located MongoDB
+  # (sso-design.md §10) — the Heroku-side uniservice hot-reloads it
+  # via wsdbagent every ~60 s. Reachable at
+  # http://<host>:${ONPREM_PORT:-8090}/sso-config.
+  #
+  # Unauthenticated by design — sits behind the customer's physical /
+  # network access controls. Hard requirement: do not expose port 8090
+  # to the internet.
+  #
+  # Opt-in — `./run-agent.sh start` does NOT bring this up. Use
+  # `./run-agent.sh onprem-ui start` instead. The service still lives
+  # in this compose file so `down` / `logs` / `status` find it.
+  # ------------------------------------------------------------------
+  onprem-ui:
+    pull_policy: never
+    build:
+      context: ./onprem
+      dockerfile: Dockerfile
+    image: xpmile-onprem:latest
+    container_name: agent-onprem-ui
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      XPMILE_BACKEND_BASE_URL: "${XPMILE_BACKEND_BASE_URL:-https://${SERVER_HOST}}"
+      XPMILE_MONGO_URI: "mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin"
+      XPMILE_MONGO_DATABASE: "${MONGO_DB:-xpmile}"
+    ports:
+      - "${ONPREM_PORT:-8090}:8090"
+    networks:
+      - agent-net
+
 # ------------------------------------------------------------------
 # Named volume — MongoDB data persists across restarts and upgrades
 # ------------------------------------------------------------------

@@ -100,7 +100,10 @@ cmd_start() {
     $COMPOSE_CMD -f "$COMPOSE_FILE" build mongodb
   fi
 
-  $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+  # Enumerate the agent-core services explicitly. The compose file
+  # also declares `onprem-ui` (the Vaadin admin), but that is opt-in —
+  # started by `./onprem/run-onprem.sh start`, not here.
+  $COMPOSE_CMD -f "$COMPOSE_FILE" up -d mongodb wsdbagent xpmile-cert-watcher
   echo ""
   info "Waiting for MongoDB healthcheck…"
   local attempts=0
@@ -142,6 +145,7 @@ cmd_status() {
     --filter name=agent-mongo \
     --filter name=agent-wsdbagent \
     --filter name=xpmile-cert-watcher \
+    --filter name=agent-onprem-ui \
     --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
 }
 
