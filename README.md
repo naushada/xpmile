@@ -17,6 +17,12 @@ MongoDB listens on `localhost:27017` (remove that port mapping in `docker-compos
 
 ---
 
+## Running on-prem in production (Docker Hub)
+
+If you're an **operator** installing this release rather than a developer hacking on the code, follow the dedicated **[Operator guide](docs/operator-guide.md)**. It covers installing the on-prem stack (`wsdbagent` + MongoDB + cert-watcher + Vaadin admin UI) from Docker Hub images, configuring SSO providers, the cert-rotation playbook, and troubleshooting. The rest of this README is developer-oriented.
+
+---
+
 ## Running with Podman
 
 [Podman](https://podman.io) is a daemonless, rootless container engine that is a drop-in replacement for Docker on this project. All `docker compose` commands have direct `podman compose` equivalents.
