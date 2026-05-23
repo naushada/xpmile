@@ -59,7 +59,7 @@ Snapshot of the `feat/inhouse-idp` branch. Each shipped phase has a commit hash 
 | pre-A | Account split migration (Python + pytest in podman) | ✅ shipped | 12 pytest | `0fa7b1b` |
 | A pt 1 | `SIGN_JWT` wire op + cloud-side `WsdbJwtSigner` | ✅ shipped | 6 | `3616d6c` |
 | A pt 2 | `wsdbagent` `SIGN_JWT` dispatcher + on-prem RSA | ✅ shipped | 6 (end-to-end roundtrip) | `3f22993` |
-| B | Vaadin signing-key admin (Java) | ⏳ pending | — | — |
+| B | Vaadin signing-key admin (Java) | ✅ shipped (no automated tests — matches SsoConfigService posture) | — | `d47b5e4` |
 | C | JWKS endpoint + OIDC discovery doc | ✅ shipped | 18 | `eeca90d` |
 | D pt 1 | `IdpSessionManager` + `IdpClientRegistry` | ✅ shipped | 26 | `42af168` |
 | D pt 2 | IdP cookies + `/authorize` + `/login` | ✅ shipped | 27 | `829ad91` |
@@ -68,11 +68,13 @@ Snapshot of the `feat/inhouse-idp` branch. Each shipped phase has a commit hash 
 | G | Password reset (`reset_request` + `reset_confirm`) | ✅ shipped | 11 | `c0d0e26` |
 | H | CI publish to `registry.heroku.com/idp/web` + release the `idp` Heroku app | ✅ shipped (no Dockerfile.idp needed — design Q1 same-image resolution) | regression-only | (this commit) |
 | I | Two-agent on-prem compose (marvel + idp wsdbagents, shared cert family) | ✅ shipped | smoke-only (operator runs) | (this commit) |
-| J | Vaadin `IdpClientsView` + `sso_config` integration | ⏳ pending | — | — |
+| J | Vaadin `IdpClientsView` (the sso_config integration deferred) | ✅ shipped — view only; sso_config wiring still pending | — | `d47b5e4` |
 | K | Legacy `/api/v1/account/login` repoint to `idp.account` | ⏳ pending | — | — |
 | (wire 1) | `MicroService::handle_idp` skeleton + `/well-known` + `/jwks` wired | ✅ shipped | regression-only | `97490d4` |
 | (wire 2) | `/authorize` + `/userinfo` + `/end_session` wired, `IdpClientRegistry` hot-reload on `WebServer` | ✅ shipped | regression-only | `4749b84` |
-| (wire 3) | `/login` + `/token` + `/password/*` wiring | ⏳ pending — needs the 4 production `I*` impls | — | — |
+| (wire 3a) | `/login` + `/token` wired (PbkdfPasswordVerifier + WsdbJwtSigner production impls) | ✅ shipped | regression-only | `260620e` |
+| (wire 3b) | `/password/*` wiring (PbkdfPasswordHasher + SmtpEmailSender impls) | ⏳ pending | — | — |
+| (Phase F slice 1) | `ui-idp/` Angular login portal | ✅ shipped — login page only, PubsubsvcService event bus | manual | `7164108` |
 
 **Cumulative on the branch:** 118 GTest + 12 pytest, 379 / 379 total `offtarget` passes (zero regressions).
 

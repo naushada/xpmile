@@ -581,9 +581,9 @@ SSO config is secret-bearing (OIDC `clientSecret`) and lives in the `sso_config`
 | GET | `/api/v1/idp/authorize` | 2 | ✅ wired |
 | GET | `/api/v1/idp/userinfo` | 2 | ✅ wired |
 | POST | `/api/v1/idp/end_session` | 2 | ✅ wired |
-| POST | `/api/v1/idp/login` | 3 | 501 — needs `IPasswordVerifier` impl |
-| POST | `/api/v1/idp/token` | 3 | 501 — needs production `WsdbJwtSigner` wiring |
-| POST | `/api/v1/idp/password/*` | 3 | 501 — needs `IPasswordHasher` + `IEmailSender` impls |
+| POST | `/api/v1/idp/login` | 3a | ✅ wired — `PbkdfPasswordVerifier` (wraps `MongodbClient::verify_password`) |
+| POST | `/api/v1/idp/token` | 3a | ✅ wired — `WsdbJwtSigner` over `WebServer::wsDbServer()`; 503 in local-DB mode |
+| POST | `/api/v1/idp/password/*` | 3b | 501 — pending `PbkdfPasswordHasher` + `SmtpEmailSender` impls |
 
 The `IdpClientRegistry` is hot-reloaded from `idp.idp_clients` every ~60 s on a dedicated thread (`WebServer::init_idp` / `reload_idp`), mirroring the SSO config hot-reload. `WebServer::idpClientRegistry()` returns a value snapshot so concurrent reloads can't tear the read.
 
