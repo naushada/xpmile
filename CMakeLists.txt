@@ -19,7 +19,7 @@ include_directories(modules/module/webservice/inc)
 include_directories(modules/module/http/inc)
 include_directories(modules/module/mongodb/inc)
 include_directories(modules/module/email/inc)
-include_directories(modules/module/oauth2/inc)
+include_directories(modules/module/sso/inc)
 include_directories(modules/module/whatsapp/inc)
 include_directories(modules/module/thirdparty)
 include_directories(modules/module/wsdbproxy/inc)
@@ -35,7 +35,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++2a -g -Wall -Wextra")
 file(GLOB MODULE_WEBSERVICE_SOURCES "modules/module/webservice/src/*.cpp")
 file(GLOB MODULE_HTTP_SOURCES       "modules/module/http/src/*.cpp")
 file(GLOB MODULE_EMAIL_SOURCES      "modules/module/email/src/*.cpp")
-file(GLOB MODULE_OAUTH2_SOURCES     "modules/module/oauth2/src/*.cpp")
+file(GLOB MODULE_SSO_SOURCES     "modules/module/sso/src/*.cpp")
 file(GLOB MODULE_WHATSAPP_SOURCES   "modules/module/whatsapp/src/*.cpp")
 file(GLOB MODULE_WSDBPROXY_SOURCES  "modules/module/wsdbproxy/src/*.cpp")
 file(GLOB MODULE_SECURITY_SOURCES  "modules/module/security/src/*.cpp")
@@ -44,7 +44,7 @@ add_executable(uniservice
     ${MODULE_WEBSERVICE_SOURCES}
     ${MODULE_HTTP_SOURCES}
     ${MODULE_EMAIL_SOURCES}
-    ${MODULE_OAUTH2_SOURCES}
+    ${MODULE_SSO_SOURCES}
     ${MODULE_WHATSAPP_SOURCES}
     ${MODULE_WSDBPROXY_SOURCES}
     ${MODULE_SECURITY_SOURCES}

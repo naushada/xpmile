@@ -55,7 +55,7 @@ Logistics management platform. C++ HTTP server (ACE + MongoDB) serving an Angula
 │   │   │   └── wstransport.hpp   WebSocketTransport (ITransport adapter)
 │   │   ├── src/innertls.cpp
 │   │   └── test/innertls_test.cc
-│   ├── oauth2/             SSO — server-side sessions, OIDC, SAML (sso:: namespace)
+│   ├── sso/                SSO — server-side sessions, OIDC, SAML (sso:: namespace)
 │   ├── whatsapp/           WhatsApp stub
 │   └── thirdparty/         nlohmann/json (header-only)
 ├── ui/                     Angular frontend (served from /webui/)
@@ -303,7 +303,7 @@ Stub states (`RESET`, `VRFY`, `NOOP`, `EXPN`, `HELP`) return `REMAIN_IN_SAME_STA
 | `counters` | AWB sequence counter (`{"_id":"awbno","seq":N}`) |
 | `sessions` | Server-side login/SSO sessions; TTL index on `expiresAt` |
 | `sso_transactions` | One-time login correlators (OIDC `state`, SAML `InResponseTo`); TTL-expired |
-| `sso_config` | Single document — SSO provider configuration (see the oauth2 module) |
+| `sso_config` | Single document — SSO provider configuration (see the sso module) |
 | `fs.files` / `fs.chunks` | GridFS document storage |
 
 Note: the collection is named `shipping`, not `shipment`. The URL path is `/api/v1/shipment/...` but the MongoDB collection is `shipping`.
@@ -474,9 +474,9 @@ Re-run `generate.sh` to rotate. Both sides must be updated together.
 
 ---
 
-## oauth2 module — single sign-on (SSO)
+## sso module — single sign-on
 
-`modules/module/oauth2/` implements the SSO feature: server-side sessions, OIDC, and SAML 2.0. The directory name is a leftover from the original empty OAuth2 stub — every type now lives in the **`sso::` namespace**, not an `oauth2` one. The full design is `docs/design/sso/sso-design.md`; the test-first plan is `sso-tdd-plan.md`.
+`modules/module/sso/` implements the SSO feature: server-side sessions, OIDC, and SAML 2.0. Every type lives in the **`sso::` namespace**. The full design is `docs/design/sso/sso-design.md`; the test-first plan is `sso-tdd-plan.md`.
 
 **Model — backend-for-frontend (BFF).** The C++ backend is the OAuth/SAML client and runs the entire IdP handshake; IdP tokens never reach the browser. Every login — federated *or* password — mints a server-side session in the `sessions` collection, handed to the browser as an opaque `HttpOnly` cookie (`xpmile_session`). The cookie is a random id, not a JWT, so the session is revocable.
 
@@ -537,7 +537,7 @@ SSO config is secret-bearing (OIDC `clientSecret`) and lives in the `sso_config`
 
 ### Tests
 
-`modules/module/oauth2/test/sso_test.cc` — 114 unit tests; the matching session/CORS/middleware tests live in `webservice_test.cc`. None touch a live MongoDB or the network — they run against mocks behind `IMongodbClient` / `IHttpClient`, inside the standard `offtarget` binary.
+`modules/module/sso/test/sso_test.cc` — 114 unit tests; the matching session/CORS/middleware tests live in `webservice_test.cc`. None touch a live MongoDB or the network — they run against mocks behind `IMongodbClient` / `IHttpClient`, inside the standard `offtarget` binary.
 
 ---
 
@@ -643,7 +643,7 @@ Runs once on first container start (when `mongo-data` volume is empty):
 | `http` | `modules/module/http/test/` | `Http` parser: URI, query strings, headers, body (Content-Length, chunked, gzip, combined), `header()` boundary, response `status()` |
 | `webservice` | `modules/module/webservice/test/` | `MicroService`: response builders (200, 201, 302, 4xx, 5xx), `get_contentType()`, OPTIONS handler, CORS origin echo, session middleware, password-login session minting |
 | `email` | `modules/module/email/test/` | `SMTP::User` FSM: GREETING state transition via `rx()`, `SMTP::Account` population from JSON |
-| `oauth2` | `modules/module/oauth2/test/` | SSO (`sso_test.cc`): cookies, sessions + LRU cache, config parse + hot-reload, OIDC discovery/PKCE/JWKS/JWT, SAML parse/conditions/XML-DSig, hybrid provisioning, endpoint logic, CSRF |
+| `sso` | `modules/module/sso/test/` | SSO (`sso_test.cc`): cookies, sessions + LRU cache, config parse + hot-reload, OIDC discovery/PKCE/JWKS/JWT, SAML parse/conditions/XML-DSig, hybrid provisioning, endpoint logic, CSRF |
 
 The SSO phases added **127 tests** (`docs/design/sso/sso-tdd-plan.md`); zero failures is the baseline across the whole `offtarget` suite. None of the SSO tests touch a live MongoDB or the network.
 
@@ -669,8 +669,8 @@ Heroku router latency. Caveats and usage details in
 Root `CMakeLists.txt`:
 - `add_subdirectory(modules/module/mongodb)` — builds `mongodbcxx` static library
 - `option(BUILD_TESTS "Build test suite" ON)` — guards `add_subdirectory(test)`; pass `-DBUILD_TESTS=OFF` when building `wsdbagent` without GTest
-- `pkg_check_modules(XMLSEC REQUIRED xmlsec1-openssl)` — pulls in `libxml2` + `xmlsec1`, linked into `uniservice` for SAML XML-DSig verification (the oauth2 module). `wsdbagent` does not use it.
-- `add_executable(uniservice ...)` — globs all `*.cpp` from webservice, http, email, oauth2, whatsapp `src/` directories; also links in wsdbproxy sources
+- `pkg_check_modules(XMLSEC REQUIRED xmlsec1-openssl)` — pulls in `libxml2` + `xmlsec1`, linked into `uniservice` for SAML XML-DSig verification (the sso module). `wsdbagent` does not use it.
+- `add_executable(uniservice ...)` — globs all `*.cpp` from webservice, http, email, sso, whatsapp `src/` directories; also links in wsdbproxy sources
 - `add_executable(wsdbagent ...)` — globs `wsdbagent/src/*.cpp`, adds `wsdbproxy/src/dbproto.cpp` and `wsdbproxy/src/wsframe.cpp`; links `pthread ACE ACE_SSL ssl crypto mongodbcxx z`
 
 `modules/module/mongodb/CMakeLists.txt` — builds `mongodbcxx` as a separate static library target.
