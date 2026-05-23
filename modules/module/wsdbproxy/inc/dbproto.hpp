@@ -21,6 +21,12 @@ enum class DbOp : std::int32_t {
   FETCH_FILE            = 10,
   FETCH_FILE_BY_ID      = 11,
   DELETE_FILE           = 12,
+  SIGN_JWT              = 13,  ///< In-house IdP: on-prem signs a JWT.
+                               ///< Request:  db="idp", coll="idp_signing_keys",
+                               ///<           sval=kid_hint ("current" or kid),
+                               ///<           doc=to_sign bytes ("hdr.payload").
+                               ///< Response: ok, sval=kid_used, data=signature bytes.
+                               ///< See docs/design/inhouse-idp/inhouse-idp-design.md §2.
 };
 
 namespace dbproto {

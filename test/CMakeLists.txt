@@ -17,6 +17,8 @@ include_directories(../modules/module/email/inc)
 include_directories(../modules/module/email/test)
 include_directories(../modules/module/sso/inc)
 include_directories(../modules/module/sso/test)
+include_directories(../modules/module/inhouseidp/inc)
+include_directories(../modules/module/inhouseidp/test)
 include_directories(../modules/module/whatsapp/inc)
 include_directories(../modules/module/thirdparty)
 include_directories(../modules/module/wsdbproxy/inc)
@@ -65,6 +67,8 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/sso/src/sso_csrf.cpp"
     "../modules/module/sso/src/sso_authz.cpp"
     "../modules/module/sso/test/sso_test.cc"
+    "../modules/module/inhouseidp/src/wsdb_jwt_signer.cpp"
+    "../modules/module/inhouseidp/test/sign_jwt_test.cc"
     "../modules/module/mongodb/test/mongodbc_test.cc")
 
 enable_testing()
