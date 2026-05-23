@@ -59,11 +59,29 @@ The on-prem operator has two scripted entry points:
 
 ## 3. Quick start — install from Docker Hub
 
-```sh
-git clone https://github.com/naushada/xpmile.git
-cd xpmile
-git checkout release/v1.0          # pin to the v1.0 line; or use the v1.0.0 tag
+The fastest path is the one-shot installer. It sanity-checks the host (architecture, container runtime, disk, network, port 8090), pulls the multi-arch images from Docker Hub up-front, prompts for `SERVER_HOST` / `XPMILE_BACKEND_BASE_URL` if `.env` is missing, brings the stack up, and probes each container's health.
 
+**One-liner over `curl` (the script clones the rest of the repo itself):**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/naushada/xpmile/release/v1.0/install.sh | bash
+```
+
+It clones `xpmile` (branch `release/v1.0`) into `./xpmile/` and re-execs itself from inside. Override the target dir with `XPMILE_DIR=/opt/xpmile curl ... | bash`, or override the ref to pin to a specific patch tag with `XPMILE_REF=v1.0.1`. The installer is idempotent — re-running on an already-installed host is safe.
+
+**Explicit clone (preferred if you want to inspect or pin to a tag):**
+
+```sh
+git clone --branch release/v1.0 --depth 1 https://github.com/naushada/xpmile.git
+cd xpmile
+./install.sh                # ~5 min on amd64; ~20–25 min first run on a Pi
+```
+
+> **Trust note for the curl pipe.** `curl | bash` runs whatever bytes the URL serves. Read `install.sh` once if you're not sure, and pin to an immutable tag (`XPMILE_REF=v1.0.1`) rather than the rolling branch once a patch tag is available. If your organisation forbids the pattern entirely, use the explicit-clone form — the install behaviour is identical.
+
+If you'd rather do it by hand (e.g. inside an Ansible role), the underlying lifecycle scripts work directly:
+
+```sh
 cp .env.agent .env
 $EDITOR .env                       # set SERVER_HOST + XPMILE_BACKEND_BASE_URL + DB passwords
 
@@ -71,7 +89,7 @@ $EDITOR .env                       # set SERVER_HOST + XPMILE_BACKEND_BASE_URL +
 ./onprem/run-onprem.sh start       # Vaadin admin on http://localhost:8090
 ```
 
-Then open `http://localhost:8090/sso-config` in a browser and add your first SSO provider. The cloud login page picks it up within ~60 s (the C++ backend hot-reloads `sso_config`).
+Either way, open `http://localhost:8090/sso-config` in a browser after it's up and add your first SSO provider. The cloud login page picks it up within ~60 s (the C++ backend hot-reloads `sso_config`).
 
 ### Required `.env` entries
 
@@ -99,10 +117,10 @@ MONGO_DB=xpmile
 
 | Image | When | Source |
 |---|---|---|
-| `docker.io/naushada/xpmile-wsdbagent:latest` | `run-agent.sh start` | Published by CI on every push to `main`. Pin with `WSDBAGENT_IMAGE=...:<sha>`. |
+| `docker.io/naushada/xpmile-wsdbagent:latest` | `run-agent.sh start` | Published by CI on every push to `main` — multi-arch (amd64 + arm64). Pin with `WSDBAGENT_IMAGE=...:<sha>`. |
 | `docker.io/library/alpine:3.19` | `run-agent.sh start` | The cert-watcher sidecar. |
-| `xpmile-mongo:latest` | `run-agent.sh start` (first run only) | Built locally from `docker/Dockerfile.mongo` (~30 s). Small image; mongo:7 + the seed script. |
-| `xpmile-onprem:latest` | `onprem/run-onprem.sh start` (first run only) | Built locally from `onprem/Dockerfile` (Maven + JRE, ~3–5 min first run). |
+| `docker.io/library/mongo:7` | `run-agent.sh start` (first run only) | Pulled, then layered with `docker/Dockerfile.mongo` (~5 s build on top) to bake in the seed script. |
+| `docker.io/naushada/xpmile-onprem:latest` | `onprem/run-onprem.sh start` (first run only) | **Pulled when published; otherwise built locally** from `onprem/Dockerfile` (Maven + JRE, ~3–5 min on amd64, ~20 min on a Pi). `install.sh` does the pull/build automatically. |
 
 The uniservice itself isn't installed on-prem — it runs only in the cloud. `run-agent.sh refresh-certs` pulls it temporarily to extract certs, then discards it.
 
