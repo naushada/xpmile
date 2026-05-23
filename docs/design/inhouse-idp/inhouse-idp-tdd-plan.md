@@ -73,8 +73,9 @@ Snapshot of the `feat/inhouse-idp` branch. Each shipped phase has a commit hash 
 | (wire 1) | `MicroService::handle_idp` skeleton + `/well-known` + `/jwks` wired | ✅ shipped | regression-only | `97490d4` |
 | (wire 2) | `/authorize` + `/userinfo` + `/end_session` wired, `IdpClientRegistry` hot-reload on `WebServer` | ✅ shipped | regression-only | `4749b84` |
 | (wire 3a) | `/login` + `/token` wired (PbkdfPasswordVerifier + WsdbJwtSigner production impls) | ✅ shipped | regression-only | `260620e` |
-| (wire 3b) | `/password/*` wiring (PbkdfPasswordHasher + SmtpEmailSender impls) | ⏳ pending | — | — |
+| (wire 3b) | `/password/*` wiring (PbkdfPasswordHasher + SmtpEmailSender impls) | ✅ shipped | regression-only | `5663bb7` |
 | (Phase F slice 1) | `ui-idp/` Angular login portal | ✅ shipped — login page only, PubsubsvcService event bus | manual | `7164108` |
+| (Phase F slice 2) | `ui-idp/` password-reset pages — request + confirm + login-page "Forgot password?" link | ✅ shipped | manual | (this commit) |
 
 **Cumulative on the branch:** 118 GTest + 12 pytest, 379 / 379 total `offtarget` passes (zero regressions).
 

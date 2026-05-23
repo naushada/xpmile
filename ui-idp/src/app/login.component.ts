@@ -47,11 +47,15 @@ import { PubsubsvcService } from '../common/pubsubsvc.service';
                  [disabled]="pending" required />
 
           <div class="error" *ngIf="error">{{ error }}</div>
+          <div class="notice" *ngIf="notice">{{ notice }}</div>
 
           <button type="submit" class="primary" [disabled]="pending">
             {{ pending ? 'Signing in…' : 'Sign in' }}
           </button>
         </form>
+        <p class="forgot">
+          <a routerLink="/password/reset">Forgot password?</a>
+        </p>
       </section>
       <footer class="foot">© xpmile</footer>
     </main>
@@ -132,6 +136,20 @@ import { PubsubsvcService } from '../common/pubsubsvc.service';
     }
     .primary:hover:not(:disabled) { background: var(--color-primary-h); }
     .primary:disabled { background: var(--color-muted); cursor: not-allowed; }
+    .notice {
+      margin-top: 12px;
+      padding: 8px 10px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      background: #f3f8fb;
+      color: var(--color-text);
+      font-size: 13px;
+    }
+    .forgot {
+      margin: 16px 0 0;
+      text-align: center;
+      font-size: 13px;
+    }
     .foot {
       margin-top: 16px;
       color: var(--color-muted);
@@ -146,6 +164,9 @@ export class LoginComponent implements OnInit, OnDestroy {
   error    = '';
   /** Mirror of PubsubsvcService.onLoginPending — disables form. */
   pending  = false;
+  /** Mirror of onResetNotice — picks up the "password updated" banner
+   *  that PasswordResetConfirmComponent emits before routing here. */
+  notice   = '';
 
   private subs: Subscription[] = [];
 
@@ -158,6 +179,12 @@ export class LoginComponent implements OnInit, OnDestroy {
       this.pubsub.onLoginError.subscribe(msg => { this.error = msg; }));
     this.subs.push(
       this.pubsub.onLoginPending.subscribe(p => { this.pending = p; }));
+    // Picks up the post-reset "password updated" notice. We don't
+    // clear it on init — that lets the banner survive the route
+    // navigation. The user dismisses it by signing in (this component
+    // tears down on success).
+    this.subs.push(
+      this.pubsub.onResetNotice.subscribe(n => { this.notice = n; }));
   }
 
   ngOnDestroy(): void {

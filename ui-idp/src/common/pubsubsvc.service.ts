@@ -29,4 +29,23 @@ export class PubsubsvcService {
   public emit_loginPending(v: boolean): void { this.loginPendingBs$.next(v); }
   /** Publish a login error (empty string to clear). */
   public emit_loginError(msg: string): void { this.loginErrorBs$.next(msg); }
+
+  // ── Password reset (Phase F slice 2) ────────────────────────────────────
+
+  private resetPendingBs$ = new BehaviorSubject<boolean>(false);
+  private resetErrorBs$   = new BehaviorSubject<string>('');
+  private resetNoticeBs$  = new BehaviorSubject<string>('');
+
+  /** Subscribe to the in-flight indicator for the request OR confirm POST. */
+  public onResetPending = this.resetPendingBs$.asObservable();
+  /** Subscribe to the last reset-flow error — empty string means none. */
+  public onResetError   = this.resetErrorBs$.asObservable();
+  /** Subscribe to non-error notice messages (e.g. "if the address
+   *  exists we just sent a link") that the form should render in the
+   *  success spot rather than the error spot. */
+  public onResetNotice  = this.resetNoticeBs$.asObservable();
+
+  public emit_resetPending(v: boolean): void { this.resetPendingBs$.next(v); }
+  public emit_resetError(msg: string): void  { this.resetErrorBs$.next(msg); }
+  public emit_resetNotice(msg: string): void { this.resetNoticeBs$.next(msg); }
 }
