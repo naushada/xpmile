@@ -20,6 +20,7 @@ include_directories(modules/module/http/inc)
 include_directories(modules/module/mongodb/inc)
 include_directories(modules/module/email/inc)
 include_directories(modules/module/sso/inc)
+include_directories(modules/module/inhouseidp/inc)
 include_directories(modules/module/whatsapp/inc)
 include_directories(modules/module/thirdparty)
 include_directories(modules/module/wsdbproxy/inc)
@@ -36,6 +37,7 @@ file(GLOB MODULE_WEBSERVICE_SOURCES "modules/module/webservice/src/*.cpp")
 file(GLOB MODULE_HTTP_SOURCES       "modules/module/http/src/*.cpp")
 file(GLOB MODULE_EMAIL_SOURCES      "modules/module/email/src/*.cpp")
 file(GLOB MODULE_SSO_SOURCES     "modules/module/sso/src/*.cpp")
+file(GLOB MODULE_INHOUSEIDP_SOURCES "modules/module/inhouseidp/src/*.cpp")
 file(GLOB MODULE_WHATSAPP_SOURCES   "modules/module/whatsapp/src/*.cpp")
 file(GLOB MODULE_WSDBPROXY_SOURCES  "modules/module/wsdbproxy/src/*.cpp")
 file(GLOB MODULE_SECURITY_SOURCES  "modules/module/security/src/*.cpp")
@@ -45,6 +47,7 @@ add_executable(uniservice
     ${MODULE_HTTP_SOURCES}
     ${MODULE_EMAIL_SOURCES}
     ${MODULE_SSO_SOURCES}
+    ${MODULE_INHOUSEIDP_SOURCES}
     ${MODULE_WHATSAPP_SOURCES}
     ${MODULE_WSDBPROXY_SOURCES}
     ${MODULE_SECURITY_SOURCES}

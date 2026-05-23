@@ -541,6 +541,76 @@ SSO config is secret-bearing (OIDC `clientSecret`) and lives in the `sso_config`
 
 ---
 
+## inhouseidp module — in-house OIDC identity provider
+
+`modules/module/inhouseidp/` is an OIDC IdP that xpmile runs itself, so federated login does not require a third-party Okta / Auth0 subscription. Every type lives in the **`idp::` namespace**. The full design is `docs/design/inhouse-idp/inhouse-idp-design.md`; the test-first plan is `inhouse-idp-tdd-plan.md` (the *Implementation status* table tracks what has shipped vs what is still pending).
+
+**Model — two-Heroku-app, one-binary architecture.** The same `uniservice` binary serves both the marvel app (xpmile UI + API) and a second `idp` Heroku app (login portal). Which posture a dyno takes is decided at deploy time by the `IDP_ISSUER` env var — when unset (marvel dyno) every `/api/v1/idp/*` route returns 503; when set (idp dyno) the IdP routes activate. Both apps share *one* on-prem MongoDB via *two* `wsdbagent` instances behind the same NAT (Phase I — pending).
+
+**Model — on-prem JWT signing.** The cloud-side IdP never holds the RSA private key. When it needs to sign an `id_token` it sends a `SIGN_JWT` request over the existing dbproto channel to `wsdbagent`, which reads the active key from `idp.idp_signing_keys`, signs, and returns the base64url signature plus the resolved kid. `idp::WsdbJwtSigner` is the cloud-side proxy implementing `idp::IJwtSigner`; `agent::sign_jwt_on_prem` is the only code path that ever sees private key bytes.
+
+### Files
+
+| File pair | Role |
+|---|---|
+| `idp_session.*` | `IdpSessionManager` (create / lookup / revoke / revoke_all_for_account) over `idp.sessions` |
+| `idp_cookie.*` | build/parse `xpmile_idp_session` (12 h) + `xpmile_idp_pending` (10 min), both `Path=/api/v1/idp/` |
+| `idp_client_registry.*` | `IdpClientRegistry` — registered RPs (clientId, redirect/post-logout URIs, scopes, grant types) loaded from `idp.idp_clients`; exact-byte URI match |
+| `idp_discovery.*` | `build_discovery(issuer)` + `handle_idp_discovery_GET` — the static OIDC discovery doc (response_type=code only, RS256 only, S256 only) |
+| `idp_jwks.*` | `jwks_from_keys` extracts modulus + exponent via OpenSSL; `handle_idp_jwks_GET` filters notAfter-expired keys |
+| `idp_authorize.*` | `idp::authorize` — validates query (PKCE + state + scope + registry); either 302 to `/login` with `xpmile_idp_pending` cookie (no session) or mints a one-time `idp.idp_codes` doc and 302s to the RP (session valid) |
+| `idp_login.*` | `idp::login` — resolves pending cookie, checks credentials via `IPasswordVerifier`, mints session, 302s back to `/authorize` with the original params (url-encoded) |
+| `idp_token.*` | `idp::token` — atomic claim of the code (`update_collection` with `consumed:{$exists:false}` filter), PKCE check, signs via `IJwtSigner`, mints opaque access_token |
+| `idp_userinfo.*` | `idp::userinfo` — Bearer-validates against `idp.idp_access_tokens`, returns claims (case-insensitive scheme) |
+| `idp_end_session.*` | `idp::end_session` — registry-validated `post_logout_redirect_uri`, revokes session, expires cookie |
+| `idp_password_reset.*` | `reset_request` (always 200 — no enumeration) + `reset_confirm` (validates TTL, hashes, updates idp.account, revokes all sessions) |
+| `idp_password.hpp` | `IPasswordVerifier` — abstract; production wrap in Phase K |
+| `idp_password_hasher.hpp` | `IPasswordHasher` — abstract; production wrap in Phase K |
+| `idp_email_sender.hpp` | `IEmailSender` — abstract `{to, subject, body}`; production wrap of `EmailService` in slice 3 |
+| `jwt_signer.hpp` | `IJwtSigner` interface + `SignJwtResult` |
+| `wsdb_jwt_signer.*` | `WsdbJwtSigner` — production `IJwtSigner` over the dbproto `SIGN_JWT` op; rejects non-RS256 *before* wire I/O |
+
+### Wire adapter (`MicroService::handle_idp`)
+
+`process_request()` routes both `/api/v1/idp/*` and the bare `/.well-known/openid-configuration` URI to `handle_idp()`. The shape mirrors `handle_sso` — parse the `Http`, dispatch, render `SsoHttpResult` onto the wire — and reuses the same `SsoHttpResult` type because the contract is identical. `IDP_ISSUER` is read from the env on every request rather than threaded through `WebServer`, which keeps the marvel ↔ idp posture a pure deploy-time decision with zero state to plumb.
+
+| Method | Path | Slice | Status |
+|---|---|---|---|
+| GET | `/.well-known/openid-configuration` | 1 | ✅ wired |
+| GET | `/api/v1/idp/jwks` | 1 | ✅ wired |
+| GET | `/api/v1/idp/authorize` | 2 | ✅ wired |
+| GET | `/api/v1/idp/userinfo` | 2 | ✅ wired |
+| POST | `/api/v1/idp/end_session` | 2 | ✅ wired |
+| POST | `/api/v1/idp/login` | 3a | ✅ wired — `PbkdfPasswordVerifier` (wraps `MongodbClient::verify_password`) |
+| POST | `/api/v1/idp/token` | 3a | ✅ wired — `WsdbJwtSigner` over `WebServer::wsDbServer()`; 503 in local-DB mode |
+| POST | `/api/v1/idp/password/*` | 3b | 501 — pending `PbkdfPasswordHasher` + `SmtpEmailSender` impls |
+
+The `IdpClientRegistry` is hot-reloaded from `idp.idp_clients` every ~60 s on a dedicated thread (`WebServer::init_idp` / `reload_idp`), mirroring the SSO config hot-reload. `WebServer::idpClientRegistry()` returns a value snapshot so concurrent reloads can't tear the read.
+
+### Databases
+
+The `idp` database (separate from `xpmile`) is the IdP's sole store:
+
+| Collection | Purpose |
+|---|---|
+| `account` | passwordHash + email + name + role — split out of `xpmile.account` by `scripts/migrate-account-split.py` |
+| `sessions` | live IdP login sessions, keyed by the `xpmile_idp_session` cookie value |
+| `idp_clients` | registered RPs — authored by the on-prem Vaadin `IdpClientsView` (Phase J — pending) |
+| `idp_signing_keys` | RSA keypairs — authored by the on-prem Vaadin signing-key admin (Phase B — pending) |
+| `idp_pending_auth` | 10 min TTL — ties `/login` POST back to the originating `/authorize` GET |
+| `idp_codes` | 30 s TTL — one-time OIDC authorization codes (atomic-claim) |
+| `idp_access_tokens` | 1 h TTL — opaque bearer tokens used by `/userinfo` |
+| `password_reset_tokens` | 1 h TTL — one-time reset tokens |
+| `schema_version` | migration gating doc — only `xpmile` actually carries it; `idp` is the migration target |
+
+The only intentional cross-DB read is the legacy `POST /api/v1/account/login` fallback (Phase K — pending), which reads `idp.account` from the marvel-side `webservice.cpp`. Q12 of the design kept legacy password login as the fallback rather than deprecating it.
+
+### Tests
+
+118 GTest under the `Idp*` / `Jwks` / `PasswordReset*` / `SignJwt*` prefixes across nine files in `modules/module/inhouseidp/test/` + `modules/module/wsdbagent/test/sign_jwt_dispatch_test.cc`. Plus 12 pytest for the migration script. All against mocks behind `IMongodbClient` — no live MongoDB. The `IdpToken.EndToEnd_RealRsaSign_VerifyWithJwks` test signs a real id_token with a build-time-generated RSA-2048 fixture key (CMake `idp_test_keys` custom target, the same one Phase A's `SignJwtDispatch*` tests use) and verifies it with the existing `sso::verify_jwt` against a JWKS built from the matching public key. Migration pytest tests run inside an ephemeral podman container — nothing installs on the host (`scripts/Dockerfile.test` + `scripts/run-script-tests.sh`).
+
+---
+
 ## whatsapp module
 
 A stub — empty `.hpp`/`.cpp` pair compiled into `uniservice` but containing no logic. Placeholder for a future WhatsApp notification integration.

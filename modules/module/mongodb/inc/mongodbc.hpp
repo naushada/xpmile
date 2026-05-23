@@ -87,12 +87,49 @@ public:
                                    const std::string &query,
                                    const std::string &projection) = 0;
 
+  /**
+   * Cross-database read overload — the 4-arg variant lets the caller name
+   * a target database different from the connection's default. Default
+   * impl forwards to the 3-arg @c get_document (ignoring @p db), which
+   * keeps every existing test mock + caller working unchanged. Real
+   * impls in @ref MongodbClient + @ref WsMongodbProxy override to honour
+   * @p db — needed for e.g. Phase K's legacy login fallback (marvel
+   * uniservice reads @c idp.account from its xpmile-default agent).
+   * When @p db is empty, behaves identically to the 3-arg overload.
+   */
+  virtual std::string get_document(const std::string &db,
+                                   const std::string &coll,
+                                   const std::string &query,
+                                   const std::string &projection) {
+    (void)db;
+    return get_document(coll, query, projection);
+  }
+
   virtual std::string get_documents(const std::string &coll,
                                     const std::string &query,
                                     const std::string &projection) = 0;
 
   virtual std::string get_documents(const std::string &coll,
                                     const std::string &projection) = 0;
+
+  /// Cross-database overload. See @ref get_document(const std::string&,
+  /// const std::string&, const std::string&, const std::string&) above
+  /// for the rationale + default-impl behaviour.
+  virtual bool update_collection(const std::string &db,
+                                 const std::string &coll,
+                                 const std::string &filter,
+                                 const std::string &document) {
+    (void)db;
+    return update_collection(coll, filter, document);
+  }
+
+  /// Cross-database overload — see @ref get_document above.
+  virtual bool delete_document(const std::string &db,
+                               const std::string &coll,
+                               const std::string &doc) {
+    (void)db;
+    return delete_document(coll, doc);
+  }
 
   virtual std::string next_awbno(const std::string &prefix = "AWB") = 0;
 
@@ -177,6 +214,12 @@ public:
   bool update_collection(const std::string &coll, const std::string &filter,
                          const std::string &document) override;
 
+  /// Cross-database variant — when @p db is non-empty, target that
+  /// database instead of the connection's default.
+  bool update_collection(const std::string &db,
+                         const std::string &coll, const std::string &filter,
+                         const std::string &document) override;
+
   /**
    * @brief Bulk-update multiple documents using parallel filter/value arrays.
    * @param coll    Collection name.
@@ -195,6 +238,11 @@ public:
    * @return @c true if the bulk operation completed successfully.
    */
   bool delete_document(const std::string &coll, const std::string &doc) override;
+
+  /// Cross-database variant — when @p db is non-empty, target that
+  /// database instead of the connection's default.
+  bool delete_document(const std::string &db, const std::string &coll,
+                       const std::string &doc) override;
   ///@}
 
   /** @name Read operations */
@@ -207,6 +255,12 @@ public:
    * @return First matching document as a JSON string, or empty if none found.
    */
   std::string get_document(const std::string &coll, const std::string &query,
+                           const std::string &projection) override;
+
+  /// Cross-database variant — when @p db is non-empty, target that
+  /// database instead of the connection's default.
+  std::string get_document(const std::string &db,
+                           const std::string &coll, const std::string &query,
                            const std::string &projection) override;
 
   /**

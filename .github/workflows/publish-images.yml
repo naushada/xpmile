@@ -21,10 +21,14 @@
 #
 # Job 4 — xpmile-uniservice + Heroku release — needs test + bootstrap.
 # The main web app, built linux/amd64 only (Heroku Common Runtime is
-# amd64). Same image is pushed to both Docker Hub (mirror) and
-# registry.heroku.com/marvel/web in one buildx invocation, then the
-# Heroku Platform API is PATCHed to release the new image on the `web`
-# dyno.
+# amd64). One buildx invocation pushes the same image to FOUR targets:
+# Docker Hub (mirror) + registry.heroku.com/marvel/web + registry.
+# heroku.com/idp/web. Then `heroku container:release web` runs for
+# both apps. The IdP dyno's role is decided at deploy time by the
+# IDP_ISSUER config var on the `idp` app — when set, /api/v1/idp/*
+# and /.well-known/openid-configuration activate; when unset (as on
+# marvel) those routes return 503. See CLAUDE.md → In-house identity
+# provider, and the design's "Resolved during implementation" Q1.
 #
 # Tags published:
 #   docker.io/naushada/xpmile-cpp-builder:bootstrap        (rolling)
@@ -34,6 +38,7 @@
 #   docker.io/naushada/xpmile-uniservice:latest            (rolling)
 #   docker.io/naushada/xpmile-uniservice:<sha>             (immutable)
 #   registry.heroku.com/marvel/web                         (released)
+#   registry.heroku.com/idp/web                            (released)
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   DOCKERHUB_USERNAME = naushada
@@ -44,7 +49,7 @@
 #                        key, used to both push to registry.heroku.com
 #                        and call the Platform API release endpoint)
 
-name: Publish container images & release marvel
+name: Publish container images & release marvel + idp
 
 on:
   push:
@@ -123,6 +128,14 @@ env:
   WSDBAGENT_IMAGE:  docker.io/naushada/xpmile-wsdbagent
   UNISERVICE_IMAGE: docker.io/naushada/xpmile-uniservice
   HEROKU_APP:       marvel
+  # Second Heroku app — the in-house OIDC identity provider. Per
+  # docs/design/inhouse-idp/inhouse-idp-design.md §12 (Q1 resolved
+  # during implementation), the same image deploys to both apps; what
+  # turns marvel into the IdP is the IDP_ISSUER Heroku config var on
+  # this app (when set, /api/v1/idp/* + /.well-known activate; when
+  # unset they 503). Avoids drift between two CI pipelines and keeps
+  # the InnerTLS CA single across the on-prem stack.
+  HEROKU_APP_IDP:   idp
 
 jobs:
 
@@ -247,7 +260,7 @@ jobs:
           cache-to:   type=registry,ref=${{ env.WSDBAGENT_IMAGE }}:buildcache,mode=max
 
   uniservice:
-    name: Publish xpmile-uniservice + release marvel on Heroku
+    name: Publish xpmile-uniservice + release marvel + idp on Heroku
     needs: [bootstrap, test]
     # Skip on PR runs — never push to Docker Hub or release on Heroku
     # from a PR branch. Only on push to main / manual dispatch.
@@ -309,6 +322,7 @@ jobs:
             ${{ env.UNISERVICE_IMAGE }}:latest
             ${{ env.UNISERVICE_IMAGE }}:${{ github.sha }}
             registry.heroku.com/${{ env.HEROKU_APP }}/web
+            registry.heroku.com/${{ env.HEROKU_APP_IDP }}/web
           cache-from: type=registry,ref=${{ env.UNISERVICE_IMAGE }}:buildcache
           cache-to:   type=registry,ref=${{ env.UNISERVICE_IMAGE }}:buildcache,mode=max
 
@@ -325,3 +339,15 @@ jobs:
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: heroku container:release web --app "${HEROKU_APP}"
+
+      # Release the SAME image (just pushed in the build step above) on
+      # the idp Heroku app. Both apps now run identical bits; what makes
+      # the idp dyno serve IdP traffic is the IDP_ISSUER config var
+      # (set via `heroku config:set IDP_ISSUER=https://idp-<hash>.herokuapp.com --app idp`).
+      # When unset on the marvel dyno every /api/v1/idp/* + /.well-known
+      # route returns 503 — the dyno role is a deploy-time decision with
+      # zero state to plumb. See CLAUDE.md → In-house identity provider.
+      - name: Release idp on Heroku (heroku container:release web)
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: heroku container:release web --app "${HEROKU_APP_IDP}"

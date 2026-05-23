@@ -103,7 +103,20 @@ cmd_start() {
   # Enumerate the agent-core services explicitly. The compose file
   # also declares `onprem-ui` (the Vaadin admin), but that is opt-in —
   # started by `./onprem/run-onprem.sh start`, not here.
-  $COMPOSE_CMD -f "$COMPOSE_FILE" up -d mongodb wsdbagent xpmile-cert-watcher
+  #
+  # wsdbagent-idp is included only when IDP_SERVER_HOST is set in .env
+  # — that's the marker that the operator wants to run the second
+  # agent against the idp Heroku app. Marvel-only deployments skip it
+  # (the compose file's `?must be set` env validation would fail the
+  # service otherwise).
+  local services=(mongodb wsdbagent xpmile-cert-watcher)
+  if grep -qE '^IDP_SERVER_HOST=[^[:space:]]+' .env 2>/dev/null; then
+    services+=(wsdbagent-idp)
+    info "IDP_SERVER_HOST detected — bringing up wsdbagent-idp as well."
+  else
+    info "IDP_SERVER_HOST not set — wsdbagent-idp will be skipped (marvel-only stack)."
+  fi
+  $COMPOSE_CMD -f "$COMPOSE_FILE" up -d "${services[@]}"
   echo ""
   info "Waiting for MongoDB healthcheck…"
   local attempts=0
@@ -141,6 +154,9 @@ cmd_logs() {
 
 cmd_status() {
   section "Container status"
+  # agent-wsdbagent and agent-wsdbagent-idp are matched by the same
+  # `agent-wsdbagent` substring filter (podman --filter name= is a
+  # prefix match) — only one filter line needed for both.
   podman ps -a \
     --filter name=agent-mongo \
     --filter name=agent-wsdbagent \

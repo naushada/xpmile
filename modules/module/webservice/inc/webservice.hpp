@@ -30,6 +30,7 @@
 #include "ace/Timer_Queue_T.h"
 
 #include "mongodbc.hpp"
+#include "idp_client_registry.hpp"
 #include "sso_http_client.hpp"
 #include "sso_oidc.hpp"
 #include "sso_registry.hpp"
@@ -204,6 +205,26 @@ public:
    * @c sso_endpoints.hpp, and renders the @c SsoHttpResult onto the wire.
    */
   std::string handle_sso(std::string &in, IMongodbClient &dbInst);
+
+  /**
+   * @brief Adapter for the in-house IdP endpoints
+   *        — @c /.well-known/openid-configuration and @c /api/v1/idp/* .
+   *
+   * The marvel app and the IdP build from the same source tree (see
+   * @c docker/Dockerfile.idp in Phase H); this adapter is always
+   * compiled in but only meaningfully reachable on the dyno that has
+   * the IdP routes mapped (the issuer comes from the @c IDP_ISSUER
+   * env var — if unset the routes return 503).
+   *
+   * Endpoints fully wired in this slice:
+   *   GET /.well-known/openid-configuration
+   *   GET /api/v1/idp/jwks
+   * Endpoints stubbed (return 501) pending the signer / verifier /
+   * email-sender production impls — see
+   * docs/design/inhouse-idp/inhouse-idp-design.md §11 and the inhouseidp
+   * TDD plan phases B, J, K.
+   */
+  std::string handle_idp(std::string &in, IMongodbClient &dbInst);
   ///@}
 
   /** @name HTTP response builders */
@@ -403,6 +424,12 @@ public:
   /// Return the WsDbServer (null in local-MongoDB mode).
   WsDbServer *wsDbServer() { return m_wsDbServer.get(); }
 
+  /// A consistent snapshot of the live IdP client registry, by value —
+  /// the hot-reload poll thread may swap the underlying vector at any
+  /// moment. The registry is small (one or two RPs in practice), so
+  /// snapshot-by-copy is cheaper than holding a lock across the request.
+  idp::IdpClientRegistry idpClientRegistry();
+
   /// Return the semaphore used to gate concurrent database access.
   ACE_Semaphore &semaphore() const { return (*m_semaphore.get()); }
 
@@ -414,6 +441,14 @@ private:
   /// Re-read the `sso_config` document; on a change, rebuild the providers.
   /// Runs at startup and on the hot-reload poll thread.
   void reload_sso();
+
+  /// Read the `idp_clients` collection once, then start the ~60s
+  /// hot-reload poll. Called once from each constructor — running on
+  /// the marvel dyno is a no-op when the collection is empty.
+  void init_idp();
+  /// Re-read the `idp_clients` collection. Runs at startup and on the
+  /// hot-reload poll thread.
+  void reload_idp();
 
   ACE_SOCK_Stream m_stream;
   ACE_INET_Addr m_listen;
@@ -437,6 +472,15 @@ private:
   std::atomic<bool>                m_ssoReloadStop{false};
   std::unique_ptr<WsDbServer>     m_wsDbServer;
   std::unique_ptr<ACE_Semaphore>  m_semaphore;
+
+  // IdP runtime — registry of OIDC RP clients we issue tokens to. Mirrors
+  // the SSO hot-reload pattern above (~60s poll on a dedicated thread).
+  // Empty on the marvel dyno; populated on the idp dyno via the Vaadin
+  // IdpClientsView (Phase J).
+  std::mutex             m_idpMutex;
+  idp::IdpClientRegistry m_idpClientRegistry;
+  std::thread            m_idpReloadThread;
+  std::atomic<bool>      m_idpReloadStop{false};
 };
 
 #endif // WEBSERVICE_H

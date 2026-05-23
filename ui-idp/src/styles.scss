@@ -1,0 +1,31 @@
+/* Global resets + theme tokens. Hand-rolled (no Clarity import here)
+   to keep the IdP SPA tiny — login is two inputs and a button. */
+
+:root {
+  --color-bg:        #f3f5f8;
+  --color-card:      #ffffff;
+  --color-text:      #21343f;
+  --color-muted:     #54657c;
+  --color-primary:   #0072a3;   /* Clarity-blue lookalike — matches ui/ */
+  --color-primary-h: #005b82;
+  --color-danger:    #c92100;
+  --color-border:    #d3d6db;
+  --radius:          4px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               Oxygen, Ubuntu, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  height: 100%;
+}
+
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { color: var(--color-primary-h); text-decoration: underline; }

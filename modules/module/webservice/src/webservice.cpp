@@ -1,6 +1,18 @@
 #include "webservice.hpp"
 #include "emailservice.hpp"
 #include "http_parser.hpp"
+#include "idp_authorize.hpp"
+#include "idp_discovery.hpp"
+#include "idp_end_session.hpp"
+#include "idp_jwks.hpp"
+#include "idp_login.hpp"
+#include "idp_password_reset.hpp"
+#include "idp_pbkdf2_credentials.hpp"
+#include "idp_session.hpp"
+#include "idp_smtp_sender.hpp"
+#include "idp_token.hpp"
+#include "idp_userinfo.hpp"
+#include "wsdb_jwt_signer.hpp"
 #include "json.hpp"
 #include "saml_provider.hpp"
 #include "sso_cookie.hpp"
@@ -11,6 +23,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <map>
+#include <utility>
 #include <vector>
 
 using json = nlohmann::json;
@@ -387,6 +401,9 @@ std::string MicroService::handle_POST(std::string &in, IMongodbClient &dbInst) {
 
   if (!uri.compare(0, 12, "/api/v1/sso/")) {
     return (handle_sso(in, dbInst));
+
+  } else if (!uri.compare(0, 12, "/api/v1/idp/")) {
+    return (handle_idp(in, dbInst));
 
   } else if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_POST(in, dbInst));
@@ -887,8 +904,30 @@ std::string MicroService::handle_account_login_POST(std::string &in,
     auto &lc = account["loginCredentials"];
     if (lc.is_object() && lc.contains("passwordHash") &&
         lc["passwordHash"].is_string()) {
+      // Pre-migration path: xpmile.account still carries the hash
+      // nested under loginCredentials.passwordHash.
       authenticated = MongodbClient::verify_password(
           password, lc["passwordHash"].get<std::string>());
+    } else {
+      // Post-migration fallback (Phase K): the migration script
+      // unsets loginCredentials.passwordHash from xpmile.account
+      // and copies the hash to idp.account (top-level). Read it
+      // back via the dbproto cross-DB get_document overload — one
+      // wsdbagent round trip with req.db="idp", lands in
+      // idp.account on the on-prem side.
+      json idp_query      = {{"accountCode", userId}};
+      json idp_projection = {{"_id", false}};
+      std::string idp_raw = dbInst.get_document(
+          /*db=*/"idp", /*coll=*/"account",
+          idp_query.dump(), idp_projection.dump());
+      if (!idp_raw.empty()) {
+        auto idp_acct = json::parse(idp_raw);
+        if (idp_acct.contains("passwordHash") &&
+            idp_acct["passwordHash"].is_string()) {
+          authenticated = MongodbClient::verify_password(
+              password, idp_acct["passwordHash"].get<std::string>());
+        }
+      }
     }
   } catch (...) {}
 
@@ -1088,6 +1127,9 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
   std::string uri(http.uri());
   if (!uri.compare(0, 12, "/api/v1/sso/")) {
     return (handle_sso(in, dbInst));
+  } else if (!uri.compare(0, 12, "/api/v1/idp/") ||
+             uri == "/.well-known/openid-configuration") {
+    return (handle_idp(in, dbInst));
   } else if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_GET(in, dbInst));
   } else if (!uri.compare(0, 17, "/api/v1/inventory")) {
@@ -1096,6 +1138,44 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
     return (handle_document_GET(in, dbInst));
   } else if (!uri.compare(0, 15, "/api/v1/account")) {
     return (handle_account_GET(in, dbInst));
+  } else if (!uri.compare(0, 5, "/idp/")) {
+    // IdP login portal — ui-idp dist, baked at /opt/xAPP/webgui/idp/.
+    // Same shape as the /webui/ branch below: serve a literal file if
+    // the URI has an extension (assets, JS, CSS), otherwise fall back
+    // to index.html so the Angular router takes over the route. The
+    // SPA was built with `--base-href /idp/`, so absolute asset URLs
+    // (main.js, styles.css, favicon.ico) all start with /idp/ — they
+    // route here cleanly.
+    std::string newFile;
+    std::string ext;
+    std::size_t found = uri.find_last_of('.');
+    if (found != std::string::npos) {
+      ext     = uri.substr(found + 1);
+      newFile = "../webgui/idp" + uri.substr(4);  // strip the "/idp" prefix
+    } else {
+      newFile = "../webgui/idp/index.html";
+      ext     = "html";
+    }
+    std::ifstream ifs(newFile.c_str(), std::ios::binary);
+    if (!ifs.is_open()) {
+      // Unknown path under /idp/ — fall back to index.html so any
+      // Angular client-side route renders the SPA, not a 404.
+      newFile = "../webgui/idp/index.html";
+      ext     = "html";
+      ifs.open(newFile.c_str(), std::ios::binary);
+      if (!ifs.is_open()) {
+        json err = {{"status", "failure"}, {"cause", newFile}, {"error", 404}};
+        return build_responseERROR(err.dump(), "404 Not Found");
+      }
+    }
+    std::stringstream _str("");
+    _str << ifs.rdbuf();
+    ifs.close();
+    return (build_responseOK(_str.str(),
+                              ext == "html" ? std::string{"text/html"}
+                                            : get_contentType(ext),
+                              get_cache_control(uri.substr(5), ext)));
+
   } else if ((!uri.compare(0, 7, "/webui/"))) {
     // ACE_DEBUG((LM_DEBUG,
     //            ACE_TEXT("%D [worker:%t] %M %N:%l frontend Request %s\n"),
@@ -1806,6 +1886,177 @@ std::string MicroService::handle_sso(std::string &in, IMongodbClient &dbInst) {
   return rsp;
 }
 
+// ── In-house IdP endpoints ─────────────────────────────────────────────────────
+// Adapter for /.well-known/openid-configuration + /api/v1/idp/*. Same shape as
+// handle_sso: parse, dispatch to the transport-agnostic handlers in
+// modules/module/inhouseidp/inc/idp_*.hpp, render the SsoHttpResult onto the
+// wire. Reused SsoHttpResult intentionally — the contract is identical and the
+// renderer below works for both modules.
+//
+// This slice wires only the deterministic read-only routes (discovery + JWKS).
+// The routes that need a JWT signer (token), a password verifier (login), or
+// an email + password hasher (password reset) return 501 until Phase H wires
+// them; the routing exists so the next slice is a 5-line edit per route.
+std::string MicroService::handle_idp(std::string &in, IMongodbClient &dbInst) {
+  Http http(in);
+  const std::string uri(http.uri());
+  const std::string method(http.method());
+
+  // The IdP issuer is read from the IDP_ISSUER env var on every request — no
+  // WebServer state is involved, which lets the same uniservice binary serve
+  // both the marvel routes (IDP_ISSUER unset) and the idp routes (set to
+  // e.g. "https://idp-63c97365e6ef.herokuapp.com"). When unset every IdP
+  // route returns 503 — making the binary's posture toward IdP traffic a
+  // pure deploy-time decision.
+  const char *issuer_env = std::getenv("IDP_ISSUER");
+  if (!issuer_env || !*issuer_env) {
+    json err = {{"status", "failure"},
+                {"cause", "IdP not enabled on this dyno (set IDP_ISSUER)"},
+                {"error", 503}};
+    return build_responseERROR(err.dump(), "503 Service Unavailable");
+  }
+  const std::string issuer(issuer_env);
+
+  sso::SsoHttpResult res;
+  bool routed = true;
+
+  if (method == "GET" && uri == "/.well-known/openid-configuration") {
+    res = idp::handle_idp_discovery_GET(issuer);
+
+  } else if (method == "GET" && uri == "/api/v1/idp/jwks") {
+    // SystemClock here, not the WebServer's — the JWKS handler uses `now`
+    // purely to filter notAfter-expired keys, so per-request clock is fine.
+    sso::SystemClock clock;
+    res = idp::handle_idp_jwks_GET(dbInst, clock.now_unix());
+
+  } else if (method == "GET" && uri == "/api/v1/idp/authorize") {
+    if (!m_parent) {
+      json err = {{"status", "failure"},
+                  {"cause", "IdP not available — server not started"},
+                  {"error", 500}};
+      return build_responseERROR(err.dump(), "500 Internal Server Error");
+    }
+    // Snapshot the registry (concurrent reload-safe) and construct a
+    // session manager — both cheap, no per-process state to plumb.
+    idp::IdpClientRegistry reg = m_parent->idpClientRegistry();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    std::map<std::string, std::string> q;
+    for (const char *k : {"response_type", "client_id", "redirect_uri",
+                            "scope", "state", "nonce",
+                            "code_challenge", "code_challenge_method"}) {
+      std::string v = http.get_element(k);
+      if (!v.empty()) q[k] = std::move(v);
+    }
+    res = idp::authorize(q, http.get_element("cookie"),
+                          dbInst, reg, sm, clock);
+
+  } else if (method == "GET" && uri == "/api/v1/idp/userinfo") {
+    sso::SystemClock clock;
+    res = idp::userinfo(http.get_element("authorization"), dbInst, clock);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/end_session") {
+    if (!m_parent) {
+      json err = {{"status", "failure"},
+                  {"cause", "IdP not available — server not started"},
+                  {"error", 500}};
+      return build_responseERROR(err.dump(), "500 Internal Server Error");
+    }
+    idp::IdpClientRegistry reg = m_parent->idpClientRegistry();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    std::map<std::string, std::string> q;
+    for (const char *k : {"client_id", "post_logout_redirect_uri"}) {
+      std::string v = http.get_element(k);
+      if (!v.empty()) q[k] = std::move(v);
+    }
+    res = idp::end_session(q, http.get_element("cookie"),
+                            dbInst, reg, sm);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/login") {
+    // Form fields: user + password, body is application/x-www-form-
+    // urlencoded (the ui-idp SPA POSTs that shape; see Phase F).
+    const std::string body = http.body();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    idp::PbkdfPasswordVerifier verifier;
+    res = idp::login(sso_form_field(body, "user"),
+                       sso_form_field(body, "password"),
+                       http.get_element("cookie"),
+                       dbInst, sm, verifier, clock);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/token") {
+    // /token signs the id_token via WsdbJwtSigner → wsdbagent
+    // SIGN_JWT op → on-prem RSA. The signer needs a WsDbServer
+    // (IWsDispatcher); in local-DB mode there is none, so /token
+    // can only serve traffic on a --remote-db dyno (which is what
+    // Heroku always uses).
+    if (!m_parent || !m_parent->wsDbServer()) {
+      json err = {{"status", "failure"},
+                  {"cause", "/token requires --remote-db mode (wsdbagent)"},
+                  {"error", 503}};
+      return build_responseERROR(err.dump(), "503 Service Unavailable");
+    }
+    const std::string body = http.body();
+    std::map<std::string, std::string> form;
+    for (const char *k : {"grant_type", "code", "code_verifier",
+                            "client_id", "client_secret", "redirect_uri"}) {
+      std::string v = sso_form_field(body, k);
+      if (!v.empty()) form[k] = std::move(v);
+    }
+    sso::SystemClock clock;
+    idp::WsdbJwtSigner signer(*m_parent->wsDbServer());
+    res = idp::token(form, dbInst, signer, issuer, clock);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/password/reset_request") {
+    // Body shape: application/x-www-form-urlencoded with `email`
+    // (preferred) or `accountCode`. ALWAYS returns 200 — no
+    // enumeration of which addresses exist.
+    const std::string body = http.body();
+    sso::SystemClock clock;
+    idp::SmtpEmailSender sender;
+    idp::PasswordResetConfig cfg;
+    cfg.portal_base_url = issuer;   // IDP_ISSUER for the {portal}/idp/password/reset?token=… link
+    cfg.from_address    = std::getenv("SMTP_FROM_EMAIL") ? std::getenv("SMTP_FROM_EMAIL") : "";
+    res = idp::reset_request(sso_form_field(body, "email"),
+                               sso_form_field(body, "accountCode"),
+                               dbInst, sender, clock, cfg);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/password/reset_confirm") {
+    const std::string body = http.body();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    idp::PbkdfPasswordHasher hasher;
+    idp::PasswordResetConfig cfg;
+    cfg.portal_base_url = issuer;
+    res = idp::reset_confirm(sso_form_field(body, "token"),
+                               sso_form_field(body, "new_password"),
+                               dbInst, hasher, sm, clock, cfg);
+
+  } else if (method == "POST" && !uri.compare(0, 24, "/api/v1/idp/password/")) { routed = false; }
+  else                                                                  { routed = false; }
+
+  if (!routed) {
+    // Known-shape but not-yet-wired vs truly unknown — same 501 today; will
+    // diverge in the next slice when wiring lands.
+    json err = {{"status", "failure"},
+                {"cause", "IdP route not yet wired (see Phase H)"},
+                {"error", 501}};
+    return build_responseERROR(err.dump(), "501 Not Implemented");
+  }
+
+  std::string rsp;
+  switch (res.status) {
+  case 302: rsp = build_redirect(res.location);              break;
+  case 400: rsp = build_responseERROR(res.body, "400 Bad Request");    break;
+  case 401: rsp = build_responseERROR(res.body, "401 Unauthorized");   break;
+  default:  rsp = build_responseOK(res.body, res.content_type);        break;
+  }
+  if (!res.set_cookie.empty())
+    rsp = attach_set_cookie(rsp, res.set_cookie);
+  return rsp;
+}
+
 ACE_INT32 MicroService::handle_signal(int signum, siginfo_t *s, ucontext_t *u) {
   ACE_UNUSED_ARG(s);
   ACE_UNUSED_ARG(u);
@@ -2088,6 +2339,45 @@ WebServer::ssoProvider(const std::string &id) {
   return it != m_ssoProviders.end() ? it->second : nullptr;
 }
 
+// Load the IdP client registry once, then start the hot-reload poll. On the
+// marvel dyno the idp_clients collection is empty, so the registry stays
+// empty and every /authorize call returns "unknown client_id" — that's the
+// right behaviour for a dyno that never serves IdP traffic.
+void WebServer::init_idp() {
+  reload_idp();
+  m_idpReloadThread = std::thread([this] {
+    while (!m_idpReloadStop.load()) {
+      for (int i = 0; i < 60 && !m_idpReloadStop.load(); ++i)
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      if (!m_idpReloadStop.load())
+        reload_idp();
+    }
+  });
+}
+
+void WebServer::reload_idp() {
+  // Build into a fresh registry first, then swap under the lock — keeps the
+  // critical section to a single move and lets the previous snapshot remain
+  // readable from concurrent handlers all the way through.
+  idp::IdpClientRegistry next;
+  const std::int32_t loaded = next.reload(*mMongodbc);
+  {
+    std::lock_guard<std::mutex> guard(m_idpMutex);
+    m_idpClientRegistry = std::move(next);
+  }
+  if (loaded > 0) {
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServer:%t] %M %N:%l IdP client registry "
+                        "loaded — %d client(s) ready\n"),
+               static_cast<int>(loaded)));
+  }
+}
+
+idp::IdpClientRegistry WebServer::idpClientRegistry() {
+  std::lock_guard<std::mutex> guard(m_idpMutex);
+  return m_idpClientRegistry;  // value snapshot
+}
+
 WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
                      ACE_UINT32 workerPool, std::string dbUri,
                      std::string dbConnPool, std::string dbName) {
@@ -2130,6 +2420,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   mMongodbc = std::make_unique<MongodbClient>(uri);
   m_sessionManager = std::make_unique<sso::SessionManager>(*mMongodbc, m_clock);
   init_sso();
+  init_idp();
 
   m_semaphore = std::make_unique<ACE_Semaphore>();
 
@@ -2177,6 +2468,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   mMongodbc   = std::move(db);
   m_sessionManager = std::make_unique<sso::SessionManager>(*mMongodbc, m_clock);
   init_sso();
+  init_idp();
   m_wsDbServer = std::move(wsServer);
   m_semaphore = std::make_unique<ACE_Semaphore>();
 
@@ -2206,10 +2498,14 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
 }
 
 WebServer::~WebServer() {
-  // Stop the SSO hot-reload poll before tearing down the resources it touches.
+  // Stop both reload polls before tearing down the resources they touch.
   m_ssoReloadStop.store(true);
   if (m_ssoReloadThread.joinable())
     m_ssoReloadThread.join();
+
+  m_idpReloadStop.store(true);
+  if (m_idpReloadThread.joinable())
+    m_idpReloadThread.join();
 
   mMongodbc.reset(nullptr);
 

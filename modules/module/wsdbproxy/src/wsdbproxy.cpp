@@ -585,21 +585,26 @@ dbproto::DbResponse WsMongodbProxy::roundtrip(DbOp op,
 
 // ── IMongodbClient overrides ──────────────────────────────────────────────────
 
-std::string WsMongodbProxy::create_document(const std::string& /*dbName*/,
+std::string WsMongodbProxy::create_document(const std::string& dbName,
                                              const std::string& coll,
                                              const std::string& doc)
 {
-  auto rsp = roundtrip(DbOp::CREATE_DOCUMENT, {}, coll, json_to_bson(doc));
+  // FIX: dbName used to be discarded (the proxy sent {} as req.db),
+  // so e.g. db.create_document("idp", "sessions", …) silently landed
+  // in xpmile.sessions on the on-prem side. The wsdbagent now honors
+  // req.db when non-empty (and still falls back to its startup
+  // --mongo-db-name when empty), so writes now route correctly.
+  auto rsp = roundtrip(DbOp::CREATE_DOCUMENT, dbName, coll, json_to_bson(doc));
   return rsp.ok ? rsp.sval : std::string{};
 }
 
-std::int32_t WsMongodbProxy::create_bulk_document(const std::string& /*dbName*/,
+std::int32_t WsMongodbProxy::create_bulk_document(const std::string& dbName,
                                                    const std::string& coll,
                                                    const std::string& doc)
 {
   // doc is a JSON object/array; embed raw bytes
   std::vector<std::uint8_t> raw(doc.begin(), doc.end());
-  auto rsp = roundtrip(DbOp::CREATE_BULK_DOCUMENT, {}, coll, raw);
+  auto rsp = roundtrip(DbOp::CREATE_BULK_DOCUMENT, dbName, coll, raw);
   return rsp.ok ? rsp.ival : 0;
 }
 
@@ -607,7 +612,15 @@ bool WsMongodbProxy::update_collection(const std::string& coll,
                                         const std::string& filter,
                                         const std::string& document)
 {
-  auto rsp = roundtrip(DbOp::UPDATE_COLLECTION, {}, coll,
+  return update_collection(std::string{}, coll, filter, document);
+}
+
+bool WsMongodbProxy::update_collection(const std::string& db,
+                                        const std::string& coll,
+                                        const std::string& filter,
+                                        const std::string& document)
+{
+  auto rsp = roundtrip(DbOp::UPDATE_COLLECTION, db, coll,
                         json_to_bson(filter), json_to_bson(document));
   return rsp.ok && rsp.bval;
 }
@@ -629,7 +642,14 @@ std::int32_t WsMongodbProxy::update_bulk_document(
 bool WsMongodbProxy::delete_document(const std::string& coll,
                                       const std::string& doc)
 {
-  auto rsp = roundtrip(DbOp::DELETE_DOCUMENT, {}, coll, json_to_bson(doc));
+  return delete_document(std::string{}, coll, doc);
+}
+
+bool WsMongodbProxy::delete_document(const std::string& db,
+                                      const std::string& coll,
+                                      const std::string& doc)
+{
+  auto rsp = roundtrip(DbOp::DELETE_DOCUMENT, db, coll, json_to_bson(doc));
   return rsp.ok && rsp.bval;
 }
 
@@ -637,7 +657,15 @@ std::string WsMongodbProxy::get_document(const std::string& coll,
                                           const std::string& query,
                                           const std::string& projection)
 {
-  auto rsp = roundtrip(DbOp::GET_DOCUMENT, {}, coll,
+  return get_document(std::string{}, coll, query, projection);
+}
+
+std::string WsMongodbProxy::get_document(const std::string& db,
+                                          const std::string& coll,
+                                          const std::string& query,
+                                          const std::string& projection)
+{
+  auto rsp = roundtrip(DbOp::GET_DOCUMENT, db, coll,
                         json_to_bson(query), json_to_bson(projection));
   return rsp.ok ? rsp.sval : std::string{};
 }
