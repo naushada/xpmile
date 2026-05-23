@@ -19,6 +19,7 @@ include_directories(../modules/module/sso/inc)
 include_directories(../modules/module/sso/test)
 include_directories(../modules/module/inhouseidp/inc)
 include_directories(../modules/module/inhouseidp/test)
+include_directories(../modules/module/wsdbagent/inc)
 include_directories(../modules/module/whatsapp/inc)
 include_directories(../modules/module/thirdparty)
 include_directories(../modules/module/wsdbproxy/inc)
@@ -69,12 +70,42 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/sso/test/sso_test.cc"
     "../modules/module/inhouseidp/src/wsdb_jwt_signer.cpp"
     "../modules/module/inhouseidp/test/sign_jwt_test.cc"
+    "../modules/module/wsdbagent/src/sign_jwt_on_prem.cpp"
+    "../modules/module/wsdbagent/test/sign_jwt_dispatch_test.cc"
     "../modules/module/mongodb/test/mongodbc_test.cc")
+
+# ── In-house IdP test RSA keypair fixture ─────────────────────────────────────
+# Generated once at CMake build time (no key material in git). Tests that
+# need to RS256-sign-then-verify read these via the
+# IDP_TEST_PRIV_KEY_PATH / IDP_TEST_PUB_KEY_PATH compile definitions.
+set(IDP_TEST_KEY_DIR ${CMAKE_BINARY_DIR}/idp_test_keys)
+set(IDP_TEST_PRIV_KEY ${IDP_TEST_KEY_DIR}/private.pem)
+set(IDP_TEST_PUB_KEY  ${IDP_TEST_KEY_DIR}/public.pem)
+
+add_custom_command(
+    OUTPUT  ${IDP_TEST_PRIV_KEY} ${IDP_TEST_PUB_KEY}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${IDP_TEST_KEY_DIR}
+    COMMAND openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
+                            -outform PEM -out ${IDP_TEST_PRIV_KEY}
+    COMMAND openssl rsa -in ${IDP_TEST_PRIV_KEY}
+                        -pubout -out ${IDP_TEST_PUB_KEY}
+    COMMENT "Generating in-house IdP test RSA-2048 keypair"
+    VERBATIM)
+
+add_custom_target(idp_test_keys ALL
+    DEPENDS ${IDP_TEST_PRIV_KEY} ${IDP_TEST_PUB_KEY})
 
 enable_testing()
 
 add_executable(offtarget ${SOURCES})
 target_link_libraries(offtarget gtest_main)
+
+# Make the offtarget build depend on the test keypair existing, and expose
+# the paths to the test code via preprocessor macros.
+add_dependencies(offtarget idp_test_keys)
+target_compile_definitions(offtarget PRIVATE
+    IDP_TEST_PRIV_KEY_PATH="${IDP_TEST_PRIV_KEY}"
+    IDP_TEST_PUB_KEY_PATH="${IDP_TEST_PUB_KEY}")
 
 target_link_libraries(offtarget pthread)
 target_link_libraries(offtarget ACE)

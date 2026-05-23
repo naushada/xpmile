@@ -21,6 +21,7 @@
 #include "ace/SSL/SSL_Context.h"
 
 #include "json.hpp"
+#include "sign_jwt_on_prem.hpp"  // in-house IdP: SIGN_JWT dispatch
 #include "wstransport.hpp"
 #include "wsframe.hpp"
 
@@ -433,6 +434,13 @@ std::vector<std::uint8_t> WsDbAgent::dispatch(const dbproto::DbRequest &req)
     case DbOp::DELETE_FILE:
       rsp.bval = m_db->delete_file(req.sval);
       rsp.ok   = true;
+      break;
+
+    case DbOp::SIGN_JWT:
+      // In-house IdP signing op (design §2). Reads
+      // idp.idp_signing_keys, signs with RS256, returns the signature
+      // bytes in rsp.data and the resolved kid in rsp.sval.
+      agent::sign_jwt_on_prem(*m_db, req, rsp);
       break;
 
     default:
