@@ -1,6 +1,8 @@
 #include "webservice.hpp"
 #include "emailservice.hpp"
 #include "http_parser.hpp"
+#include "idp_discovery.hpp"
+#include "idp_jwks.hpp"
 #include "json.hpp"
 #include "saml_provider.hpp"
 #include "sso_cookie.hpp"
@@ -387,6 +389,9 @@ std::string MicroService::handle_POST(std::string &in, IMongodbClient &dbInst) {
 
   if (!uri.compare(0, 12, "/api/v1/sso/")) {
     return (handle_sso(in, dbInst));
+
+  } else if (!uri.compare(0, 12, "/api/v1/idp/")) {
+    return (handle_idp(in, dbInst));
 
   } else if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_POST(in, dbInst));
@@ -1088,6 +1093,9 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
   std::string uri(http.uri());
   if (!uri.compare(0, 12, "/api/v1/sso/")) {
     return (handle_sso(in, dbInst));
+  } else if (!uri.compare(0, 12, "/api/v1/idp/") ||
+             uri == "/.well-known/openid-configuration") {
+    return (handle_idp(in, dbInst));
   } else if (!uri.compare(0, 16, "/api/v1/shipment")) {
     return (handle_shipment_GET(in, dbInst));
   } else if (!uri.compare(0, 17, "/api/v1/inventory")) {
@@ -1800,6 +1808,78 @@ std::string MicroService::handle_sso(std::string &in, IMongodbClient &dbInst) {
   default:
     rsp = build_responseOK(res.body, res.content_type);
     break;
+  }
+  if (!res.set_cookie.empty())
+    rsp = attach_set_cookie(rsp, res.set_cookie);
+  return rsp;
+}
+
+// ── In-house IdP endpoints ─────────────────────────────────────────────────────
+// Adapter for /.well-known/openid-configuration + /api/v1/idp/*. Same shape as
+// handle_sso: parse, dispatch to the transport-agnostic handlers in
+// modules/module/inhouseidp/inc/idp_*.hpp, render the SsoHttpResult onto the
+// wire. Reused SsoHttpResult intentionally — the contract is identical and the
+// renderer below works for both modules.
+//
+// This slice wires only the deterministic read-only routes (discovery + JWKS).
+// The routes that need a JWT signer (token), a password verifier (login), or
+// an email + password hasher (password reset) return 501 until Phase H wires
+// them; the routing exists so the next slice is a 5-line edit per route.
+std::string MicroService::handle_idp(std::string &in, IMongodbClient &dbInst) {
+  Http http(in);
+  const std::string uri(http.uri());
+  const std::string method(http.method());
+
+  // The IdP issuer is read from the IDP_ISSUER env var on every request — no
+  // WebServer state is involved, which lets the same uniservice binary serve
+  // both the marvel routes (IDP_ISSUER unset) and the idp routes (set to
+  // e.g. "https://idp-63c97365e6ef.herokuapp.com"). When unset every IdP
+  // route returns 503 — making the binary's posture toward IdP traffic a
+  // pure deploy-time decision.
+  const char *issuer_env = std::getenv("IDP_ISSUER");
+  if (!issuer_env || !*issuer_env) {
+    json err = {{"status", "failure"},
+                {"cause", "IdP not enabled on this dyno (set IDP_ISSUER)"},
+                {"error", 503}};
+    return build_responseERROR(err.dump(), "503 Service Unavailable");
+  }
+  const std::string issuer(issuer_env);
+
+  sso::SsoHttpResult res;
+  bool routed = true;
+
+  if (method == "GET" && uri == "/.well-known/openid-configuration") {
+    res = idp::handle_idp_discovery_GET(issuer);
+
+  } else if (method == "GET" && uri == "/api/v1/idp/jwks") {
+    // SystemClock here, not the WebServer's — the JWKS handler uses `now`
+    // purely to filter notAfter-expired keys, so per-request clock is fine.
+    sso::SystemClock clock;
+    res = idp::handle_idp_jwks_GET(dbInst, clock.now_unix());
+
+  } else if (method == "GET"  && uri == "/api/v1/idp/authorize")        { routed = false; }
+  else if   (method == "POST" && uri == "/api/v1/idp/login")            { routed = false; }
+  else if   (method == "POST" && uri == "/api/v1/idp/token")            { routed = false; }
+  else if   (method == "GET"  && uri == "/api/v1/idp/userinfo")         { routed = false; }
+  else if   (method == "POST" && uri == "/api/v1/idp/end_session")      { routed = false; }
+  else if   (method == "POST" && !uri.compare(0, 24, "/api/v1/idp/password/")) { routed = false; }
+  else                                                                  { routed = false; }
+
+  if (!routed) {
+    // Known-shape but not-yet-wired vs truly unknown — same 501 today; will
+    // diverge in the next slice when wiring lands.
+    json err = {{"status", "failure"},
+                {"cause", "IdP route not yet wired (see Phase H)"},
+                {"error", 501}};
+    return build_responseERROR(err.dump(), "501 Not Implemented");
+  }
+
+  std::string rsp;
+  switch (res.status) {
+  case 302: rsp = build_redirect(res.location);              break;
+  case 400: rsp = build_responseERROR(res.body, "400 Bad Request");    break;
+  case 401: rsp = build_responseERROR(res.body, "401 Unauthorized");   break;
+  default:  rsp = build_responseOK(res.body, res.content_type);        break;
   }
   if (!res.set_cookie.empty())
     rsp = attach_set_cookie(rsp, res.set_cookie);

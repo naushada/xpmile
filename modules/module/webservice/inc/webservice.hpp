@@ -204,6 +204,26 @@ public:
    * @c sso_endpoints.hpp, and renders the @c SsoHttpResult onto the wire.
    */
   std::string handle_sso(std::string &in, IMongodbClient &dbInst);
+
+  /**
+   * @brief Adapter for the in-house IdP endpoints
+   *        — @c /.well-known/openid-configuration and @c /api/v1/idp/* .
+   *
+   * The marvel app and the IdP build from the same source tree (see
+   * @c docker/Dockerfile.idp in Phase H); this adapter is always
+   * compiled in but only meaningfully reachable on the dyno that has
+   * the IdP routes mapped (the issuer comes from the @c IDP_ISSUER
+   * env var — if unset the routes return 503).
+   *
+   * Endpoints fully wired in this slice:
+   *   GET /.well-known/openid-configuration
+   *   GET /api/v1/idp/jwks
+   * Endpoints stubbed (return 501) pending the signer / verifier /
+   * email-sender production impls — see
+   * docs/design/inhouse-idp/inhouse-idp-design.md §11 and the inhouseidp
+   * TDD plan phases B, J, K.
+   */
+  std::string handle_idp(std::string &in, IMongodbClient &dbInst);
   ///@}
 
   /** @name HTTP response builders */
