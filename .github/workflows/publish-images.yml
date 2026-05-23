@@ -67,6 +67,7 @@ on:
       - 'modules/**'
       - 'test/**'
       - 'ui/**'
+      - 'ui-idp/**'
       - 'certs/**'
       # Operator-facing scripts + compose files: changes here can break the
       # on-prem stack or deploy path even when the C++ binaries are unchanged.
@@ -97,6 +98,7 @@ on:
       - 'modules/**'
       - 'test/**'
       - 'ui/**'
+      - 'ui-idp/**'
       - 'certs/**'
       # Operator-facing scripts + compose files: changes here can break the
       # on-prem stack or deploy path even when the C++ binaries are unchanged.
