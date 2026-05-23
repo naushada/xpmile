@@ -6,8 +6,10 @@
 #include "idp_end_session.hpp"
 #include "idp_jwks.hpp"
 #include "idp_login.hpp"
+#include "idp_password_reset.hpp"
 #include "idp_pbkdf2_credentials.hpp"
 #include "idp_session.hpp"
+#include "idp_smtp_sender.hpp"
 #include "idp_token.hpp"
 #include "idp_userinfo.hpp"
 #include "wsdb_jwt_signer.hpp"
@@ -2005,6 +2007,31 @@ std::string MicroService::handle_idp(std::string &in, IMongodbClient &dbInst) {
     sso::SystemClock clock;
     idp::WsdbJwtSigner signer(*m_parent->wsDbServer());
     res = idp::token(form, dbInst, signer, issuer, clock);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/password/reset_request") {
+    // Body shape: application/x-www-form-urlencoded with `email`
+    // (preferred) or `accountCode`. ALWAYS returns 200 — no
+    // enumeration of which addresses exist.
+    const std::string body = http.body();
+    sso::SystemClock clock;
+    idp::SmtpEmailSender sender;
+    idp::PasswordResetConfig cfg;
+    cfg.portal_base_url = issuer;   // IDP_ISSUER for the {portal}/idp/password/reset?token=… link
+    cfg.from_address    = std::getenv("SMTP_FROM_EMAIL") ? std::getenv("SMTP_FROM_EMAIL") : "";
+    res = idp::reset_request(sso_form_field(body, "email"),
+                               sso_form_field(body, "accountCode"),
+                               dbInst, sender, clock, cfg);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/password/reset_confirm") {
+    const std::string body = http.body();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    idp::PbkdfPasswordHasher hasher;
+    idp::PasswordResetConfig cfg;
+    cfg.portal_base_url = issuer;
+    res = idp::reset_confirm(sso_form_field(body, "token"),
+                               sso_form_field(body, "new_password"),
+                               dbInst, hasher, sm, clock, cfg);
 
   } else if (method == "POST" && !uri.compare(0, 24, "/api/v1/idp/password/")) { routed = false; }
   else                                                                  { routed = false; }
