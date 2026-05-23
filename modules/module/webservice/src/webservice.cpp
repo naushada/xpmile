@@ -1,8 +1,12 @@
 #include "webservice.hpp"
 #include "emailservice.hpp"
 #include "http_parser.hpp"
+#include "idp_authorize.hpp"
 #include "idp_discovery.hpp"
+#include "idp_end_session.hpp"
 #include "idp_jwks.hpp"
+#include "idp_session.hpp"
+#include "idp_userinfo.hpp"
 #include "json.hpp"
 #include "saml_provider.hpp"
 #include "sso_cookie.hpp"
@@ -13,6 +17,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <map>
+#include <utility>
 #include <vector>
 
 using json = nlohmann::json;
@@ -1857,11 +1863,52 @@ std::string MicroService::handle_idp(std::string &in, IMongodbClient &dbInst) {
     sso::SystemClock clock;
     res = idp::handle_idp_jwks_GET(dbInst, clock.now_unix());
 
-  } else if (method == "GET"  && uri == "/api/v1/idp/authorize")        { routed = false; }
-  else if   (method == "POST" && uri == "/api/v1/idp/login")            { routed = false; }
+  } else if (method == "GET" && uri == "/api/v1/idp/authorize") {
+    if (!m_parent) {
+      json err = {{"status", "failure"},
+                  {"cause", "IdP not available — server not started"},
+                  {"error", 500}};
+      return build_responseERROR(err.dump(), "500 Internal Server Error");
+    }
+    // Snapshot the registry (concurrent reload-safe) and construct a
+    // session manager — both cheap, no per-process state to plumb.
+    idp::IdpClientRegistry reg = m_parent->idpClientRegistry();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    std::map<std::string, std::string> q;
+    for (const char *k : {"response_type", "client_id", "redirect_uri",
+                            "scope", "state", "nonce",
+                            "code_challenge", "code_challenge_method"}) {
+      std::string v = http.get_element(k);
+      if (!v.empty()) q[k] = std::move(v);
+    }
+    res = idp::authorize(q, http.get_element("cookie"),
+                          dbInst, reg, sm, clock);
+
+  } else if (method == "GET" && uri == "/api/v1/idp/userinfo") {
+    sso::SystemClock clock;
+    res = idp::userinfo(http.get_element("authorization"), dbInst, clock);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/end_session") {
+    if (!m_parent) {
+      json err = {{"status", "failure"},
+                  {"cause", "IdP not available — server not started"},
+                  {"error", 500}};
+      return build_responseERROR(err.dump(), "500 Internal Server Error");
+    }
+    idp::IdpClientRegistry reg = m_parent->idpClientRegistry();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    std::map<std::string, std::string> q;
+    for (const char *k : {"client_id", "post_logout_redirect_uri"}) {
+      std::string v = http.get_element(k);
+      if (!v.empty()) q[k] = std::move(v);
+    }
+    res = idp::end_session(q, http.get_element("cookie"),
+                            dbInst, reg, sm);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/login")            { routed = false; }
   else if   (method == "POST" && uri == "/api/v1/idp/token")            { routed = false; }
-  else if   (method == "GET"  && uri == "/api/v1/idp/userinfo")         { routed = false; }
-  else if   (method == "POST" && uri == "/api/v1/idp/end_session")      { routed = false; }
   else if   (method == "POST" && !uri.compare(0, 24, "/api/v1/idp/password/")) { routed = false; }
   else                                                                  { routed = false; }
 
@@ -2168,6 +2215,45 @@ WebServer::ssoProvider(const std::string &id) {
   return it != m_ssoProviders.end() ? it->second : nullptr;
 }
 
+// Load the IdP client registry once, then start the hot-reload poll. On the
+// marvel dyno the idp_clients collection is empty, so the registry stays
+// empty and every /authorize call returns "unknown client_id" — that's the
+// right behaviour for a dyno that never serves IdP traffic.
+void WebServer::init_idp() {
+  reload_idp();
+  m_idpReloadThread = std::thread([this] {
+    while (!m_idpReloadStop.load()) {
+      for (int i = 0; i < 60 && !m_idpReloadStop.load(); ++i)
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      if (!m_idpReloadStop.load())
+        reload_idp();
+    }
+  });
+}
+
+void WebServer::reload_idp() {
+  // Build into a fresh registry first, then swap under the lock — keeps the
+  // critical section to a single move and lets the previous snapshot remain
+  // readable from concurrent handlers all the way through.
+  idp::IdpClientRegistry next;
+  const std::int32_t loaded = next.reload(*mMongodbc);
+  {
+    std::lock_guard<std::mutex> guard(m_idpMutex);
+    m_idpClientRegistry = std::move(next);
+  }
+  if (loaded > 0) {
+    ACE_DEBUG((LM_DEBUG,
+               ACE_TEXT("%D [WebServer:%t] %M %N:%l IdP client registry "
+                        "loaded — %d client(s) ready\n"),
+               static_cast<int>(loaded)));
+  }
+}
+
+idp::IdpClientRegistry WebServer::idpClientRegistry() {
+  std::lock_guard<std::mutex> guard(m_idpMutex);
+  return m_idpClientRegistry;  // value snapshot
+}
+
 WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
                      ACE_UINT32 workerPool, std::string dbUri,
                      std::string dbConnPool, std::string dbName) {
@@ -2210,6 +2296,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   mMongodbc = std::make_unique<MongodbClient>(uri);
   m_sessionManager = std::make_unique<sso::SessionManager>(*mMongodbc, m_clock);
   init_sso();
+  init_idp();
 
   m_semaphore = std::make_unique<ACE_Semaphore>();
 
@@ -2257,6 +2344,7 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
   mMongodbc   = std::move(db);
   m_sessionManager = std::make_unique<sso::SessionManager>(*mMongodbc, m_clock);
   init_sso();
+  init_idp();
   m_wsDbServer = std::move(wsServer);
   m_semaphore = std::make_unique<ACE_Semaphore>();
 
@@ -2286,10 +2374,14 @@ WebServer::WebServer(std::string ipStr, ACE_UINT16 listenPort,
 }
 
 WebServer::~WebServer() {
-  // Stop the SSO hot-reload poll before tearing down the resources it touches.
+  // Stop both reload polls before tearing down the resources they touch.
   m_ssoReloadStop.store(true);
   if (m_ssoReloadThread.joinable())
     m_ssoReloadThread.join();
+
+  m_idpReloadStop.store(true);
+  if (m_idpReloadThread.joinable())
+    m_idpReloadThread.join();
 
   mMongodbc.reset(nullptr);
 

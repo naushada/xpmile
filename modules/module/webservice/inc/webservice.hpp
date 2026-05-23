@@ -30,6 +30,7 @@
 #include "ace/Timer_Queue_T.h"
 
 #include "mongodbc.hpp"
+#include "idp_client_registry.hpp"
 #include "sso_http_client.hpp"
 #include "sso_oidc.hpp"
 #include "sso_registry.hpp"
@@ -423,6 +424,12 @@ public:
   /// Return the WsDbServer (null in local-MongoDB mode).
   WsDbServer *wsDbServer() { return m_wsDbServer.get(); }
 
+  /// A consistent snapshot of the live IdP client registry, by value —
+  /// the hot-reload poll thread may swap the underlying vector at any
+  /// moment. The registry is small (one or two RPs in practice), so
+  /// snapshot-by-copy is cheaper than holding a lock across the request.
+  idp::IdpClientRegistry idpClientRegistry();
+
   /// Return the semaphore used to gate concurrent database access.
   ACE_Semaphore &semaphore() const { return (*m_semaphore.get()); }
 
@@ -434,6 +441,14 @@ private:
   /// Re-read the `sso_config` document; on a change, rebuild the providers.
   /// Runs at startup and on the hot-reload poll thread.
   void reload_sso();
+
+  /// Read the `idp_clients` collection once, then start the ~60s
+  /// hot-reload poll. Called once from each constructor — running on
+  /// the marvel dyno is a no-op when the collection is empty.
+  void init_idp();
+  /// Re-read the `idp_clients` collection. Runs at startup and on the
+  /// hot-reload poll thread.
+  void reload_idp();
 
   ACE_SOCK_Stream m_stream;
   ACE_INET_Addr m_listen;
@@ -457,6 +472,15 @@ private:
   std::atomic<bool>                m_ssoReloadStop{false};
   std::unique_ptr<WsDbServer>     m_wsDbServer;
   std::unique_ptr<ACE_Semaphore>  m_semaphore;
+
+  // IdP runtime — registry of OIDC RP clients we issue tokens to. Mirrors
+  // the SSO hot-reload pattern above (~60s poll on a dedicated thread).
+  // Empty on the marvel dyno; populated on the idp dyno via the Vaadin
+  // IdpClientsView (Phase J).
+  std::mutex             m_idpMutex;
+  idp::IdpClientRegistry m_idpClientRegistry;
+  std::thread            m_idpReloadThread;
+  std::atomic<bool>      m_idpReloadStop{false};
 };
 
 #endif // WEBSERVICE_H
