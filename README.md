@@ -106,7 +106,11 @@ podman compose up --build
 
 ## Authentication
 
-The application supports username/password and federated **SSO** (OIDC + SAML 2.0) login; both mint a server-side session carried in an `HttpOnly` cookie. SSO is documented in `docs/design/sso/sso-design.md`. The rest of this section covers **database** authentication.
+The application supports username/password and federated **SSO** (OIDC + SAML 2.0) login; both mint a server-side session carried in an `HttpOnly` cookie. SSO is documented in [`docs/design/sso/sso-design.md`](docs/design/sso/sso-design.md).
+
+xpmile also ships its **own** OIDC identity provider, hosted on a second Heroku app (`idp`). The IdP shares the same on-prem MongoDB as the marvel app via two `wsdbagent` containers, signs `id_token`s on-prem (the RSA private key never leaves the customer's NAT), and presents an Angular login portal at `https://idp-…herokuapp.com/idp/login`. Operator deploy guide + open-questions list: [`docs/inhouse-idp.md`](docs/inhouse-idp.md). Full design: [`docs/design/inhouse-idp/inhouse-idp-design.md`](docs/design/inhouse-idp/inhouse-idp-design.md).
+
+The rest of this section covers **database** authentication.
 
 MongoDB runs with authentication enabled. On first startup the init
 script (`docker/mongo-init.js`) creates:
@@ -189,6 +193,11 @@ public interface and `src/` for the implementation.
 │       │   ├── inc/                sso_*.hpp + saml_*.hpp
 │       │   ├── src/                sso_*.cpp + saml_*.cpp
 │       │   └── test/sso_test.cc
+│       ├── inhouseidp/             In-house OIDC identity provider (idp:: namespace)
+│       │   ├── inc/                idp_*.hpp + wsdb_jwt_signer.hpp + jwt_signer.hpp
+│       │   ├── src/                idp_*.cpp + wsdb_jwt_signer.cpp
+│       │   ├── test/               118 GTest under Idp* / Jwks / PasswordReset* / SignJwt*
+│       │   └── README.md
 │       ├── thirdparty/             Vendored single-file libraries
 │       │   └── json.hpp            nlohmann/json (header-only)
 │       ├── webservice/             ACE reactor, HTTP server, request routing
@@ -198,7 +207,8 @@ public interface and `src/` for the implementation.
 │       └── whatsapp/               WhatsApp service (stub)
 │           ├── inc/whatsapp_service.hpp
 │           └── src/whatsapp_service.cpp
-├── ui/                             Angular frontend
+├── ui/                             Angular frontend (marvel SPA — served at /webui/)
+├── ui-idp/                         Angular frontend (IdP login portal — served at /idp/*)
 ├── docker/
 │   ├── Dockerfile                  Multi-stage build (FROM bootstrap → UI → runtime)
 │   ├── Dockerfile.bootstrap        Shared C++ toolchain (ACE/TAO + mongo-cxx + gtest)
@@ -301,7 +311,9 @@ Deep-dive docs live under [`docs/`](docs/). The most-referenced ones:
 | Doc | When to read it |
 |---|---|
 | [`docs/app.md`](docs/app.md) | Heroku deployment (push, release, config vars, UI cache-busting) |
-| [`docs/ws-db-agent.md`](docs/ws-db-agent.md) | The on-prem `wsdbagent` — mTLS setup, manual run, troubleshooting |
+| [`docs/inhouse-idp.md`](docs/inhouse-idp.md) | The in-house OIDC IdP — operator deploy guide, Heroku config vars, on-prem provisioning, deferred items, troubleshooting |
+| [`docs/design/inhouse-idp/inhouse-idp-design.md`](docs/design/inhouse-idp/inhouse-idp-design.md), [`inhouse-idp-tdd-plan.md`](docs/design/inhouse-idp/inhouse-idp-tdd-plan.md) | Two-Heroku-app + dual-DB design for the IdP; phase-by-phase delivery status with commit hashes |
+| [`docs/ws-db-agent.md`](docs/ws-db-agent.md) | The on-prem `wsdbagent` — mTLS setup, manual run, troubleshooting (applies to both marvel + idp agents) |
 | [`docs/dashboard-monthly-report.md`](docs/dashboard-monthly-report.md) | Dashboard **Download Report** button — Excel export of the active month's shipments (AWB, status, last-update timestamp) |
 | [`docs/bench-shipments.md`](docs/bench-shipments.md) | [`scripts/bench-shipments.py`](scripts/bench-shipments.py) — measure shipment-creation throughput (SINGLE-loop vs BULK) against any backend |
 | [`docs/onprem-ui-design.md`](docs/onprem-ui-design.md), [`docs/onprem-ui-tdd.md`](docs/onprem-ui-tdd.md), [`docs/onprem-ui-compose.md`](docs/onprem-ui-compose.md) | The on-prem Vaadin admin UI (separate from the Angular customer SPA) |
