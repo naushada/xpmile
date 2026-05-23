@@ -13,9 +13,14 @@
 #                        if available, otherwise built locally (slow on a Pi)
 #
 # What this script does:
-#   1. Sanity-checks the host (arch, container runtime, disk, network, port 8090)
-#   2. Pulls multi-arch images from Docker Hub up-front so subsequent
-#      bring-up commands don't wait on slow Pi-side pulls
+#   1. Sanity-checks the host (container runtime, disk, network, port 8090)
+#      and resolves `uname -m` to a docker platform string — `linux/amd64`
+#      or `linux/arm64` — that every `pull` is then explicitly pinned to.
+#      Works on any host where multi-arch images exist for the detected
+#      arch: Raspberry Pi 4/5 (64-bit), small amd64 servers, AWS Graviton,
+#      Apple Silicon, etc.
+#   2. Pulls the images from Docker Hub up-front, with `--platform`, so
+#      subsequent bring-up commands don't wait on slow Pi-side pulls
 #   3. Sets up .env interactively if missing — prompts for SERVER_HOST and
 #      derives XPMILE_BACKEND_BASE_URL
 #   4. Runs ./run-agent.sh start  (agent core + cert-watcher)
@@ -94,9 +99,16 @@ fi
 
 cd "${SCRIPT_DIR}"
 
-# ── runtime selection ─────────────────────────────────────────────────────────
+# ── runtime / platform selection ──────────────────────────────────────────────
+# PLATFORM is set from `uname -m` in check_prereqs and passed to every `pull`
+# so we explicitly select the right manifest from each multi-arch image. The
+# default behaviour usually does the right thing, but pinning at pull time is
+# the right belt-and-braces move — defends against DOCKER_DEFAULT_PLATFORM
+# being set, or a podman machine VM whose default arch differs from the OS
+# the operator is on.
 CONTAINER_CMD=""
 COMPOSE_CMD=""
+PLATFORM=""
 ONPREM_PUBLISHED=0
 
 # ── 1. sanity checks ──────────────────────────────────────────────────────────
@@ -107,17 +119,20 @@ check_prereqs() {
   arch=$(uname -m)
   case "$arch" in
     aarch64|arm64)
-      info "Architecture: ${arch} (Raspberry Pi 4/5, AWS Graviton, Apple Silicon, …)"
+      PLATFORM="linux/arm64"
+      info "Architecture: ${arch} → pulling ${PLATFORM} (Raspberry Pi 4/5 64-bit, AWS Graviton, Apple Silicon, …)"
       ;;
     x86_64|amd64)
-      info "Architecture: ${arch}"
+      PLATFORM="linux/amd64"
+      info "Architecture: ${arch} → pulling ${PLATFORM}"
       ;;
     armv6l|armv7l)
       die "Architecture ${arch} is not supported. Published images are amd64 + arm64 only.
-       A 64-bit OS is required on Raspberry Pi (use Raspberry Pi OS 64-bit on a Pi 4 or 5)."
+       A 64-bit OS is required on Raspberry Pi — use Raspberry Pi OS 64-bit on a Pi 4 or 5."
       ;;
     *)
-      warn "Architecture ${arch} is unusual; multi-arch images may not have a matching layer. Continuing."
+      PLATFORM="linux/${arch}"
+      warn "Architecture ${arch} is unusual; pulling --platform ${PLATFORM} but the multi-arch images may not have a matching layer."
       ;;
   esac
 
@@ -229,21 +244,21 @@ pull_images() {
 
   local img
   for img in "$MONGO_BASE_IMAGE" "$WSDBAGENT_IMAGE" "$ALPINE_IMAGE"; do
-    info "Pull: ${img}"
-    if ! "$CONTAINER_CMD" pull "$img"; then
-      die "Pull failed for ${img}. Check network / registry visibility."
+    info "Pull ${PLATFORM}: ${img}"
+    if ! "$CONTAINER_CMD" pull --platform "$PLATFORM" "$img"; then
+      die "Pull failed for ${img} on ${PLATFORM}. Check network / registry visibility / arch availability for this image."
     fi
   done
 
-  info "Pull (best-effort): ${ONPREM_IMAGE}"
-  if "$CONTAINER_CMD" pull "$ONPREM_IMAGE" 2>/dev/null; then
+  info "Pull ${PLATFORM} (best-effort): ${ONPREM_IMAGE}"
+  if "$CONTAINER_CMD" pull --platform "$PLATFORM" "$ONPREM_IMAGE" 2>/dev/null; then
     "$CONTAINER_CMD" tag "$ONPREM_IMAGE" xpmile-onprem:latest
-    ok "${ONPREM_IMAGE} pulled — Vaadin admin will use the published image."
+    ok "${ONPREM_IMAGE} pulled (${PLATFORM}) — Vaadin admin will use the published image."
     ONPREM_PUBLISHED=1
   else
-    warn "${ONPREM_IMAGE} not pullable yet. Falling back to a local build."
+    warn "${ONPREM_IMAGE} not pullable yet on ${PLATFORM}. Falling back to a local build."
     warn "On a Raspberry Pi this Maven build takes ~15–25 min. Subsequent starts are instant (image is cached)."
-    warn "To skip this step in the future, publish xpmile-onprem to Docker Hub from CI."
+    warn "To skip this step in the future, publish xpmile-onprem to Docker Hub from CI (multi-arch)."
     ONPREM_PUBLISHED=0
   fi
 }
