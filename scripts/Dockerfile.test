@@ -1,0 +1,39 @@
+# scripts/Dockerfile.test — test runtime for the Python migration script.
+#
+# Convention: "everything runs in a container, nothing on the host."
+#
+# This image bakes the Python runtime + an entrypoint that installs the test
+# deps on first run. Subsequent runs are fast because the pip cache lives in
+# a podman volume (xpmile-pip-cache by default — see scripts/run-script-tests.sh).
+#
+# Why not bake the deps at build time? `podman build` on macOS podman machine
+# can't reliably reach PyPI from inside the build container (the build network
+# differs from the run network), so `pip install` at build time fails with
+# "Could not find a version that satisfies the requirement ... (from versions:
+# none)". Running `pip install` at container start time via `podman run` works
+# reliably; caching the wheels in a named volume makes it effectively free
+# after the first invocation.
+#
+# Build:
+#   podman build -f scripts/Dockerfile.test -t xpmile-scripts-test:local scripts/
+#
+# Run (preferred via the wrapper):
+#   ./scripts/run-script-tests.sh
+#
+# Direct:
+#   podman run --rm \
+#     -v "$(pwd)/scripts:/work:ro" \
+#     -v xpmile-pip-cache:/root/.cache/pip \
+#     xpmile-scripts-test:local
+
+FROM docker.io/library/python:3.11-slim
+
+WORKDIR /work
+
+# The entrypoint installs deps (cached in /root/.cache/pip via a podman volume)
+# and then exec's pytest with whatever args the caller passed.
+COPY entrypoint-test.sh /entrypoint-test.sh
+RUN chmod +x /entrypoint-test.sh
+
+ENTRYPOINT ["/entrypoint-test.sh"]
+CMD ["-v", "--color=yes", "test_migrate_account_split.py"]
