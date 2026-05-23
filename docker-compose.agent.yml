@@ -136,8 +136,8 @@ services:
       ARGS: >-
         --server-host ${IDP_SERVER_HOST:?IDP_SERVER_HOST must be set when using the IdP agent}
         --server-port ${IDP_SERVER_PORT:-443}
-        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin
-        --mongo-db-name ${MONGO_DB:-xpmile}
+        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${IDP_MONGO_DB:-idp}?authSource=admin
+        --mongo-db-name ${IDP_MONGO_DB:-idp}
         --mongo-db-connection-pool ${MONGO_POOL:-10}
         --backoff ${BACKOFF:-5}
         --tls-ca /certs/ca.crt

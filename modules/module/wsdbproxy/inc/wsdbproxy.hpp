@@ -176,6 +176,14 @@ public:
                          const std::string& filter,
                          const std::string& document) override;
 
+  // Cross-database overload — sends req.db so the on-prem agent
+  // routes the update to the named database instead of its own
+  // m_db_name default.
+  bool update_collection(const std::string& db,
+                         const std::string& coll,
+                         const std::string& filter,
+                         const std::string& document) override;
+
   std::int32_t update_bulk_document(const std::string& coll,
                                     const std::vector<std::string>& filter,
                                     const std::vector<std::string>& value) override;
@@ -183,7 +191,19 @@ public:
   bool delete_document(const std::string& coll,
                        const std::string& doc) override;
 
+  // Cross-database overload.
+  bool delete_document(const std::string& db,
+                       const std::string& coll,
+                       const std::string& doc) override;
+
   std::string get_document(const std::string& coll,
+                           const std::string& query,
+                           const std::string& projection) override;
+
+  // Cross-database overload — needed for e.g. the Phase K legacy login
+  // fallback that reads idp.account from a marvel-side webservice.
+  std::string get_document(const std::string& db,
+                           const std::string& coll,
                            const std::string& query,
                            const std::string& projection) override;
 

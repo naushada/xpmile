@@ -64,8 +64,71 @@ from pymongo import MongoClient
 # uses ">=" so all migrations to N or lower are skipped.
 SCHEMA_VERSION_TARGET = 2
 
-# Fields that move from xpmile.account → idp.account.
-AUTH_FIELDS = ["passwordHash", "email", "name", "role"]
+# The on-prem xpmile.account doc is *nested* (mirrors what mongo-init.js
+# seeds + what handle_account_POST writes), e.g.:
+#
+#   { loginCredentials: { accountCode, passwordHash },
+#     personalInfo:     { role, name, email },
+#     ... business fields ... }
+#
+# This migration:
+#   1. Copies passwordHash → idp.account (top-level, flat — that's the
+#      shape the IdP code reads via idp_login + handle_account_login_POST's
+#      Phase K fallback).
+#   2. Copies role + name + email (read from personalInfo) so the IdP
+#      can populate session claims without a cross-DB read on every login.
+#   3. $unsets ONLY loginCredentials.passwordHash from xpmile.account —
+#      role / name / email stay in personalInfo because marvel views still
+#      render them. The migration is intentionally read-mostly on the
+#      xpmile side; only the password hash needs to move.
+#
+# Idempotent — running again is a no-op (schema_version gate plus per-op
+# checks: insert-if-absent on idp side, $unset on already-missing field
+# is a no-op at the Mongo layer).
+AUTH_FIELD_SOURCES = {
+    # idp-side flat name  → list of dotted paths to try on the xpmile doc.
+    # Production seed (mongo-init.js) + handle_account_POST write the
+    # nested shapes; the flat fallback exists for the unit-test fixtures
+    # and any future tooling that mirrors the migrated/flat layout.
+    "passwordHash": ["loginCredentials.passwordHash", "passwordHash"],
+    "role":         ["personalInfo.role",             "role"],
+    "name":         ["personalInfo.name",             "name"],
+    "email":        ["personalInfo.email",            "email"],
+}
+
+# Fields to $unset on the xpmile side after copy. The flat top-level
+# names are listed too so the unit-test fixtures (which seed with
+# top-level passwordHash etc.) end up cleared on the same code path —
+# mirrors what would happen post-migration in production where only the
+# nested loginCredentials.passwordHash needs the $unset (role / name /
+# email stay in personalInfo for marvel views to keep rendering).
+UNSET_FROM_XPMILE = [
+    "loginCredentials.passwordHash",
+    # legacy flat-shape compatibility (test fixtures):
+    "passwordHash", "email", "name", "role",
+]
+
+# Back-compat alias for existing tests that referenced AUTH_FIELDS.
+# Kept as the flat names of the auth fields that move to idp.account.
+AUTH_FIELDS = list(AUTH_FIELD_SOURCES.keys())
+
+
+def _dig(doc, dotted_path):
+    """Return the value at dotted_path inside doc, or None if any segment
+    is missing or not a dict along the way."""
+    cur = doc
+    for seg in dotted_path.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(seg)
+    return cur
+
+
+def _account_code_of(doc):
+    """Extract the accountCode from either the nested production shape
+    (loginCredentials.accountCode) or the legacy top-level shape that
+    earlier test fixtures used. Returns None if neither path resolves."""
+    return _dig(doc, "loginCredentials.accountCode") or doc.get("accountCode")
 
 log = logging.getLogger("migrate_account_split")
 
@@ -122,17 +185,23 @@ def migrate(client: MongoClient, *, dry_run: bool = False) -> MigrationResult:
     idp_accounts = client["idp"]["account"]
 
     for doc in xpmile_accounts.find({}):
-        account_code = doc.get("accountCode")
+        account_code = _account_code_of(doc)
         if not account_code:
-            log.warning("xpmile.account doc %s has no accountCode; skipping",
+            log.warning("xpmile.account doc %s has no accountCode "
+                        "(looked at loginCredentials.accountCode and "
+                        "top-level accountCode); skipping",
                         doc.get("_id"))
             continue
 
-        # Build the target idp.account doc (auth fields only).
+        # Build the flat target idp.account doc from the (possibly
+        # nested) source paths.
         idp_doc = {"accountCode": account_code}
-        for field in AUTH_FIELDS:
-            if field in doc:
-                idp_doc[field] = doc[field]
+        for flat_name, source_paths in AUTH_FIELD_SOURCES.items():
+            for path in source_paths:
+                v = _dig(doc, path)
+                if v is not None:
+                    idp_doc[flat_name] = v
+                    break
 
         # Insert into idp.account if the corresponding doc isn't there yet.
         existing = idp_accounts.find_one({"accountCode": account_code})
@@ -150,7 +219,10 @@ def migrate(client: MongoClient, *, dry_run: bool = False) -> MigrationResult:
 
         # $unset the auth fields from xpmile.account (always — idempotent
         # because $unset on a missing field is a no-op at the Mongo layer).
-        unset = {field: "" for field in AUTH_FIELDS if field in doc}
+        # Only loginCredentials.passwordHash leaves; role/name/email stay
+        # in personalInfo for marvel views.
+        unset = {field: "" for field in UNSET_FROM_XPMILE
+                 if _dig(doc, field) is not None}
         if unset:
             if dry_run:
                 log.info("[dry-run] would $unset on xpmile.account accountCode=%s: %s",

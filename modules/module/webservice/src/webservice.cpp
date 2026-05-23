@@ -902,8 +902,30 @@ std::string MicroService::handle_account_login_POST(std::string &in,
     auto &lc = account["loginCredentials"];
     if (lc.is_object() && lc.contains("passwordHash") &&
         lc["passwordHash"].is_string()) {
+      // Pre-migration path: xpmile.account still carries the hash
+      // nested under loginCredentials.passwordHash.
       authenticated = MongodbClient::verify_password(
           password, lc["passwordHash"].get<std::string>());
+    } else {
+      // Post-migration fallback (Phase K): the migration script
+      // unsets loginCredentials.passwordHash from xpmile.account
+      // and copies the hash to idp.account (top-level). Read it
+      // back via the dbproto cross-DB get_document overload — one
+      // wsdbagent round trip with req.db="idp", lands in
+      // idp.account on the on-prem side.
+      json idp_query      = {{"accountCode", userId}};
+      json idp_projection = {{"_id", false}};
+      std::string idp_raw = dbInst.get_document(
+          /*db=*/"idp", /*coll=*/"account",
+          idp_query.dump(), idp_projection.dump());
+      if (!idp_raw.empty()) {
+        auto idp_acct = json::parse(idp_raw);
+        if (idp_acct.contains("passwordHash") &&
+            idp_acct["passwordHash"].is_string()) {
+          authenticated = MongodbClient::verify_password(
+              password, idp_acct["passwordHash"].get<std::string>());
+        }
+      }
     }
   } catch (...) {}
 

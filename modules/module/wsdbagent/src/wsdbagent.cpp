@@ -349,22 +349,29 @@ std::vector<std::uint8_t> WsDbAgent::dispatch(const dbproto::DbRequest &req)
   try {
     switch (req.op) {
 
-    case DbOp::CREATE_DOCUMENT:
-      rsp.sval = m_db->create_document(m_db_name, req.coll,
+    // Per-request db routing — when the cloud caller sets req.db,
+    // honour it instead of m_db_name. Empty req.db = backward-compat
+    // "use this agent's configured default db" (xpmile or idp,
+    // whatever --mongo-db-name was passed at startup).
+    case DbOp::CREATE_DOCUMENT: {
+      const std::string &target = req.db.empty() ? m_db_name : req.db;
+      rsp.sval = m_db->create_document(target, req.coll,
                                         bson_to_json(req.doc));
       rsp.ok   = !rsp.sval.empty();
       break;
+    }
 
     case DbOp::CREATE_BULK_DOCUMENT: {
       // doc carries the raw JSON string bytes
       std::string json_str(req.doc.begin(), req.doc.end());
-      rsp.ival = m_db->create_bulk_document(m_db_name, req.coll, json_str);
+      const std::string &target = req.db.empty() ? m_db_name : req.db;
+      rsp.ival = m_db->create_bulk_document(target, req.coll, json_str);
       rsp.ok   = (rsp.ival >= 0);
       break;
     }
 
     case DbOp::UPDATE_COLLECTION:
-      rsp.bval = m_db->update_collection(req.coll,
+      rsp.bval = m_db->update_collection(req.db, req.coll,
                                           bson_to_json(req.doc),
                                           bson_to_json(req.doc2));
       rsp.ok   = true;
@@ -382,12 +389,13 @@ std::vector<std::uint8_t> WsDbAgent::dispatch(const dbproto::DbRequest &req)
     }
 
     case DbOp::DELETE_DOCUMENT:
-      rsp.bval = m_db->delete_document(req.coll, bson_to_json(req.doc));
+      rsp.bval = m_db->delete_document(req.db, req.coll,
+                                        bson_to_json(req.doc));
       rsp.ok   = true;
       break;
 
     case DbOp::GET_DOCUMENT:
-      rsp.sval = m_db->get_document(req.coll,
+      rsp.sval = m_db->get_document(req.db, req.coll,
                                      bson_to_json(req.doc),
                                      bson_to_json(req.doc2));
       rsp.ok   = !rsp.sval.empty();

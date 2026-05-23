@@ -76,6 +76,13 @@ MongodbClient::MongodbClient(const std::string &uri_str) : m_uri(uri_str) {
 bool MongodbClient::update_collection(const std::string &collectionName,
                                       const std::string &match,
                                       const std::string &document) {
+  return update_collection(std::string{}, collectionName, match, document);
+}
+
+bool MongodbClient::update_collection(const std::string &dbName,
+                                      const std::string &collectionName,
+                                      const std::string &match,
+                                      const std::string &document) {
   bsoncxx::document::value toUpdate = bsoncxx::from_json(document.c_str());
   bsoncxx::document::value filter = bsoncxx::from_json(match.c_str());
 
@@ -89,8 +96,9 @@ bool MongodbClient::update_collection(const std::string &collectionName,
     return false;
   }
 
+  const std::string &effective_db = dbName.empty() ? m_dbName : dbName;
   auto collection =
-      conn->database(m_dbName.c_str()).collection(collectionName.c_str());
+      conn->database(effective_db.c_str()).collection(collectionName.c_str());
 
   mongocxx::options::bulk_write bulk_opt;
   mongocxx::write_concern wc;
@@ -119,6 +127,12 @@ bool MongodbClient::update_collection(const std::string &collectionName,
 
 bool MongodbClient::delete_document(const std::string &collectionName,
                                     const std::string &doc) {
+  return delete_document(std::string{}, collectionName, doc);
+}
+
+bool MongodbClient::delete_document(const std::string &dbName,
+                                    const std::string &collectionName,
+                                    const std::string &doc) {
   bsoncxx::document::value filter = bsoncxx::from_json(doc.c_str());
 
   auto conn = m_pool->acquire();
@@ -131,8 +145,9 @@ bool MongodbClient::delete_document(const std::string &collectionName,
     return false;
   }
 
+  const std::string &effective_db = dbName.empty() ? m_dbName : dbName;
   auto collection =
-      conn->database(m_dbName.c_str()).collection(collectionName.c_str());
+      conn->database(effective_db.c_str()).collection(collectionName.c_str());
 
   mongocxx::options::bulk_write bulk_opt;
   mongocxx::write_concern wc;
@@ -159,6 +174,13 @@ bool MongodbClient::delete_document(const std::string &collectionName,
 std::string MongodbClient::get_document(const std::string &collectionName,
                                         const std::string &query,
                                         const std::string &fieldProjection) {
+  return get_document(std::string{}, collectionName, query, fieldProjection);
+}
+
+std::string MongodbClient::get_document(const std::string &dbName,
+                                        const std::string &collectionName,
+                                        const std::string &query,
+                                        const std::string &fieldProjection) {
   auto conn = m_pool->acquire();
   if (!conn) {
     ACE_ERROR(
@@ -169,8 +191,9 @@ std::string MongodbClient::get_document(const std::string &collectionName,
     return {};
   }
 
+  const std::string &effective_db = dbName.empty() ? m_dbName : dbName;
   auto collection =
-      conn->database(m_dbName.c_str()).collection(collectionName.c_str());
+      conn->database(effective_db.c_str()).collection(collectionName.c_str());
 
   mongocxx::options::find opts{};
   opts.max_time(std::chrono::milliseconds(5000))

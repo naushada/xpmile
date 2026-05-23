@@ -175,6 +175,60 @@ def test_migration_handles_doc_with_only_some_auth_fields(client):
     assert "role" not in idp_doc
 
 
+# ── Phase K — production nested-shape fidelity ──────────────────────────────
+
+def test_migration_handles_production_nested_shape(client):
+    """The real on-prem xpmile.account doc — what mongo-init.js seeds
+    and what handle_account_POST writes — nests accountCode +
+    passwordHash under loginCredentials and role/name/email under
+    personalInfo. The migration must read both shapes and produce a
+    flat idp.account, $unset only loginCredentials.passwordHash so the
+    marvel views keep their personalInfo intact."""
+    client["xpmile"]["account"].insert_one({
+        "loginCredentials": {
+            "accountCode":  "admin",
+            "passwordHash": "$pbkdf2-sha256$i=600000$abc$def",
+        },
+        "personalInfo": {
+            "role":  "Admin",
+            "name":  "Administrator",
+            "email": "admin@example.com",
+            "phone": "555-1234",   # business field that stays
+        },
+        # business field that stays
+        "awbPrefix": "ADM",
+    })
+
+    result = mig.migrate(client)
+
+    assert result.skipped is False
+    assert result.docs_migrated == 1
+    assert result.docs_unset == 1
+
+    # idp.account got the flat doc the IdP code reads.
+    idp_doc = client["idp"]["account"].find_one({"accountCode": "admin"})
+    assert idp_doc is not None
+    assert idp_doc["accountCode"]  == "admin"
+    assert idp_doc["passwordHash"] == "$pbkdf2-sha256$i=600000$abc$def"
+    assert idp_doc["role"]         == "Admin"
+    assert idp_doc["name"]         == "Administrator"
+    assert idp_doc["email"]        == "admin@example.com"
+
+    # xpmile.account: passwordHash gone, everything else intact.
+    xp = client["xpmile"]["account"].find_one(
+        {"loginCredentials.accountCode": "admin"})
+    assert xp is not None
+    assert "passwordHash" not in xp["loginCredentials"]
+    assert xp["loginCredentials"]["accountCode"] == "admin"
+    # personalInfo untouched — marvel views still render role/name/email.
+    assert xp["personalInfo"]["role"]  == "Admin"
+    assert xp["personalInfo"]["name"]  == "Administrator"
+    assert xp["personalInfo"]["email"] == "admin@example.com"
+    assert xp["personalInfo"]["phone"] == "555-1234"
+    # business field still present.
+    assert xp["awbPrefix"] == "ADM"
+
+
 # ── Step pre-A.3 ──────────────────────────────────────────────────────────────
 
 def test_migration_is_idempotent_on_partial_state(client):
