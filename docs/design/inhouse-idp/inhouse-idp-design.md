@@ -93,6 +93,30 @@ The xpmile app (marvel) federates against the in-house IdP using the **existing 
 
 **One InnerTLS CA per Heroku app.** Each uniservice deploy mints a fresh CA at build time (per `docker/Dockerfile`); the corresponding wsdbagent client cert family must match. So the on-prem `./run-agent.sh refresh-certs` is extended to refresh *both* families — one extracted from `docker.io/naushada/xpmile-uniservice:latest` (still used by marvel), one from `docker.io/naushada/xpmile-uniservice-idp:latest` (new image for idp). Or, if both Heroku apps deploy the *same* image — easier — they share one CA and one cert family. (See §11 open question.)
 
+### Database namespaces — `xpmile` and `idp`, account split between them
+
+The same on-prem MongoDB instance hosts **two databases**. The existing `account` collection is **split** along the auth-vs-business boundary:
+
+| Database | Owner | Collections |
+|---|---|---|
+| `xpmile` (existing) | marvel uniservice | `account` *(business fields only after split — `accountCode`, `awbPrefix`, `eventLocation`, `personalInfo`, ...)*, `shipping`, `inventory`, `sessions` (marvel's), `sso_config`, `counters`, `fs.files`/`fs.chunks`, ... |
+| `idp` (new) | idp uniservice | `account` *(auth fields only — `accountCode`, `passwordHash`, `email`, `name`, `role`)*, `idp_signing_keys`, `idp_clients`, `idp_codes`, `idp_access_tokens`, `idp_pending_auth`, `password_resets`, `sessions` (the IdP's own — separate from marvel's) |
+
+**The collections link by `accountCode`.** It's the same field that's already the primary identifier today; nothing references it by Mongo `_id`. Splitting along auth/business means each uniservice reads only the collection in *its own* database — **no cross-database access from either side.**
+
+The idp uniservice's `IMongodbClient` connects to `idp` only:
+- `/login` reads `idp.account` for credential verification.
+- `/password-reset/confirm` writes `idp.account.passwordHash`.
+- All IdP-specific collections (signing keys, codes, etc.) are in `idp` already.
+
+The marvel uniservice's `IMongodbClient` connects to `xpmile` only (unchanged from today):
+- `handle_shipment_POST` reads `xpmile.account.awbPrefix` for `next_awbno()`.
+- Everything else in marvel keeps using `xpmile` as before.
+
+`docker/mongo-init.js` is extended to create the `idp` database alongside `xpmile`, with the same `MONGO_APP_USER` granted `readWrite` on both (so one Mongo credential covers both wsdbagent connections). A **one-time migration step** at deploy time copies the auth fields out of every existing `xpmile.account` document into a matching `idp.account` document (keyed by `accountCode`) and then deletes those auth fields from `xpmile.account`. The migration is idempotent (a follow-up run is a no-op) and gated by a "schema_version" doc so it doesn't fire on already-migrated databases. See §11 Phase pre-A.
+
+**Consequence for marvel:** the legacy `POST /api/v1/account/login` endpoint — which currently authenticates against `xpmile.account.passwordHash` — has nothing left to read once the auth fields move. It's deprecated as part of this change; the marvel SPA's username/password form is removed in favour of the in-house IdP "Sign in" button. See §12 Q12 for the deprecation/removal sequencing.
+
 ---
 
 ## 2. The on-prem signing service — new `wsdbagent` op `SIGN_JWT`
@@ -167,14 +191,14 @@ case DbOp::SIGN_JWT: {
 ```
 
 `sign_jwt_on_prem()`:
-1. Read `idp_signing_keys` by `kid` (or the active one if `kid == "current"`).
+1. Read `idp.idp_signing_keys` by `kid` (or the active one if `kid == "current"`). The db name comes from the incoming `DbRequest` (set to `"idp"` by the cloud-side caller).
 2. Parse the PEM, load private key with `EVP_PKEY` (OpenSSL — already linked into wsdbagent for InnerTLS).
 3. SHA-256 the `to_sign` bytes; sign with RSA-PKCS#1 v1.5 (RS256).
 4. base64url-encode the signature; return.
 
 No new dependency — OpenSSL is already linked for InnerTLS.
 
-### The `idp_signing_keys` collection
+### The `idp.idp_signing_keys` collection
 
 ```json
 {
@@ -262,18 +286,70 @@ Inputs (query string per OIDC):
 
 Behavior:
 
-1. Look up `client_id` in `idp_clients`. Reject if unknown.
+1. Look up `client_id` in `idp.idp_clients`. Reject if unknown.
 2. Validate `redirect_uri` is **exactly** in the client's registered list. (No prefix matching.)
 3. Validate `response_type == "code"`, `code_challenge_method == "S256"`, `scope` contains `"openid"`.
-4. Check for the `xpmile_idp_session` cookie.
-   - **No / invalid session:** persist the authorization request in an `idp_pending_auth` document keyed by a random `req_token`; set a short-lived `xpmile_idp_pending` cookie with that token; redirect (302) to `/login` (Angular route on idp host).
+4. Check for the `xpmile_idp_session` cookie (resolved against `idp.sessions`).
+   - **No / invalid session:** persist the authorization request in an `idp.idp_pending_auth` document keyed by a random `req_token`; set a short-lived `xpmile_idp_pending` cookie with that token; redirect (302) to `/login` (Angular route on idp host).
    - **Valid session:** resolve to the user; go to step 5.
-5. Generate an authorization `code` (32 bytes CSPRNG, base64url). Persist in `idp_codes`: `{ _id: code, client_id, user_sub, redirect_uri, nonce, code_challenge, scope, expiresAt: now+30s }`.
+5. Generate an authorization `code` (32 bytes CSPRNG, base64url). Persist in `idp.idp_codes`: `{ _id: code, client_id, user_sub, redirect_uri, nonce, code_challenge, scope, expiresAt: now+30s }`.
 6. Redirect (302) to `<redirect_uri>?code=<code>&state=<state>`. Done.
 
 ### `/login` (the credential check)
 
-Invoked by the branded portal form (POST). Validates `xpmile_idp_pending` (so we know which authorization request to resume); authenticates against the on-prem `account` collection (reusing the same password-verification path already used by `handle_account_login_POST`); creates the `xpmile_idp_session` cookie (HttpOnly, Secure, SameSite=Lax, `Path=/api/v1/idp/`); redirects (302) back to `/api/v1/idp/authorize?...` with the original parameters from the pending-auth document. The user finishes the flow exactly as if they'd had a session to begin with.
+Invoked by the branded portal form (POST). Validates `xpmile_idp_pending` (so we know which authorization request to resume — looked up in `idp.idp_pending_auth`); authenticates against **`idp.account`** by `accountCode` — re-using the same password-hashing comparison that `handle_account_login_POST` uses today, but pointed at the new database location. Creates the `xpmile_idp_session` cookie (HttpOnly, Secure, SameSite=Lax, `Path=/api/v1/idp/`) backed by a row in `idp.sessions`; redirects (302) back to `/api/v1/idp/authorize?...` with the original parameters from the pending-auth document. The user finishes the flow exactly as if they'd had a session to begin with.
+
+#### Flow — federated login end-to-end
+
+The full path from "user clicks Sign in on marvel" to "user is back at marvel with a valid session". Server-side ops are listed under the receiving uniservice; the column on the right shows the on-prem MongoDB writes/reads.
+
+```
+  Browser            marvel uniservice           idp uniservice           on-prem MongoDB
+                     (xpmile DB)                 (idp DB)
+
+  click "Sign in"
+  on /main
+  ────────────────►  OidcProvider.begin_login()
+                       state/nonce/PKCE
+                       persist sso_trans                              ─►  xpmile.sso_transactions
+  ◄── 302  idp-.../api/v1/idp/authorize?response_type=code
+                                          &client_id=xpmile-spa
+                                          &redirect_uri=...
+                                          &state=&nonce=
+                                          &code_challenge=&code_challenge_method=S256
+
+  GET idp-.../api/v1/idp/authorize?...
+  ──────────────────────────────────────►  validate client_id        ─►  idp.idp_clients
+                                           validate redirect_uri
+                                           no IdP session yet
+                                           persist pending_auth      ─►  idp.idp_pending_auth
+  ◄── 302  /login + Set-Cookie xpmile_idp_pending=<rt>; HttpOnly; Secure
+
+  GET /login   [branded portal renders]
+  ──────────────────────────────────────►  serve index.html (Angular)
+  ◄── 200 index.html
+
+  POST /api/v1/idp/login {user, pass}        (xpmile_idp_pending sent)
+  ──────────────────────────────────────►  resolve req_token         ─►  idp.idp_pending_auth
+                                           lookup account            ─►  idp.account
+                                           verify passwordHash
+                                           insert IdP session        ─►  idp.sessions
+  ◄── 302  /api/v1/idp/authorize?... + Set-Cookie xpmile_idp_session=<sid>; HttpOnly; Secure
+
+  GET /api/v1/idp/authorize?...              (xpmile_idp_session sent)
+  ──────────────────────────────────────►  validate session          ─►  idp.sessions
+                                           mint authz code           ─►  idp.idp_codes
+  ◄── 302  marvel-.../api/v1/sso/callback/xpmile?code=<c>&state=<s>
+
+  GET marvel-.../api/v1/sso/callback/xpmile?code=<c>&state=<s>
+  ────────────────►  OidcProvider.handle_callback()
+                       atomic claim sso_trans                        ─►  xpmile.sso_transactions
+                       POST idp-.../api/v1/idp/token  ╶─╴ see Flow 2 ╶─╴
+                       verify id_token vs cached JWKS
+                       resolve_account                               ─►  xpmile.account
+                       create marvel session                         ─►  xpmile.sessions
+  ◄── 302  /main + Set-Cookie xpmile_session=<sid>; HttpOnly; Secure
+```
 
 ### `/token`
 
@@ -283,7 +359,7 @@ Inputs (form-urlencoded body per OIDC):
 
 Behavior:
 
-1. **Atomically claim** the code from `idp_codes` (a guarded `update_collection` with filter `consumed: {$exists: false}` and `$set: { consumed: true }` — same atomic primitive `next_awbno` uses). Reject on miss / replay / expiry.
+1. **Atomically claim** the code from `idp.idp_codes` (a guarded `update_collection` with filter `consumed: {$exists: false}` and `$set: { consumed: true }` — same atomic primitive `next_awbno` uses). Reject on miss / replay / expiry.
 2. Validate PKCE: `S256(code_verifier) == stored.code_challenge`.
 3. Validate `client_id` (+ `client_secret` for confidential clients).
 4. Validate `redirect_uri` matches the value stored with the code.
@@ -293,14 +369,78 @@ Behavior:
 6. `base64url(header) + "." + base64url(payload)` → `to_sign`.
 7. `WsMongodbProxy::sign_jwt("current", "RS256", to_sign)` → goes over the **idp** wsdbagent connection, returns `signature` + `kid`.
 8. id_token = `to_sign + "." + signature`. Backfill the header `kid` if a different key was used.
-9. access_token = random opaque 32 bytes; insert in `idp_access_tokens` collection with TTL.
+9. access_token = random opaque 32 bytes; insert in `idp.idp_access_tokens` with TTL.
 10. Respond JSON: `{ access_token, token_type: "Bearer", expires_in: 3600, id_token, scope: <granted> }`.
+
+#### Flow — /token with on-prem SIGN_JWT round-trip
+
+Server-to-server (no browser). This is the inner step of the federated-login flow above.
+
+```
+  marvel uniservice         idp uniservice               wsdbagent-idp      on-prem MongoDB
+
+  POST idp-.../api/v1/idp/token
+       grant_type=authorization_code
+       code=<c>&code_verifier=<v>
+       client_id=&client_secret=&redirect_uri=
+  ─────────────────────────►  atomic claim code                              ─►  idp.idp_codes
+                              (guarded $set consumed=true)
+                              validate PKCE: S256(verifier) == stored.challenge
+                              validate client_secret + redirect_uri match
+                              load active signing kid
+                              build header + payload:
+                                hdr     = {alg:RS256, typ:JWT, kid:current}
+                                payload = {iss, sub, aud, exp, iat, nonce, email, name, role}
+                                to_sign = b64u(hdr) + "." + b64u(payload)
+
+                              WsMongodbProxy.sign_jwt(kid="current", alg=RS256, to_sign)
+                              ────────────────────────►  load active key      ─►  idp.idp_signing_keys
+                                                         SHA256 + RSA-PKCS#1 v1.5
+                              ◄────── signature + kid ──
+
+                              id_token     = to_sign + "." + signature
+                              access_token = CSPRNG(32)                       ─►  idp.idp_access_tokens
+
+  ◄── 200 { access_token, token_type:"Bearer", expires_in:3600,
+            id_token: <hdr>.<payload>.<signature>, scope:"openid email profile" }
+
+  OidcProvider verifies id_token against JWKS (cached from prior GET
+  idp-.../api/v1/idp/jwks). On valid: continues into the last block of Flow 1
+  to mint the marvel session.
+```
 
 ### `/userinfo`, `/end_session`
 
-`/userinfo`: validates `Authorization: Bearer <access_token>` against `idp_access_tokens`; returns the user's claims as JSON.
+`/userinfo`: validates `Authorization: Bearer <access_token>` against `idp.idp_access_tokens`; returns the user's claims as JSON.
 
-`/end_session`: validates the optional `id_token_hint`; deletes the `xpmile_idp_session` cookie + the matching row in `sessions`; redirects to `post_logout_redirect_uri` (must be in the client's registered list).
+`/end_session`: validates the optional `id_token_hint`; deletes the `xpmile_idp_session` cookie + the matching row in `idp.sessions`; redirects to `post_logout_redirect_uri` (must be in the client's registered list).
+
+#### Flow — RP-initiated logout
+
+```
+  Browser            marvel uniservice          idp uniservice           on-prem MongoDB
+
+  click "Sign out" on /main
+  ──────────────►   POST /api/v1/sso/logout
+                      delete marvel session                            ─►  xpmile.sessions
+                      purge local LRU cache entry
+                      if provider == in-house:
+                        build IdP end_session URL
+  ◄── 200 {
+        ok: true,
+        idp_logout_url: "https://idp-.../api/v1/idp/end_session?
+                          id_token_hint=<t>&
+                          post_logout_redirect_uri=marvel-.../login"
+      }
+  (SPA clears local state, then navigates to idp_logout_url)
+
+  GET idp-.../api/v1/idp/end_session?id_token_hint=...&post_logout_redirect_uri=...
+  ────────────────────────────────────────►   validate id_token_hint
+                                              validate post_logout_redirect_uri
+                                                in client's registered list
+                                              delete IdP session row    ─►  idp.sessions
+  ◄── 302 marvel-.../login + Set-Cookie xpmile_idp_session=; Max-Age=0
+```
 
 ---
 
@@ -351,29 +491,61 @@ The Angular dist is packaged by a new `docker/Dockerfile.idp` (built from `ui-id
 
 ## 5. Password reset flow
 
-Three collections involved:
+Three collections, all in `idp`:
 
-- `account` — existing. Holds the hashed password.
-- `password_resets` — new. `{ _id: <random-32B-base64url>, accountCode, expiresAt }` with a TTL index on `expiresAt`.
-- `sessions` — existing (v1.0). Logging in after a reset mints a fresh session as usual.
+- `idp.account` — holds the hashed password (the auth half of the post-migration split). The IdP writes the new hash here.
+- `idp.password_resets` — new. `{ _id: <random-32B-base64url>, accountCode, expiresAt }` with a TTL index on `expiresAt`.
+- `idp.sessions` — the IdP's own session store. A successful reset followed by login mints a fresh row here. `xpmile.sessions` (marvel's RP-side session store, unchanged from v1.0) is touched on the *marvel* side after the federated callback completes — but that's the marvel uniservice's normal v1.0 behaviour, not part of the IdP's reset flow.
 
 Flow:
 
 1. User → `https://idp-.../password-reset` → enters email.
 2. `POST /api/v1/idp/password-reset/start` with `{ email }`:
-   - Look up account by email.
+   - Look up account by email in `idp.account`.
    - **Same response whether found or not** (no enumeration leak).
-   - If found: generate token, insert `password_resets` doc (TTL 30 min), send email via the existing email module.
+   - If found: generate token, insert `idp.password_resets` doc (TTL 30 min), send email via the existing email module.
    - Email body: a short message + a link to `https://idp-.../password-reset/confirm?token=<token>`.
 3. User clicks link → `/password-reset/confirm?token=...` → enters new password (twice).
 4. `POST /api/v1/idp/password-reset/confirm` with `{ token, new_password }`:
-   - Look up `password_resets` by token; reject if missing / expired / already consumed.
-   - Hash the new password (using the same scheme the rest of the app uses); `update_collection` the account.
-   - Delete the `password_resets` doc.
-   - Invalidate all existing `sessions` for this account (a password reset should kill stale sessions).
+   - Look up `idp.password_resets` by token; reject if missing / expired / already consumed.
+   - Hash the new password (using the same scheme the rest of the app uses); `update_collection` `idp.account`.
+   - Delete the `idp.password_resets` doc.
+   - Invalidate all existing `idp.sessions` for this account (so the IdP forces a re-auth at the next `/authorize`).
 5. Redirect to `/login` with a success flash.
 
 Reuses: the existing email module (SMTP::User FSM), the existing password-hashing function, the existing session-revocation code (`SessionManager::revoke`).
+
+#### Flow — password reset
+
+```
+  Browser              idp uniservice           on-prem MongoDB            SMTP
+
+  GET /password-reset   [Angular renders email form]
+  ─────────────────►   ◄── 200 index.html
+
+  POST /api/v1/idp/password-reset/start {email}
+  ─────────────────►   lookup account by email                    ─►   idp.account
+                       if found:
+                         generate 32B CSPRNG token
+                         insert reset doc (TTL 30 min)            ─►   idp.password_resets
+                         compose + send email                                    ─►  SMTP::User → user inbox
+                       (response identical whether email found or not)
+  ◄── 200 "If an account exists for that email, a reset link has been sent."
+
+  user reads email, clicks https://idp-.../password-reset/confirm?token=<t>
+
+  GET /password-reset/confirm?token=<t>   [Angular renders new-password form]
+  ─────────────────►   ◄── 200 index.html
+
+  POST /api/v1/idp/password-reset/confirm {token, new_password}
+  ─────────────────►   look up reset doc by token                 ─►   idp.password_resets
+                       reject if missing / expired / consumed
+                       hash new_password
+                       update                                     ─►   idp.account.passwordHash
+                       delete reset doc                           ─►   idp.password_resets
+                       revoke all sessions for account            ─►   idp.sessions
+  ◄── 302 /login (success flash)
+```
 
 ---
 
@@ -381,9 +553,9 @@ Reuses: the existing email module (SMTP::User FSM), the existing password-hashin
 
 Two new views in the existing Vaadin app (`onprem/src/main/java/com/xpmile/onprem/ui/idp/`):
 
-- **`IdpSigningKeysView` (`/idp-keys`)** — list keys (kid, alg, createdAt, notAfter, active flag); **"Generate new key"** button (creates RSA-2048 keypair in Java via `KeyPairGenerator`, PEM-encodes both halves, inserts into `idp_signing_keys`, optionally activates it and deactivates the previous active key); **"Deactivate"** / **"Delete expired"** actions.
+- **`IdpSigningKeysView` (`/idp-keys`)** — list keys (kid, alg, createdAt, notAfter, active flag); **"Generate new key"** button (creates RSA-2048 keypair in Java via `KeyPairGenerator`, PEM-encodes both halves, inserts into `idp.idp_signing_keys`, optionally activates it and deactivates the previous active key); **"Deactivate"** / **"Delete expired"** actions.
 
-- **`IdpClientsView` (`/idp-clients`)** — list registered RP clients; per-client fields: `client_id`, `client_name`, `redirect_uris[]`, `post_logout_redirect_uris[]`, `client_secret` (write-only, hashed in storage), `grant_types[]` (initial: just `authorization_code`), `scopes[]`. The marvel SPA gets a pre-seeded client (`xpmile-spa`).
+- **`IdpClientsView` (`/idp-clients`)** — list registered RP clients (from `idp.idp_clients`); per-client fields: `client_id`, `client_name`, `redirect_uris[]`, `post_logout_redirect_uris[]`, `client_secret` (write-only, hashed in storage), `grant_types[]` (initial: just `authorization_code`), `scopes[]`. The marvel SPA gets a pre-seeded client (`xpmile-spa`).
 
 Both write directly to the on-prem MongoDB — same trust model as the existing `SsoConfigView` (the Vaadin console sits behind the customer's physical/network access controls; no internet-facing config-write endpoint).
 
@@ -470,10 +642,10 @@ What we reuse, unchanged:
 | OIDC *client* (marvel federating against the in-house IdP) | `OidcProvider` + `sso_endpoints.*` (unchanged — federates against the in-house IdP the same way it federates against Okta) |
 | Hot-reload of config / JWKS | the existing `sso_config` hot-reload thread (extended on idp host to also poll `idp_signing_keys`) |
 | Outbound HTTP client (for marvel's discovery fetch against the in-house IdP) | `sso_http_client.*` (unchanged — just fetches the discovery doc from the new host) |
-| MongoDB access from cloud (always via on-prem agent) | `IMongodbClient` / `WsMongodbProxy` |
+| MongoDB access from cloud (always via on-prem agent) | `IMongodbClient` / `WsMongodbProxy` — one instance per uniservice, defaulted to its own database (`idp` or `xpmile`). No cross-DB access from either side. |
 | WebSocket DB proxy protocol | `dbproto` + `wsframe` — *extended with the new `SIGN_JWT` op* |
 | Inner-TLS encryption of the wsdbagent tunnel | `security/innertls.*` (unchanged) |
-| Password verification | the existing `handle_account_login_POST` path (factor out the credential-check into a reusable helper called by both that handler and the new `handle_idp_login_POST`) |
+| Password verification | the existing password-hashing comparison logic from `handle_account_login_POST` — extracted into a small reusable helper called by `handle_idp_login_POST`. The legacy handler itself is deprecated as part of this change (§11 phase K) since its `xpmile.account.passwordHash` source no longer exists after the migration. |
 | Email delivery for the reset flow | `SMTP::User` (the existing email module) |
 | Admin UI for keys + clients | the existing Vaadin app — same patterns as `SsoConfigView` |
 | C++ binary | the *same* `uniservice` binary deploys to both marvel and idp Heroku apps |
@@ -484,7 +656,7 @@ What's genuinely new — the scope of the implementation work:
 
 1. **`SIGN_JWT` op end-to-end** — cloud proxy method, dbproto schema, wsdbagent dispatcher, tests.
 2. **OIDC server endpoints** in a new `modules/module/inhouseidp/` — ~8 handler functions + the helpers they call.
-3. **Six new collections** with TTL indexes where appropriate, seeded by `mongo-init.js`: `idp_signing_keys`, `idp_clients`, `idp_codes`, `idp_access_tokens`, `idp_pending_auth`, `password_resets`.
+3. **A new `idp` database** with six collections (TTL indexes where appropriate), seeded by `mongo-init.js`: `idp_signing_keys`, `idp_clients`, `idp_codes`, `idp_access_tokens`, `idp_pending_auth`, `password_resets`, plus the IdP's own `sessions` collection. The same `MONGO_APP_USER` is granted `readWrite` on both `xpmile` and `idp`.
 4. **A small JWT *signer*** (cloud side) that builds `to_sign`, delegates the signature to `WsMongodbProxy::sign_jwt`, and assembles the final compact JWT.
 5. **Two Vaadin admin views** (`IdpSigningKeysView`, `IdpClientsView`).
 6. **`ui-idp/`** — a small Angular project (login + password reset).
@@ -522,11 +694,44 @@ What's genuinely new — the scope of the implementation work:
 
 ## 11. Phased delivery
 
-All ten phases ship in v1; phasing is build order.
+All twelve phases ship in v1; phasing is build order.
 
 | Phase | Scope |
 |-------|-------|
-| **A. On-prem signing service** | New `DbOp::SIGN_JWT`; `WsMongodbProxy::sign_jwt`; wsdbagent dispatcher; `idp_signing_keys` collection seed. Unit-testable through `MockMongodbClient` on both sides. |
+| **Pre-A. Account split migration** | A one-time idempotent migration script that creates `idp.account` documents from `xpmile.account` (copying `accountCode`, `passwordHash`, `email`, `name`, `role`) and then `$unset`s those fields from `xpmile.account`. Gated by a `schema_version` doc so it's a no-op on a second run. Bundled into `docker/mongo-init.js` as a self-check, plus a standalone `scripts/migrate-account-split.py` for existing deployments where `mongo-init.js` only fires on first volume creation. **Flow diagram below.** |
+
+#### Flow — pre-A account split migration (one-shot, idempotent)
+
+```
+  scripts/migrate-account-split.py   (or docker/mongo-init.js on first volume creation)
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  read xpmile.schema_version                                 │
+  │    if >= 2 → exit "already migrated"                        │
+  │                                                             │
+  │  for each doc D in xpmile.account:                          │
+  │                                                             │
+  │      if not exists idp.account.{accountCode: D.accountCode}:│
+  │          insert into idp.account:                           │
+  │            { accountCode:   D.accountCode,                  │
+  │              passwordHash:  D.passwordHash,                 │
+  │              email:         D.email,                        │
+  │              name:          D.name,                         │
+  │              role:          D.role }                        │
+  │                                                             │
+  │      $unset on xpmile.account.{_id: D._id}:                 │
+  │            { passwordHash, email, name, role }              │
+  │      (xpmile.account doc keeps accountCode + business       │
+  │       fields: awbPrefix, eventLocation, personalInfo, …)    │
+  │                                                             │
+  │  set xpmile.schema_version = 2                              │
+  └─────────────────────────────────────────────────────────────┘
+
+  Re-running the script is a no-op: the schema_version guard exits
+  early on the second run; even without the guard, the lookup +
+  $unset are individually idempotent.
+```
+| **A. On-prem signing service** | New `DbOp::SIGN_JWT`; `WsMongodbProxy::sign_jwt`; wsdbagent dispatcher; `idp.idp_signing_keys` collection seed. Unit-testable through `MockMongodbClient` on both sides. |
 | **B. Signing-key admin** | `IdpSigningKeysView` Vaadin view — generate / activate / list / deactivate. RSA-2048 keypair generation in Java via `KeyPairGenerator`; insert both halves PEM-encoded into `idp_signing_keys`. |
 | **C. JWKS + discovery endpoints** | Static-ish responses driven by hot-reloaded `idp_signing_keys` + IdP config. Unit tests against `MockMongodbClient`. |
 | **D. `/authorize` + `/login` + IdP session** | Full happy path: pending-auth storage, login form POST, credential check (reuses existing path), session cookie issuance, code generation, redirect. Negative paths: bad client_id, bad redirect_uri, bad credentials, replayed pending request. |
@@ -536,6 +741,7 @@ All ten phases ship in v1; phasing is build order.
 | **H. `docker/Dockerfile.idp` + CI publish** | New Dockerfile packaging `ui-idp` dist + the existing uniservice binary. CI extended to push the idp image to `registry.heroku.com/idp/web` after the marvel push. Single build, two Heroku releases. |
 | **I. On-prem two-agent stack** | `docker-compose.agent.yml` gains `agent-wsdbagent-idp` + cert-watcher rule for the new cert dir. `./run-agent.sh refresh-certs` extended. End-to-end smoke test from the cloud idp app through to MongoDB on-prem. |
 | **J. Coexistence wiring** | Add the in-house IdP to `sso_config` on marvel (initially as an opt-in entry). Register the marvel SPA as `xpmile-spa` in `IdpClientsView`. Manual end-to-end test: user clicks "Sign in" on marvel → redirected to idp host → enters credentials → redirected back to marvel → has a valid `xpmile_session`. |
+| **K. Deprecate legacy `/api/v1/account/login`** | Once the in-house IdP is live and the marvel SPA has been switched to federate against it, the legacy password-login endpoint can no longer authenticate (its `xpmile.account.passwordHash` source is gone). Remove the SPA's username/password form (login becomes only the SSO provider buttons); make `handle_account_login_POST` return `410 Gone` with a `WWW-Authenticate` hint pointing at the IdP for ~one release cycle, then delete the handler. |
 
 `/userinfo` and `/end_session` come along with Phase E (small).
 
@@ -565,6 +771,9 @@ All ten phases ship in v1; phasing is build order.
 8. **Account lockout policy.** v1: no hard lockout, just exponential backoff. Vaadin Accounts view gets a "reset failed attempts" button. Confirm.
 9. **Logging out at the IdP when the RP logs out.** When `POST /api/v1/sso/logout` fires on marvel, should it also call the IdP's `/end_session`? Default: **yes** — call `/end_session` for the in-house provider on SPA logout (matches user expectation that "log out" = "log out").
 10. **Host-header gating** for IdP routes on the marvel host. v1 default: **don't gate** (accept the spec-rejected-but-not-exploitable mismatch); revisit if we find a real attack vector.
+11. **Migration sequencing.** Phase pre-A (the account split) is a destructive change to `xpmile.account` (auth fields are removed). Options: (a) run the migration during the deploy that ships the IdP — atomic-ish, brief window of broken legacy login; (b) deploy the IdP first with the migration script *not* yet run, validate the IdP path, *then* run the migration script and immediately deploy Phase K — more conservative, two-step. Default proposed: **(b) two-step**.
+12. **Legacy `POST /api/v1/account/login` deprecation window.** After the migration, the endpoint can no longer authenticate. Options for the marvel SPA's username/password form: (a) remove it in the same release as the IdP — clean cut; (b) hide it but leave the endpoint as `410 Gone` for one release as a soft-deprecation; (c) silently redirect the form's submit to the IdP `/authorize`. Default proposed: **(a) clean cut** — the IdP is shipping the new login path; carrying two login UIs invites confusion.
+13. **The Vaadin `AccountsView` after the split.** It currently lists and edits `xpmile.account` documents. After the split, business fields stay there but auth fields (password, email, role) move to `idp.account`. Two paths: (a) refactor `AccountsView` to show both halves joined by `accountCode` — `IdpAccountService` for the auth side, existing `AccountService` for the business side; (b) split it into two views — `IdpUsersView` for auth admin (create user, reset password, set role) and the existing `AccountsView` for business data. Default proposed: **(a) joined view** — operators think of an account as one thing.
 
 ---
 
@@ -593,7 +802,8 @@ All ten phases ship in v1; phasing is build order.
 | `modules/module/wsdbproxy/inc/dbproto.hpp` / `src/dbproto.cpp` | Add `DbOp::SIGN_JWT` + request/response BSON schema |
 | `modules/module/wsdbagent/src/wsdbagent.cpp` | Add `SIGN_JWT` dispatcher case + `sign_jwt_on_prem()` helper |
 | `modules/module/webservice/inc/webservice.hpp` / `src/webservice.cpp` | Route `/api/v1/idp/*` to a new `handle_idp` adapter (mirrors `handle_sso`); extract the credential-check helper for reuse between `handle_account_login_POST` and `handle_idp_login_POST` |
-| `docker/mongo-init.js` | Create the six new collections with TTL indexes where appropriate |
+| `docker/mongo-init.js` | Create the new `idp` database and its eight collections (`account`, `idp_signing_keys`, `idp_clients`, `idp_codes`, `idp_access_tokens`, `idp_pending_auth`, `password_resets`, `sessions`) with TTL indexes where appropriate; grant `MONGO_APP_USER` `readWrite` on `idp` in addition to the existing `xpmile` grant; run the account-split migration if `schema_version < 2` |
+| `scripts/migrate-account-split.py` (new) | Standalone idempotent migration — copies auth fields from existing `xpmile.account` docs to `idp.account` (keyed by `accountCode`), then `$unset`s them from `xpmile.account`. Bumps `schema_version` to 2. For deployments where `mongo-init.js` doesn't fire (existing volumes) |
 | `CMakeLists.txt` | `add_executable(uniservice ...)` globs the new `inhouseidp` module |
 | `test/CMakeLists.txt` | Add the new `inhouseidp` test sources |
 
