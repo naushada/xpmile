@@ -106,9 +106,9 @@ cp .env.agent .env                  # set SERVER_HOST=<your-heroku-app>.herokuap
 ./run-agent.sh refresh-certs        # cert-watcher restarts wsdbagent automatically (~15 s)
 ```
 
-Three services: `mongodb` (built locally from `docker/Dockerfile.mongo`, ~30 s), `wsdbagent` (pulled from `docker.io/naushada/xpmile-wsdbagent:latest` — CI-published per deploy; pin with `WSDBAGENT_IMAGE=...:<sha>`), and `xpmile-cert-watcher` (alpine sidecar; `docker.io/library/alpine:3.19`). The watcher md5sums `./certs/cloud-issued/innertls/` every 5 s and POSTs a restart to `agent-wsdbagent` via the host podman socket on any change. It exists because `docker/Dockerfile` mints a fresh CA per uniservice build — wsdbagent's trust anchor + client cert pair must rotate in lockstep or the next reconnect fails with `tls_process_client_certificate verify failed`. Full rotation story in `docs/ws-db-agent.md`.
+Up to four core services: `mongodb` (built locally from `docker/Dockerfile.mongo`, ~30 s), `wsdbagent` (pulled from `docker.io/naushada/xpmile-wsdbagent:latest` — CI-published per deploy; pin with `WSDBAGENT_IMAGE=...:<sha>`), the optional `wsdbagent-idp` (same image, dedicated to the IdP Heroku app — included only when `IDP_SERVER_HOST` is set in `.env`), and `xpmile-cert-watcher` (alpine sidecar; `docker.io/library/alpine:3.19`). The watcher md5sums `./certs/cloud-issued/innertls/` every 5 s and POSTs a restart to *both* agents via the host podman socket on any change — the idp agent's restart endpoint returning 404 is treated as benign (marvel-only stack). Same image to both Heroku apps means one InnerTLS CA on-prem and one shared client cert family — `refresh-certs` rotates the single set; the cert-watcher fans the restart out. Full rotation story in `docs/ws-db-agent.md`.
 
-`./run-agent.sh start` auto-invokes `refresh-certs` when `./certs/cloud-issued/innertls/` is missing or empty, so the first-time flow is genuinely one-shot.
+`./run-agent.sh start` auto-invokes `refresh-certs` when `./certs/cloud-issued/innertls/` is missing or empty, and auto-detects `IDP_SERVER_HOST` to decide whether to bring up the second agent. The first-time flow is one-shot whether you run a marvel-only stack or marvel + idp.
 
 ### Running tests
 

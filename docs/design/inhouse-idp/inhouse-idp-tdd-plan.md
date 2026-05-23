@@ -67,7 +67,7 @@ Snapshot of the `feat/inhouse-idp` branch. Each shipped phase has a commit hash 
 | F | `ui-idp/` Angular SPA | ⏳ pending | — (no Karma) | — |
 | G | Password reset (`reset_request` + `reset_confirm`) | ✅ shipped | 11 | `c0d0e26` |
 | H | CI publish to `registry.heroku.com/idp/web` + release the `idp` Heroku app | ✅ shipped (no Dockerfile.idp needed — design Q1 same-image resolution) | regression-only | (this commit) |
-| I | Two-agent on-prem compose (marvel + idp wsdbagents) | ⏳ pending | — | — |
+| I | Two-agent on-prem compose (marvel + idp wsdbagents, shared cert family) | ✅ shipped | smoke-only (operator runs) | (this commit) |
 | J | Vaadin `IdpClientsView` + `sso_config` integration | ⏳ pending | — | — |
 | K | Legacy `/api/v1/account/login` repoint to `idp.account` | ⏳ pending | — | — |
 | (wire 1) | `MicroService::handle_idp` skeleton + `/well-known` + `/jwks` wired | ✅ shipped | regression-only | `97490d4` |

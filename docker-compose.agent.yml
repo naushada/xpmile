@@ -110,8 +110,48 @@ services:
       - agent-net
 
   # ------------------------------------------------------------------
-  # xpmile-cert-watcher — restarts agent-wsdbagent whenever the
-  # rotated client cert family on disk changes.
+  # wsdbagent-idp — the second wsdbagent, dedicated to the in-house
+  # IdP Heroku app. Mirrors `wsdbagent` exactly except for the outbound
+  # SERVER_HOST and the container name. Per the design's Q1 resolution
+  # (same image to both Heroku apps), both agents share ONE InnerTLS
+  # CA + client cert family — refresh-certs rotates the single set on
+  # disk; the cert-watcher below restarts BOTH agents in lockstep.
+  #
+  # Started only when IDP_SERVER_HOST is set in .env (run-agent.sh
+  # auto-detects). Skip this service entirely on a marvel-only stack —
+  # nothing else here depends on it. Both agents share the SAME
+  # MongoDB instance + connection pool; per-request routing to the
+  # `xpmile` vs `idp` database is determined by the cloud-side caller
+  # (the dbproto envelope carries the target db name per Phase A).
+  # ------------------------------------------------------------------
+  wsdbagent-idp:
+    image: ${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}
+    pull_policy: always
+    container_name: agent-wsdbagent-idp
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      ARGS: >-
+        --server-host ${IDP_SERVER_HOST:?IDP_SERVER_HOST must be set when using the IdP agent}
+        --server-port ${IDP_SERVER_PORT:-443}
+        --mongo-db-uri mongodb://${MONGO_APP_USER:-xpmile}:${MONGO_APP_PASS:-xpmile_pass}@mongodb:27017/${MONGO_DB:-xpmile}?authSource=admin
+        --mongo-db-name ${MONGO_DB:-xpmile}
+        --mongo-db-connection-pool ${MONGO_POOL:-10}
+        --backoff ${BACKOFF:-5}
+        --tls-ca /certs/ca.crt
+        --tls-cert /certs/client.crt
+        --tls-key /certs/client.key
+        ${IDP_TLS_HOSTNAME:+--tls-hostname ${IDP_TLS_HOSTNAME}}
+    volumes:
+      - ${CERTS_DIR:-./certs/cloud-issued/innertls}:/certs:ro
+    networks:
+      - agent-net
+
+  # ------------------------------------------------------------------
+  # xpmile-cert-watcher — restarts BOTH wsdbagent containers whenever
+  # the rotated client cert family on disk changes.
   #
   # docker/Dockerfile mints a fresh CA per build (PR #8), so the
   # cert pair has to rotate every Heroku deploy or wsdbagent's
@@ -145,19 +185,32 @@ services:
         apk add --no-cache curl >/dev/null
         log() { printf '[cert-watcher %s] %s\n' "$$(date -u +%H:%M:%S)" "$$1"; }
         log "watching /watch every $${POLL_SECONDS:-5}s for cert changes"
+        # Both agents share the same cert family (design Q1 — same image
+        # to both Heroku apps → one InnerTLS CA on-prem). When the file
+        # set on /watch changes, restart EVERY agent we can find. The
+        # idp-side agent is optional (marvel-only deployments don't run
+        # it) — a 404 on its restart endpoint is benign and silently
+        # treated as "not present, nothing to restart".
+        restart_agent() {
+          ctr="$$1"
+          rc=$$(curl -fsS -o /dev/null -w '%%{http_code}' \
+                     -X POST --unix-socket /run/podman/podman.sock \
+                     "http://d/v4.0.0/libpod/containers/$${ctr}/restart?timeout=5" || echo "000")
+          case "$$rc" in
+            2*) log "  $$ctr restarted (HTTP $$rc)" ;;
+            404) log "  $$ctr not present (skipped — marvel-only stack)" ;;
+            *)  log "  $$ctr restart FAILED (HTTP $$rc — will retry next change)" ;;
+          esac
+        }
         LAST=""
         while true; do
           NEW=$$(find /watch -type f \( -name '*.crt' -o -name '*.key' -o -name '*.pem' \) -exec md5sum {} + 2>/dev/null \
                  | sort | md5sum | cut -d' ' -f1)
           if [ -n "$$NEW" ] && [ "$$NEW" != "$$LAST" ]; then
             if [ -n "$$LAST" ]; then
-              log "cert change detected ($$LAST -> $$NEW); restarting agent-wsdbagent"
-              if curl -fsS -X POST --unix-socket /run/podman/podman.sock \
-                      "http://d/v4.0.0/libpod/containers/agent-wsdbagent/restart?timeout=5" >/dev/null; then
-                log "  agent-wsdbagent restarted"
-              else
-                log "  agent-wsdbagent restart FAILED (will retry next change)"
-              fi
+              log "cert change detected ($$LAST -> $$NEW); restarting both agents"
+              restart_agent agent-wsdbagent
+              restart_agent agent-wsdbagent-idp
             else
               log "first observation: $$NEW (no restart, baseline)"
             fi
@@ -173,6 +226,12 @@ services:
     depends_on:
       wsdbagent:
         condition: service_started
+      # wsdbagent-idp's service_started condition is intentionally NOT
+      # set as a depends_on — that would force the cert-watcher to
+      # block on a service that may not be in the active `up -d` set
+      # (marvel-only deployments don't start wsdbagent-idp). The
+      # restart loop above handles a missing container gracefully via
+      # the 404 path.
 
   # ------------------------------------------------------------------
   # on-prem Vaadin admin UI — SSO provider configuration (opt-in).
