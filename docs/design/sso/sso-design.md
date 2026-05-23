@@ -1,7 +1,8 @@
 # Design: Single Sign-On (SSO)
 
-> Status: **Draft for review.** No code written yet. A TDD plan (`sso-tdd-plan.md`)
-> follows once this design is approved.
+> Status: **Implemented** — phases A–F shipped via PR #18. The code lives in
+> `modules/module/oauth2/` (the `sso::` namespace); `sso-tdd-plan.md` has the
+> test plan. This document is retained as the SSO architecture reference.
 
 ## Problem summary
 

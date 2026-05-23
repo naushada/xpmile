@@ -100,6 +100,8 @@ podman compose up --build
 
 ## Authentication
 
+The application supports username/password and federated **SSO** (OIDC + SAML 2.0) login; both mint a server-side session carried in an `HttpOnly` cookie. SSO is documented in `docs/design/sso/sso-design.md`. The rest of this section covers **database** authentication.
+
 MongoDB runs with authentication enabled. On first startup the init
 script (`docker/mongo-init.js`) creates:
 
@@ -177,9 +179,10 @@ public interface and `src/` for the implementation.
 │       │   ├── src/mongodbc.cpp
 │       │   ├── CMakeLists.txt
 │       │   └── README.md
-│       ├── oauth2/                 OAuth2 service (stub)
-│       │   ├── inc/oauth2service.hpp
-│       │   └── src/oauth2service.cpp
+│       ├── oauth2/                 SSO — sessions, OIDC, SAML 2.0 (sso:: namespace)
+│       │   ├── inc/                sso_*.hpp + saml_*.hpp
+│       │   ├── src/                sso_*.cpp + saml_*.cpp
+│       │   └── test/sso_test.cc
 │       ├── thirdparty/             Vendored single-file libraries
 │       │   └── json.hpp            nlohmann/json (header-only)
 │       ├── webservice/             ACE reactor, HTTP server, request routing
