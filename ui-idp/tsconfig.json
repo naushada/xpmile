@@ -18,7 +18,14 @@
     "target": "ES2020",
     "module": "ES2020",
     "useDefineForClassFields": false,
-    "lib": ["ES2020", "dom"]
+    "lib": ["ES2020", "dom"],
+    // No `@types/*` auto-load. This is a tiny browser-only app — no
+    // node globals needed — and without this Angular 14's tsc happily
+    // pulls in the latest @types/node which uses TS 5.2+ features
+    // (Symbol.dispose, Disposable) that TS 4.7 can't parse.
+    // tsconfig.app.json overrides this same way; setting it here too
+    // covers any other angular compile pass that reads the root.
+    "types": []
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
