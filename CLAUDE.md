@@ -81,7 +81,7 @@ heroku container:release web --app marvel
 1. **bootstrap** — builds `docker.io/naushada/xpmile-cpp-builder:{bootstrap,<sha>}` (multi-arch: amd64 + arm64).
 2. **test** — builds `docker/Dockerfile.test` against the just-published bootstrap and runs the `offtarget` GTest binary. Three Mongo-dependent tests are excluded by the Dockerfile.test CMD filter. A failed test (or compile error) blocks jobs 3 and 4.
 3. **wsdbagent** — publishes `docker.io/naushada/xpmile-wsdbagent:{latest,<sha>}` (multi-arch).
-4. **uniservice + release** — builds amd64-only, pushes to both `docker.io/naushada/xpmile-uniservice:{latest,<sha>}` and `registry.heroku.com/marvel/web`, then PATCHes the Heroku Platform API to release the new digest on the `web` dyno.
+4. **uniservice + release** — builds amd64-only. One buildx push tags the image at four places: `docker.io/naushada/xpmile-uniservice:{latest,<sha>}`, `registry.heroku.com/marvel/web`, and `registry.heroku.com/idp/web`. Then `heroku container:release web` runs for both apps — the same image deploys to both. What turns the `idp` dyno into the IdP is the `IDP_ISSUER` Heroku config var on that app (`heroku config:set IDP_ISSUER=https://idp-63c97365e6ef.herokuapp.com --app idp`, set once after `heroku create idp`). When unset (as on marvel) every `/api/v1/idp/*` and `/.well-known/openid-configuration` route returns 503.
 
 Required repo secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (write-scope token), `HEROKU_API_KEY`. A `concurrency` block auto-cancels older in-flight runs for the same ref.
 

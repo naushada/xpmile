@@ -66,7 +66,7 @@ Snapshot of the `feat/inhouse-idp` branch. Each shipped phase has a commit hash 
 | E | `/token` + `/userinfo` + `/end_session` (real-RSA end-to-end) | ✅ shipped | 24 | `f6069bc` |
 | F | `ui-idp/` Angular SPA | ⏳ pending | — (no Karma) | — |
 | G | Password reset (`reset_request` + `reset_confirm`) | ✅ shipped | 11 | `c0d0e26` |
-| H | `docker/Dockerfile.idp` + CI publish + second Heroku app | ⏳ pending | — | — |
+| H | CI publish to `registry.heroku.com/idp/web` + release the `idp` Heroku app | ✅ shipped (no Dockerfile.idp needed — design Q1 same-image resolution) | regression-only | (this commit) |
 | I | Two-agent on-prem compose (marvel + idp wsdbagents) | ⏳ pending | — | — |
 | J | Vaadin `IdpClientsView` + `sso_config` integration | ⏳ pending | — | — |
 | K | Legacy `/api/v1/account/login` repoint to `idp.account` | ⏳ pending | — | — |
