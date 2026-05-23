@@ -50,6 +50,42 @@ Test-first plan for the design in `inhouse-idp-design.md`. Each phase is a RED �
 
 ---
 
+## Implementation status
+
+Snapshot of the `feat/inhouse-idp` branch. Each shipped phase has a commit hash on the branch; the count column is the actual landed test count, which over-delivered on the plan's call-outs.
+
+| Phase | Description | Status | Tests landed | Commit |
+|---|---|---|---:|---|
+| pre-A | Account split migration (Python + pytest in podman) | ✅ shipped | 12 pytest | `0fa7b1b` |
+| A pt 1 | `SIGN_JWT` wire op + cloud-side `WsdbJwtSigner` | ✅ shipped | 6 | `3616d6c` |
+| A pt 2 | `wsdbagent` `SIGN_JWT` dispatcher + on-prem RSA | ✅ shipped | 6 (end-to-end roundtrip) | `3f22993` |
+| B | Vaadin signing-key admin (Java) | ⏳ pending | — | — |
+| C | JWKS endpoint + OIDC discovery doc | ✅ shipped | 18 | `eeca90d` |
+| D pt 1 | `IdpSessionManager` + `IdpClientRegistry` | ✅ shipped | 26 | `42af168` |
+| D pt 2 | IdP cookies + `/authorize` + `/login` | ✅ shipped | 27 | `829ad91` |
+| E | `/token` + `/userinfo` + `/end_session` (real-RSA end-to-end) | ✅ shipped | 24 | `f6069bc` |
+| F | `ui-idp/` Angular SPA | ⏳ pending | — (no Karma) | — |
+| G | Password reset (`reset_request` + `reset_confirm`) | ✅ shipped | 11 | `c0d0e26` |
+| H | `docker/Dockerfile.idp` + CI publish + second Heroku app | ⏳ pending | — | — |
+| I | Two-agent on-prem compose (marvel + idp wsdbagents) | ⏳ pending | — | — |
+| J | Vaadin `IdpClientsView` + `sso_config` integration | ⏳ pending | — | — |
+| K | Legacy `/api/v1/account/login` repoint to `idp.account` | ⏳ pending | — | — |
+| (wire 1) | `MicroService::handle_idp` skeleton + `/well-known` + `/jwks` wired | ✅ shipped | regression-only | `97490d4` |
+| (wire 2) | `/authorize` + `/userinfo` + `/end_session` wired, `IdpClientRegistry` hot-reload on `WebServer` | ✅ shipped | regression-only | `4749b84` |
+| (wire 3) | `/login` + `/token` + `/password/*` wiring | ⏳ pending — needs the 4 production `I*` impls | — | — |
+
+**Cumulative on the branch:** 118 GTest + 12 pytest, 379 / 379 total `offtarget` passes (zero regressions).
+
+**Deviations from the original plan worth noting:**
+
+- The `idp_test_keys` CMake fixture also drives the Phase E end-to-end roundtrip test (`IdpToken.EndToEnd_RealRsaSign_VerifyWithJwks`), not just Phase A's `SignJwtDispatch*` — same keys reused via the `IDP_TEST_PRIV_KEY_PATH` / `IDP_TEST_PUB_KEY_PATH` compile defs.
+- Phase D over-delivered (53 tests vs the plan's 28) — the client registry got 17 tests on its own once the exact-byte URI match started covering both `redirect_uri` and `post_logout_redirect_uri`.
+- The `/token` endpoint signs the JWT *twice* in production — first with kid `"current"` to let the signer resolve the real kid, then again with that kid baked into the header so verifiers find the matching JWKS entry cleanly. One extra wsdbagent round trip per token issuance; acceptable for v1, cache the active kid cloud-side later (open question Q-cache below).
+- `IDP_ISSUER` is read from the env on every request rather than threaded through `WebServer` — keeps the marvel ↔ idp posture a deploy-time decision with zero state to plumb.
+- The wire adapter ships in slices (1, 2, 3) so each slice is a small, deployable, test-green PR. The handler functions are fully unit-tested in `modules/module/inhouseidp/test/`; the wire layer itself has no direct unit tests (matches the `handle_sso` posture — the dispatch is a thin parse-and-render layer).
+
+---
+
 ## Phase pre-A — Account split migration
 
 ### Why first

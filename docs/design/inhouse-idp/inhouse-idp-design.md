@@ -759,18 +759,23 @@ All eleven phases ship in v1; phasing is build order. Phase pre-A runs **sequent
 - **Legacy `POST /api/v1/account/login` deprecation (was Q12):** **no deprecation.** The legacy endpoint stays as a fallback for IdP-unreachable scenarios and admin recovery. It gets repointed (Phase K) to cross-DB read `idp.account` — the *single* cross-DB access in the system, scoped to this endpoint only. The marvel SPA keeps its username/password form alongside the SSO "Sign in" button.
 - **Vaadin AccountsView after the split (was Q13):** **joined view.** Single screen, two backing services (`IdpUserService` + existing `AccountService`), linked by `accountCode`. Operators continue to think of an account as one logical thing.
 
+### Resolved during implementation
+
+- **Same image to both Heroku apps (was Q1 of "Still open"):** **same image.** Decided by the wire-adapter slices — `MicroService::handle_idp` reads `IDP_ISSUER` from the env on every request; when unset the routes return 503, when set they activate. Marvel and idp deploy the same image; posture is a deploy-time config-var decision. Avoids drift between two CI pipelines and keeps the InnerTLS CA family single.
+- **`idp_clients` storage shape (was Q2):** **separate collection.** `IdpClientRegistry` loads from `idp.idp_clients`; hot-reloaded by `WebServer::init_idp` / `reload_idp` (~60 s poll), mirroring the `sso_config` reload pattern.
+- **`/api/v1/idp/*` vs root-level paths (was Q3):** **`/api/v1/idp/*`.** Matches the existing prefix convention; `/.well-known/openid-configuration` is the one root-level exception (mandated by the OIDC spec).
+- **Re-signing the JWT with the resolved kid:** acknowledged trade-off — `/token` calls the signer twice in production (first with placeholder kid `"current"` to learn the real kid; then again with the real kid baked into the header so verifiers find the matching JWKS entry cleanly). One extra wsdbagent round trip per token. Cheap; cache the active kid cloud-side later if it shows up in latency profiling.
+
 ### Still open
 
-1. **Same image to both Heroku apps, or separate builds?** Same image (one CI build, two `heroku container:release`) → both apps always share the same InnerTLS CA → one cert family on-prem → no extension to refresh-certs needed. Separate builds → independent release cadence → two CAs → two cert families on-prem. Default: **same image**.
-2. **`idp_clients` storage shape.** Separate `idp_clients` collection (multi-client-ready, what this doc assumes) vs inline into the IdP config (simpler while there's exactly one client). Default: **separate collection**.
-3. **`/api/v1/idp/*` vs root-level OIDC paths on the idp host.** /api/v1/idp/* matches the existing convention. Root-level (`/authorize`, `/token`, `/jwks`) is more conventional for a dedicated IdP host. Default: **`/api/v1/idp/*`** to match the existing routing pattern.
-4. **Brute-force protection on `/login`.** v1 lean: per-account exponential backoff stored in the account doc. v1 thorough: separate `auth_attempts` collection + IP-level rate limit. Default: **minimal (per-account exponential backoff)**.
-5. **Refresh tokens.** Not in v1 (sessions handle the "stay logged in" UX via the RP-side `xpmile_session` cookie). Confirm.
-6. **Key rotation cadence.** Manual via Vaadin only for v1; no scheduler. Confirm.
-7. **`/userinfo` scope.** Include in v1 for protocol completeness — but the marvel SPA doesn't need it (claims live in the id_token). Confirm "build it but don't actively use it" is fine.
-8. **Account lockout policy.** v1: no hard lockout, just exponential backoff. Vaadin Accounts view gets a "reset failed attempts" button. Confirm.
-9. **Logging out at the IdP when the RP logs out.** When `POST /api/v1/sso/logout` fires on marvel, should it also call the IdP's `/end_session`? Default: **yes** — call `/end_session` for the in-house provider on SPA logout (matches user expectation that "log out" = "log out").
-10. **Host-header gating** for IdP routes on the marvel host. v1 default: **don't gate** (accept the spec-rejected-but-not-exploitable mismatch); revisit if we find a real attack vector.
+1. **Brute-force protection on `/login`.** v1 lean: per-account exponential backoff stored in the account doc. v1 thorough: separate `auth_attempts` collection + IP-level rate limit. Default: **minimal (per-account exponential backoff)** — not yet implemented; `idp::login` does only credential check + session mint today.
+2. **Refresh tokens.** Not in v1 (sessions handle the "stay logged in" UX via the RP-side `xpmile_session` cookie). Confirm.
+3. **Key rotation cadence.** Manual via Vaadin only for v1; no scheduler. Confirm.
+4. **`/userinfo` scope.** Include in v1 for protocol completeness — but the marvel SPA doesn't need it (claims live in the id_token). Confirm "build it but don't actively use it" is fine. (Endpoint shipped in Phase E.)
+5. **Account lockout policy.** v1: no hard lockout, just exponential backoff. Vaadin Accounts view gets a "reset failed attempts" button. Confirm.
+6. **Logging out at the IdP when the RP logs out.** When `POST /api/v1/sso/logout` fires on marvel, should it also call the IdP's `/end_session`? Default: **yes** — call `/end_session` for the in-house provider on SPA logout (matches user expectation that "log out" = "log out").
+7. **Host-header gating** for IdP routes on the marvel host. v1 default: **don't gate** (accept the spec-rejected-but-not-exploitable mismatch); revisit if we find a real attack vector.
+8. **Cache the active kid cloud-side** to drop the per-token double-sign trip. The `/token` endpoint signs the JWT twice today — once with placeholder kid `"current"` to learn the real kid, once with the real kid baked into the header. Solvable with a small in-process TTL cache of the active kid that listens to the Vaadin signing-key admin (Phase B). Defer until latency profiling actually shows the cost.
 
 ---
 
