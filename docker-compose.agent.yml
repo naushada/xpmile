@@ -129,6 +129,14 @@ services:
     image: docker.io/library/alpine:3.19
     container_name: xpmile-cert-watcher
     restart: unless-stopped
+    # The watcher POSTs to the podman API socket bind-mounted at
+    # /run/podman/podman.sock. macOS `podman machine` uses a Fedora VM with
+    # SELinux enforcing — the default `container_t` label denies access to
+    # the socket's `var_run_t`. `label=disable` turns off container labeling
+    # so the sidecar can read/write the socket. No-op on Linux hosts without
+    # SELinux (Raspberry Pi OS, Debian, Ubuntu).
+    security_opt:
+      - label=disable
     command:
       - sh
       - -c
