@@ -102,20 +102,14 @@ The same on-prem MongoDB instance hosts **two databases**. The existing `account
 | `xpmile` (existing) | marvel uniservice | `account` *(business fields only after split — `accountCode`, `awbPrefix`, `eventLocation`, `personalInfo`, ...)*, `shipping`, `inventory`, `sessions` (marvel's), `sso_config`, `counters`, `fs.files`/`fs.chunks`, ... |
 | `idp` (new) | idp uniservice | `account` *(auth fields only — `accountCode`, `passwordHash`, `email`, `name`, `role`)*, `idp_signing_keys`, `idp_clients`, `idp_codes`, `idp_access_tokens`, `idp_pending_auth`, `password_resets`, `sessions` (the IdP's own — separate from marvel's) |
 
-**The collections link by `accountCode`.** It's the same field that's already the primary identifier today; nothing references it by Mongo `_id`. Splitting along auth/business means each uniservice reads only the collection in *its own* database — **no cross-database access from either side.**
+**The collections link by `accountCode`.** It's the same field that's already the primary identifier today; nothing references it by Mongo `_id`. Splitting along auth/business means each uniservice talks primarily to its *own* database:
 
-The idp uniservice's `IMongodbClient` connects to `idp` only:
-- `/login` reads `idp.account` for credential verification.
-- `/password-reset/confirm` writes `idp.account.passwordHash`.
-- All IdP-specific collections (signing keys, codes, etc.) are in `idp` already.
+- **idp uniservice → `idp` database only.** `/login` reads `idp.account`; `/password-reset/confirm` writes `idp.account.passwordHash`; the IdP-specific collections (signing keys, codes, etc.) all live in `idp`.
+- **marvel uniservice → `xpmile` database for everything except the legacy login fallback.** `handle_shipment_POST` reads `xpmile.account.awbPrefix`; sessions/shipping/inventory all stay in `xpmile`.
 
-The marvel uniservice's `IMongodbClient` connects to `xpmile` only (unchanged from today):
-- `handle_shipment_POST` reads `xpmile.account.awbPrefix` for `next_awbno()`.
-- Everything else in marvel keeps using `xpmile` as before.
+**The one narrow exception** — the legacy `POST /api/v1/account/login` endpoint. We deliberately keep this endpoint working as a fallback (Q12 resolution: customer can sign in directly if the IdP is unreachable, or for admin recovery). Since the only password hash now lives in `idp.account`, marvel's `handle_account_login_POST` does a single cross-DB read — `db("idp").collection("account").findOne({accountCode})` — only for this one endpoint. No other marvel code path touches `idp.*`. This is one cross-DB read confined to one endpoint, not a sprinkled-cross-DB architecture.
 
-`docker/mongo-init.js` is extended to create the `idp` database alongside `xpmile`, with the same `MONGO_APP_USER` granted `readWrite` on both (so one Mongo credential covers both wsdbagent connections). A **one-time migration step** at deploy time copies the auth fields out of every existing `xpmile.account` document into a matching `idp.account` document (keyed by `accountCode`) and then deletes those auth fields from `xpmile.account`. The migration is idempotent (a follow-up run is a no-op) and gated by a "schema_version" doc so it doesn't fire on already-migrated databases. See §11 Phase pre-A.
-
-**Consequence for marvel:** the legacy `POST /api/v1/account/login` endpoint — which currently authenticates against `xpmile.account.passwordHash` — has nothing left to read once the auth fields move. It's deprecated as part of this change; the marvel SPA's username/password form is removed in favour of the in-house IdP "Sign in" button. See §12 Q12 for the deprecation/removal sequencing.
+`docker/mongo-init.js` is extended to create the `idp` database alongside `xpmile`, with the same `MONGO_APP_USER` granted `readWrite` on both. A **one-time migration step** at deploy time copies the auth fields out of every existing `xpmile.account` document into a matching `idp.account` document (keyed by `accountCode`) and then deletes those auth fields from `xpmile.account`. The migration is idempotent (gated by a `schema_version` doc) and runs **sequentially** with the deploy (§12 Q11): IdP code goes out first, then the migration script runs on demand, then everything continues. See §11 Phase pre-A.
 
 ---
 
@@ -642,10 +636,10 @@ What we reuse, unchanged:
 | OIDC *client* (marvel federating against the in-house IdP) | `OidcProvider` + `sso_endpoints.*` (unchanged — federates against the in-house IdP the same way it federates against Okta) |
 | Hot-reload of config / JWKS | the existing `sso_config` hot-reload thread (extended on idp host to also poll `idp_signing_keys`) |
 | Outbound HTTP client (for marvel's discovery fetch against the in-house IdP) | `sso_http_client.*` (unchanged — just fetches the discovery doc from the new host) |
-| MongoDB access from cloud (always via on-prem agent) | `IMongodbClient` / `WsMongodbProxy` — one instance per uniservice, defaulted to its own database (`idp` or `xpmile`). No cross-DB access from either side. |
+| MongoDB access from cloud (always via on-prem agent) | `IMongodbClient` / `WsMongodbProxy` — one instance per uniservice, defaulted to its own database. **Idp uniservice: `idp` only.** **Marvel uniservice: `xpmile` for everything except the legacy `handle_account_login_POST`,** which does a single cross-DB `idp.account` read for the fallback login path. |
 | WebSocket DB proxy protocol | `dbproto` + `wsframe` — *extended with the new `SIGN_JWT` op* |
 | Inner-TLS encryption of the wsdbagent tunnel | `security/innertls.*` (unchanged) |
-| Password verification | the existing password-hashing comparison logic from `handle_account_login_POST` — extracted into a small reusable helper called by `handle_idp_login_POST`. The legacy handler itself is deprecated as part of this change (§11 phase K) since its `xpmile.account.passwordHash` source no longer exists after the migration. |
+| Password verification | the existing password-hashing comparison logic from `handle_account_login_POST` — extracted into a small reusable helper called by both `handle_account_login_POST` (legacy fallback, cross-DB reads `idp.account`) and `handle_idp_login_POST` (IdP main path, reads `idp.account` directly). The legacy handler **keeps working as a fallback** (Q12 resolution); it just sources its hash from the new location. |
 | Email delivery for the reset flow | `SMTP::User` (the existing email module) |
 | Admin UI for keys + clients | the existing Vaadin app — same patterns as `SsoConfigView` |
 | C++ binary | the *same* `uniservice` binary deploys to both marvel and idp Heroku apps |
@@ -694,7 +688,7 @@ What's genuinely new — the scope of the implementation work:
 
 ## 11. Phased delivery
 
-All twelve phases ship in v1; phasing is build order.
+All eleven phases ship in v1; phasing is build order. Phase pre-A runs **sequentially** with the IdP deploy (Q11): deploy first, then run the migration, then continue.
 
 | Phase | Scope |
 |-------|-------|
@@ -741,7 +735,7 @@ All twelve phases ship in v1; phasing is build order.
 | **H. `docker/Dockerfile.idp` + CI publish** | New Dockerfile packaging `ui-idp` dist + the existing uniservice binary. CI extended to push the idp image to `registry.heroku.com/idp/web` after the marvel push. Single build, two Heroku releases. |
 | **I. On-prem two-agent stack** | `docker-compose.agent.yml` gains `agent-wsdbagent-idp` + cert-watcher rule for the new cert dir. `./run-agent.sh refresh-certs` extended. End-to-end smoke test from the cloud idp app through to MongoDB on-prem. |
 | **J. Coexistence wiring** | Add the in-house IdP to `sso_config` on marvel (initially as an opt-in entry). Register the marvel SPA as `xpmile-spa` in `IdpClientsView`. Manual end-to-end test: user clicks "Sign in" on marvel → redirected to idp host → enters credentials → redirected back to marvel → has a valid `xpmile_session`. |
-| **K. Deprecate legacy `/api/v1/account/login`** | Once the in-house IdP is live and the marvel SPA has been switched to federate against it, the legacy password-login endpoint can no longer authenticate (its `xpmile.account.passwordHash` source is gone). Remove the SPA's username/password form (login becomes only the SSO provider buttons); make `handle_account_login_POST` return `410 Gone` with a `WWW-Authenticate` hint pointing at the IdP for ~one release cycle, then delete the handler. |
+| **K. Repoint legacy `/api/v1/account/login` to the new auth source** | The legacy endpoint **stays as a fallback** (Q12 resolution). Repoint `handle_account_login_POST` to cross-DB read `idp.account.passwordHash` (one cross-DB read, scoped to this single endpoint) using the shared password-verification helper. The marvel SPA keeps its username/password form alongside the SSO "Sign in" button — users can choose either path. |
 
 `/userinfo` and `/end_session` come along with Phase E (small).
 
@@ -759,6 +753,12 @@ All twelve phases ship in v1; phasing is build order.
 - **Issuer URL:** `https://idp-63c97365e6ef.herokuapp.com/api/v1/idp`.
 - **The IdP is hosted on its own Heroku app** (idp-63c97365e6ef.herokuapp.com) — distinct from the existing marvel app. The same `uniservice` binary deploys to both; the Angular dist differs per host.
 
+### Newly resolved (from this iteration)
+
+- **Migration sequencing (was Q11):** **two-step / sequential.** Deploy the IdP code first (Phases A–J without K), validate the IdP path manually, *then* run `scripts/migrate-account-split.py` against the on-prem MongoDB, *then* deploy Phase K which repoints the legacy endpoint to its new auth source.
+- **Legacy `POST /api/v1/account/login` deprecation (was Q12):** **no deprecation.** The legacy endpoint stays as a fallback for IdP-unreachable scenarios and admin recovery. It gets repointed (Phase K) to cross-DB read `idp.account` — the *single* cross-DB access in the system, scoped to this endpoint only. The marvel SPA keeps its username/password form alongside the SSO "Sign in" button.
+- **Vaadin AccountsView after the split (was Q13):** **joined view.** Single screen, two backing services (`IdpUserService` + existing `AccountService`), linked by `accountCode`. Operators continue to think of an account as one logical thing.
+
 ### Still open
 
 1. **Same image to both Heroku apps, or separate builds?** Same image (one CI build, two `heroku container:release`) → both apps always share the same InnerTLS CA → one cert family on-prem → no extension to refresh-certs needed. Separate builds → independent release cadence → two CAs → two cert families on-prem. Default: **same image**.
@@ -771,9 +771,6 @@ All twelve phases ship in v1; phasing is build order.
 8. **Account lockout policy.** v1: no hard lockout, just exponential backoff. Vaadin Accounts view gets a "reset failed attempts" button. Confirm.
 9. **Logging out at the IdP when the RP logs out.** When `POST /api/v1/sso/logout` fires on marvel, should it also call the IdP's `/end_session`? Default: **yes** — call `/end_session` for the in-house provider on SPA logout (matches user expectation that "log out" = "log out").
 10. **Host-header gating** for IdP routes on the marvel host. v1 default: **don't gate** (accept the spec-rejected-but-not-exploitable mismatch); revisit if we find a real attack vector.
-11. **Migration sequencing.** Phase pre-A (the account split) is a destructive change to `xpmile.account` (auth fields are removed). Options: (a) run the migration during the deploy that ships the IdP — atomic-ish, brief window of broken legacy login; (b) deploy the IdP first with the migration script *not* yet run, validate the IdP path, *then* run the migration script and immediately deploy Phase K — more conservative, two-step. Default proposed: **(b) two-step**.
-12. **Legacy `POST /api/v1/account/login` deprecation window.** After the migration, the endpoint can no longer authenticate. Options for the marvel SPA's username/password form: (a) remove it in the same release as the IdP — clean cut; (b) hide it but leave the endpoint as `410 Gone` for one release as a soft-deprecation; (c) silently redirect the form's submit to the IdP `/authorize`. Default proposed: **(a) clean cut** — the IdP is shipping the new login path; carrying two login UIs invites confusion.
-13. **The Vaadin `AccountsView` after the split.** It currently lists and edits `xpmile.account` documents. After the split, business fields stay there but auth fields (password, email, role) move to `idp.account`. Two paths: (a) refactor `AccountsView` to show both halves joined by `accountCode` — `IdpAccountService` for the auth side, existing `AccountService` for the business side; (b) split it into two views — `IdpUsersView` for auth admin (create user, reset password, set role) and the existing `AccountsView` for business data. Default proposed: **(a) joined view** — operators think of an account as one thing.
 
 ---
 
