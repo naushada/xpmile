@@ -5,8 +5,12 @@
 #include "idp_discovery.hpp"
 #include "idp_end_session.hpp"
 #include "idp_jwks.hpp"
+#include "idp_login.hpp"
+#include "idp_pbkdf2_credentials.hpp"
 #include "idp_session.hpp"
+#include "idp_token.hpp"
 #include "idp_userinfo.hpp"
+#include "wsdb_jwt_signer.hpp"
 #include "json.hpp"
 #include "saml_provider.hpp"
 #include "sso_cookie.hpp"
@@ -1945,9 +1949,42 @@ std::string MicroService::handle_idp(std::string &in, IMongodbClient &dbInst) {
     res = idp::end_session(q, http.get_element("cookie"),
                             dbInst, reg, sm);
 
-  } else if (method == "POST" && uri == "/api/v1/idp/login")            { routed = false; }
-  else if   (method == "POST" && uri == "/api/v1/idp/token")            { routed = false; }
-  else if   (method == "POST" && !uri.compare(0, 24, "/api/v1/idp/password/")) { routed = false; }
+  } else if (method == "POST" && uri == "/api/v1/idp/login") {
+    // Form fields: user + password, body is application/x-www-form-
+    // urlencoded (the ui-idp SPA POSTs that shape; see Phase F).
+    const std::string body = http.body();
+    sso::SystemClock clock;
+    idp::IdpSessionManager sm(dbInst, clock);
+    idp::PbkdfPasswordVerifier verifier;
+    res = idp::login(sso_form_field(body, "user"),
+                       sso_form_field(body, "password"),
+                       http.get_element("cookie"),
+                       dbInst, sm, verifier, clock);
+
+  } else if (method == "POST" && uri == "/api/v1/idp/token") {
+    // /token signs the id_token via WsdbJwtSigner → wsdbagent
+    // SIGN_JWT op → on-prem RSA. The signer needs a WsDbServer
+    // (IWsDispatcher); in local-DB mode there is none, so /token
+    // can only serve traffic on a --remote-db dyno (which is what
+    // Heroku always uses).
+    if (!m_parent || !m_parent->wsDbServer()) {
+      json err = {{"status", "failure"},
+                  {"cause", "/token requires --remote-db mode (wsdbagent)"},
+                  {"error", 503}};
+      return build_responseERROR(err.dump(), "503 Service Unavailable");
+    }
+    const std::string body = http.body();
+    std::map<std::string, std::string> form;
+    for (const char *k : {"grant_type", "code", "code_verifier",
+                            "client_id", "client_secret", "redirect_uri"}) {
+      std::string v = sso_form_field(body, k);
+      if (!v.empty()) form[k] = std::move(v);
+    }
+    sso::SystemClock clock;
+    idp::WsdbJwtSigner signer(*m_parent->wsDbServer());
+    res = idp::token(form, dbInst, signer, issuer, clock);
+
+  } else if (method == "POST" && !uri.compare(0, 24, "/api/v1/idp/password/")) { routed = false; }
   else                                                                  { routed = false; }
 
   if (!routed) {
