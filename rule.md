@@ -42,7 +42,7 @@ with `inc/` for the public interface and `src/` for the implementation.
 | `http` | `modules/module/http/` | HTTP/1.1 request parser |
 | `email` | `modules/module/email/` | SMTP email client (TLS, FSM-driven) |
 | `mongodb` | `modules/module/mongodb/` | MongoDB connection-pool client |
-| `oauth2` | `modules/module/oauth2/` | OAuth2 service (stub) |
+| `sso` | `modules/module/sso/` | SSO — sessions, OIDC, SAML 2.0 (`sso::` namespace) |
 | `whatsapp` | `modules/module/whatsapp/` | WhatsApp service (stub) |
 | `thirdparty` | `modules/module/thirdparty/` | Vendored single-file libraries (nlohmann/json) |
 

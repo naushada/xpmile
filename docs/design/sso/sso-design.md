@@ -1,7 +1,7 @@
 # Design: Single Sign-On (SSO)
 
 > Status: **Implemented** — phases A–F shipped via PR #18. The code lives in
-> `modules/module/oauth2/` (the `sso::` namespace); `sso-tdd-plan.md` has the
+> `modules/module/sso/` (the `sso::` namespace); `sso-tdd-plan.md` has the
 > test plan. This document is retained as the SSO architecture reference.
 
 ## Problem summary
@@ -15,7 +15,7 @@ structural gap SSO forces us to fix:
 | 1 | No federated login | Customers/operators cannot use their corporate identity (Google, Entra ID, Okta). Every user is a separate password in our DB. |
 | 2 | No server-side session | `POST /api/v1/account/login` returns the account document; the SPA holds it in an in-memory RxJS subject. A page reload logs the user out. There is no token, cookie, or session record. |
 | 3 | No route protection | Angular has no route guard and no HTTP interceptor — every route is public. The C++ backend has no auth middleware — every `/api/v1/*` endpoint is callable unauthenticated. |
-| 4 | No outbound HTTP client | The C++ backend cannot call an external IdP. An empty `modules/module/oauth2/` stub exists but is unimplemented. |
+| 4 | No outbound HTTP client | The C++ backend cannot call an external IdP. An empty `modules/module/sso/` stub exists but is unimplemented. |
 
 SSO cannot be bolted on without a real session mechanism, so this design
 introduces server-side sessions as its foundation and makes both SSO **and** the
@@ -227,10 +227,9 @@ A `ProviderRegistry` builds one `IIdentityProvider` per configured provider at
 startup and resolves it by the `<provider>` path segment / `?provider=` query.
 `OidcProvider` and `SamlProvider` are the two implementations.
 
-> The empty `modules/module/oauth2/` stub is already wired into
-> `CMakeLists.txt`. Recommendation: **rename it to `modules/module/sso/`** (it
-> will hold SAML too, which is not OAuth2) and adjust the three CMake lines.
-> Renaming is cosmetic; building under the existing `oauth2` path also works.
+> Implementation lives in `modules/module/sso/`. (Historical note: the
+> initial scaffolding sat under a `modules/module/oauth2/` stub — kept
+> in place during phases A–F and renamed to `sso/` afterward, per §14 Q4.)
 
 ---
 
@@ -704,7 +703,7 @@ Vaadin app has no automated-test harness (same as Angular, §9 / Phase D).
 | `modules/module/webservice/src/webservice_main.cpp` | Read SSO config from the `sso_config` collection; build `ProviderRegistry`; start the hot-reload poll |
 | `docker/Dockerfile.bootstrap` | Add `libxml2`, `xmlsec1` to the toolchain image (Phase E / SAML only) |
 | `docker/mongo-init.js` | Create `sessions` / `sso_transactions` (TTL indexes) and `sso_config` (seeded with an empty `{publicBaseUrl, providers:[]}` document) |
-| `CMakeLists.txt` | Link `xmlsec1` (Phase E); the SSO sources build via the existing `oauth2/src` glob |
+| `CMakeLists.txt` | Link `xmlsec1` (Phase E); the SSO sources build via the `sso/src` glob |
 | `ui/src/common/app-globals.ts` | URIs for the `/api/v1/sso/*` endpoints |
 | `ui/src/common/httpsvc.service.ts` | `withCredentials: true`; `getSsoProviders()`, `getSession()`, `logout()` |
 | `ui/src/app/login/login.component.ts` | Render provider buttons |
@@ -728,6 +727,10 @@ Vaadin app has no automated-test harness (same as Angular, §9 / Phase D).
   directly to its co-located MongoDB — no internet-facing config-write
   endpoint (§10). The Vaadin console stays unauthenticated; its trust model is
   unchanged.
+- **Module directory name.** Implementation proceeded under the original
+  `modules/module/oauth2/` stub directory through phases A–F (the C++
+  namespace was always `sso::`), then renamed to `modules/module/sso/`
+  in a post-v1.0 refactor.
 
 ### Still open
 
@@ -741,7 +744,3 @@ Vaadin app has no automated-test harness (same as Angular, §9 / Phase D).
 3. **CSRF token timing.** Is `SameSite=Lax` alone acceptable until Phase F,
    with the double-submit token added then? (Lax already blocks the common
    cross-site POST — see the §11 interim-acceptance note.)
-4. **Module directory name.** Implementation is proceeding under the existing
-   `modules/module/oauth2/` directory (C++ namespace `sso`) per the "follow
-   existing structure" instruction. Renaming the directory to `sso/` is
-   optional cosmetic cleanup — flag if wanted.

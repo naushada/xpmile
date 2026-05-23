@@ -15,8 +15,8 @@ include_directories(../modules/module/http/test)
 include_directories(../modules/module/mongodb/inc)
 include_directories(../modules/module/email/inc)
 include_directories(../modules/module/email/test)
-include_directories(../modules/module/oauth2/inc)
-include_directories(../modules/module/oauth2/test)
+include_directories(../modules/module/sso/inc)
+include_directories(../modules/module/sso/test)
 include_directories(../modules/module/whatsapp/inc)
 include_directories(../modules/module/thirdparty)
 include_directories(../modules/module/wsdbproxy/inc)
@@ -49,22 +49,22 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/wsdbproxy/test/wsdbserver_test.cc"
     "../modules/module/wsdbproxy/test/wsproxy_test.cc"
     "../modules/module/security/test/innertls_test.cc"
-    "../modules/module/oauth2/src/sso_cookie.cpp"
-    "../modules/module/oauth2/src/sso_config.cpp"
-    "../modules/module/oauth2/src/sso_session.cpp"
-    "../modules/module/oauth2/src/sso_http_client.cpp"
-    "../modules/module/oauth2/src/sso_util.cpp"
-    "../modules/module/oauth2/src/sso_oidc.cpp"
-    "../modules/module/oauth2/src/sso_jwt.cpp"
-    "../modules/module/oauth2/src/sso_registry.cpp"
-    "../modules/module/oauth2/src/sso_provisioning.cpp"
-    "../modules/module/oauth2/src/sso_endpoints.cpp"
-    "../modules/module/oauth2/src/saml_provider.cpp"
-    "../modules/module/oauth2/src/saml_response.cpp"
-    "../modules/module/oauth2/src/saml_signature.cpp"
-    "../modules/module/oauth2/src/sso_csrf.cpp"
-    "../modules/module/oauth2/src/sso_authz.cpp"
-    "../modules/module/oauth2/test/sso_test.cc"
+    "../modules/module/sso/src/sso_cookie.cpp"
+    "../modules/module/sso/src/sso_config.cpp"
+    "../modules/module/sso/src/sso_session.cpp"
+    "../modules/module/sso/src/sso_http_client.cpp"
+    "../modules/module/sso/src/sso_util.cpp"
+    "../modules/module/sso/src/sso_oidc.cpp"
+    "../modules/module/sso/src/sso_jwt.cpp"
+    "../modules/module/sso/src/sso_registry.cpp"
+    "../modules/module/sso/src/sso_provisioning.cpp"
+    "../modules/module/sso/src/sso_endpoints.cpp"
+    "../modules/module/sso/src/saml_provider.cpp"
+    "../modules/module/sso/src/saml_response.cpp"
+    "../modules/module/sso/src/saml_signature.cpp"
+    "../modules/module/sso/src/sso_csrf.cpp"
+    "../modules/module/sso/src/sso_authz.cpp"
+    "../modules/module/sso/test/sso_test.cc"
     "../modules/module/mongodb/test/mongodbc_test.cc")
 
 enable_testing()

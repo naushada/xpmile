@@ -179,7 +179,7 @@ public interface and `src/` for the implementation.
 │       │   ├── src/mongodbc.cpp
 │       │   ├── CMakeLists.txt
 │       │   └── README.md
-│       ├── oauth2/                 SSO — sessions, OIDC, SAML 2.0 (sso:: namespace)
+│       ├── sso/                    SSO — sessions, OIDC, SAML 2.0 (sso:: namespace)
 │       │   ├── inc/                sso_*.hpp + saml_*.hpp
 │       │   ├── src/                sso_*.cpp + saml_*.cpp
 │       │   └── test/sso_test.cc

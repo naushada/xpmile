@@ -124,7 +124,7 @@ cd /src/build && ctest --output-on-failure
 ./offtarget --gtest_filter='EmailService*'  # SMTP FSM tests only
 ```
 
-The suite spans every module with tests (http, webservice, email, mongodb, wsdbproxy, security, oauth2). The SSO phases alone added 127 tests — see `docs/design/sso/sso-tdd-plan.md`. Zero failures is the baseline.
+The suite spans every module with tests (http, webservice, email, mongodb, wsdbproxy, security, sso). The SSO phases alone added 127 tests — see `docs/design/sso/sso-tdd-plan.md`. Zero failures is the baseline.
 
 ### Angular UI (local development)
 
@@ -181,7 +181,7 @@ struct WorkCtx { ACE_HANDLE handle; MongodbClient *db; std::string request; };
 
 ## Single sign-on (SSO)
 
-The `modules/module/oauth2/` directory implements SSO — server-side sessions, OIDC, and SAML 2.0. The directory name is a leftover from an old empty stub; **all code is in the `sso::` namespace**, not `oauth2`. Design: `docs/design/sso/sso-design.md`; test plan: `sso-tdd-plan.md`. `codebase.md` → *oauth2 module* has the file-by-file reference.
+The `modules/module/sso/` directory implements SSO — server-side sessions, OIDC, and SAML 2.0. All code is in the `sso::` namespace. Design: `docs/design/sso/sso-design.md`; test plan: `sso-tdd-plan.md`. `codebase.md` → *sso module* has the file-by-file reference.
 
 **Backend-for-frontend (BFF):** the C++ backend runs the entire IdP handshake; IdP tokens never reach the browser. Every login — federated *and* password — mints a `sessions` record and sets an opaque `HttpOnly` cookie (`xpmile_session`). The cookie is a random id, not a JWT, so a session is revocable by deleting the record.
 
@@ -195,7 +195,7 @@ The `modules/module/oauth2/` directory implements SSO — server-side sessions, 
 
 **xmlsec1 dependency:** SAML XML-DSig needs `libxml2` + `xmlsec1`. The root `CMakeLists.txt` does `pkg_check_modules(XMLSEC REQUIRED xmlsec1-openssl)`, which cmake resolves at configure time for *every* target — so all three builder Dockerfiles (`Dockerfile`, `Dockerfile.test`, `Dockerfile.wsdbagent`) `apt-get install libxmlsec1-dev`, including `wsdbagent` even though its binary never links xmlsec1. Only the `uniservice` runtime stage ships the `libxmlsec1`/`libxmlsec1-openssl` runtime libs.
 
-**Unit tests:** `modules/module/oauth2/test/sso_test.cc` (114 tests), plus the session / CORS / middleware tests in `webservice_test.cc`. All run against mocks behind `IMongodbClient` / `IHttpClient` — no live MongoDB, no network — inside the standard `offtarget` binary.
+**Unit tests:** `modules/module/sso/test/sso_test.cc` (114 tests), plus the session / CORS / middleware tests in `webservice_test.cc`. All run against mocks behind `IMongodbClient` / `IHttpClient` — no live MongoDB, no network — inside the standard `offtarget` binary.
 
 ---
 
