@@ -14,25 +14,35 @@ The same `uniservice` binary deploys to two Heroku apps: **marvel** (the xpmile 
 
 ## Operator pre-conditions (one-time, post-merge)
 
-The CI workflow auto-publishes the uniservice image to both Heroku registries (`registry.heroku.com/marvel/web` and `registry.heroku.com/idp/web`) on every push to `main` and runs `heroku container:release web` against both apps. The marvel app needs no operator action — the `IDP_ISSUER` env var stays unset and the IdP routes correctly return 503. The **idp** app needs the following config vars set **once**:
+The CI workflow auto-publishes the uniservice image to both Heroku registries (`registry.heroku.com/marvel/web` and `registry.heroku.com/idp/web`) on every push to `main` and runs `heroku container:release web` against both apps. The marvel app needs no operator action — the `IDP_ISSUER` env var stays unset and the IdP routes correctly return 503.
+
+The **idp** app needs a one-time setup. Use the wrapper script — it sets the `container` stack, prompts for each config var (showing which ones are already set), scales `web=1`, and idemoptently re-running it is safe:
 
 ```sh
-# 1) Mark the dyno as the IdP. Without this, every /api/v1/idp/* + /.well-known
-#    route returns 503 with a clear "IdP not enabled on this dyno" body.
-heroku config:set IDP_ISSUER=https://idp-63c97365e6ef.herokuapp.com --app idp
-
-# 2) Activate remote-DB mode (Heroku always uses this — the idp dyno reaches
-#    MongoDB via the on-prem wsdbagent over an InnerTLS WebSocket).
-heroku config:set REMOTE_DB=1 --app idp
-
-# 3) SMTP credentials for password-reset emails. Without these,
-#    /api/v1/idp/password/reset_request still returns 200 (so an attacker
-#    can't tell mis-typed addresses from real ones) but no email actually
-#    gets sent — surfaces as ACE_ERROR in `heroku logs --app idp`.
-heroku config:set SMTP_FROM_EMAIL=no-reply@xpmile.app --app idp
-heroku config:set SMTP_FROM_PASSWORD='…'              --app idp
-heroku config:set SMTP_FROM_NAME='xpmile'             --app idp   # optional
+./run-idp.sh init        # one-time: stack:set container + config:set + ps:scale
+./run-idp.sh release     # release the image already in registry.heroku.com/idp/web
+./run-idp.sh verify      # curl /.well-known + /jwks to confirm
+./run-idp.sh status      # show stack + dyno scale + config vars (passwords masked)
+./run-idp.sh logs        # tail live Heroku logs
 ```
+
+If you'd rather run the raw Heroku CLI commands yourself, here's what `init` would do:
+
+```sh
+heroku stack:set container --app idp           # one-time, hard-to-reverse
+heroku config:set IDP_ISSUER=https://idp-63c97365e6ef.herokuapp.com --app idp
+heroku config:set REMOTE_DB=1                  --app idp
+heroku config:set SMTP_FROM_EMAIL=no-reply@xpmile.app --app idp
+heroku config:set SMTP_FROM_PASSWORD='…'       --app idp
+heroku config:set SMTP_FROM_NAME='xpmile'      --app idp     # optional
+heroku ps:scale web=1                          --app idp
+heroku container:release web                   --app idp
+```
+
+Notes:
+- `IDP_ISSUER` is the marker that flips the dyno into IdP mode — without it the `/api/v1/idp/*` + `/.well-known/openid-configuration` routes return 503 (which is correct on marvel; wrong on idp).
+- `REMOTE_DB=1` activates the `--remote-db` mode so the dyno reaches MongoDB via the on-prem `wsdbagent-idp` container instead of trying a local mongo (which doesn't exist on Heroku).
+- `SMTP_FROM_*` are read on every `/password/reset_request` send. When unset, the endpoint still returns 200 (no enumeration) but `ACE_ERROR` lines appear in the logs and no email goes out.
 
 On the **on-prem MongoDB machine**, after the next CI publish:
 
