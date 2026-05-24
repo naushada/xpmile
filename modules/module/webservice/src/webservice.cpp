@@ -1257,7 +1257,16 @@ std::string MicroService::handle_GET(std::string &in, IMongodbClient &dbInst) {
       }
     }
   } else if (!uri.compare(0, 1, "/")) {
-    std::string newFile = "../webgui/webui/index.html";
+    // Catch-all SPA shell. Which SPA depends on the dyno's posture:
+    // when IDP_ISSUER is set this is the idp dyno (serve ui-idp's
+    // index.html so visitors land on /idp/login via the SPA's `**`
+    // route), otherwise it's the marvel dyno (serve the marvel SPA).
+    // Same posture switch as handle_idp(): one env var decides which
+    // app this binary is "being" right now.
+    const char *idp_env = std::getenv("IDP_ISSUER");
+    const std::string newFile = (idp_env && *idp_env)
+                                    ? "../webgui/idp/index.html"
+                                    : "../webgui/webui/index.html";
     ACE_DEBUG((LM_DEBUG,
                ACE_TEXT("%D [Worker:%t] %M %N:%l newFile Name is %s \n"),
                newFile.c_str()));
