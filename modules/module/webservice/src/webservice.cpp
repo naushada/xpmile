@@ -1929,7 +1929,18 @@ std::string MicroService::handle_idp(std::string &in, IMongodbClient &dbInst) {
   sso::SsoHttpResult res;
   bool routed = true;
 
-  if (method == "GET" && uri == "/.well-known/openid-configuration") {
+  if (method == "GET" &&
+      (uri == "/.well-known/openid-configuration" ||
+       uri == "/api/v1/idp/.well-known/openid-configuration")) {
+    // OIDC discovery URL is `<issuer>/.well-known/openid-configuration`
+    // (path-concatenated per OIDC core §4 / RFC 8414). Our issuer has a
+    // path: `https://idp-…/api/v1/idp` — so the spec-correct discovery
+    // URL is `https://idp-…/api/v1/idp/.well-known/openid-configuration`.
+    // Marvel's `sso::fetch_discovery` constructs exactly that. We also
+    // accept the bare root `/.well-known/openid-configuration` for
+    // tooling that probes there directly (curl, browser plugins, OIDC
+    // RP libraries that strip issuer paths). Both are served by the
+    // same handler — `issuer` is the canonical value either way.
     res = idp::handle_idp_discovery_GET(issuer);
 
   } else if (method == "GET" && uri == "/api/v1/idp/jwks") {
