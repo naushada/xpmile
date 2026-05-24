@@ -223,8 +223,12 @@ public interface and `src/` for the implementation.
 ├── docker-compose.agent.yml        On-prem stack (mongodb + wsdbagent + cert-watcher sidecar)
 ├── docker-compose.heroku.yml       Build spec for the Heroku registry image
 ├── run.sh                          Local stack wrapper (build / start / logs / status)
-├── run-agent.sh                    On-prem stack wrapper (start / refresh-certs / logs)
-└── deploy-heroku.sh                Manual Heroku deploy escape hatch (CI auto-deploys on push to main)
+├── run-agent.sh                    On-prem stack wrapper — mongo + both wsdbagents + cert-watcher (start / refresh-certs / logs)
+├── run-idp.sh                      idp Heroku app wrapper — one-time stack:set container + config:set + ps:scale, plus release / logs / status / verify
+├── deploy-heroku.sh                Manual Heroku deploy escape hatch (CI auto-deploys on push to main)
+└── scripts/
+    ├── migrate-account-split.py    Pre-A migration — split passwordHash out of xpmile.account into idp.account (idempotent, gated by schema_version)
+    └── seed-default-idp-sso.sh     One-shot marvel ↔ in-house-IdP wiring — upserts xpmile.sso_config (adds "inhouse" OIDC provider) + idp.idp_clients (registers xpmile-spa) in one mongosh call
 ```
 
 ---

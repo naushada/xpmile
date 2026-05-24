@@ -78,6 +78,13 @@ on:
       - 'run-idp.sh'
       - 'deploy-heroku.sh'
       - 'scripts/**'
+      # Top-level docs that operators + contributors read first —
+      # gate edits behind GTest so a contradictory claim about the
+      # build/deploy contract doesn't merge silently.
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'codebase.md'
+      - 'docs/**'
       - 'docker-compose.yml'
       - 'docker-compose.agent.yml'
       - 'docker-compose.heroku.yml'
@@ -111,6 +118,13 @@ on:
       - 'run-idp.sh'
       - 'deploy-heroku.sh'
       - 'scripts/**'
+      # Top-level docs that operators + contributors read first —
+      # gate edits behind GTest so a contradictory claim about the
+      # build/deploy contract doesn't merge silently.
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'codebase.md'
+      - 'docs/**'
       - 'docker-compose.yml'
       - 'docker-compose.agent.yml'
       - 'docker-compose.heroku.yml'
