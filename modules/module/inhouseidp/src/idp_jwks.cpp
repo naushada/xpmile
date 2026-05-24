@@ -95,9 +95,14 @@ namespace {
 
 std::vector<SigningKeyView> load_keys_from_collection(IMongodbClient &db) {
   // Project only fields we need; never read privateKeyPem here — JWKS is
-  // public-only.
+  // public-only. Exclude _id (Vaadin writes a Mongo ObjectId() there —
+  // canonical JSON serialises that as `{"$oid": "..."}`, an object —
+  // and an earlier version of this code mistakenly used `_id` AS the
+  // kid, which crashed the dyno with "type must be string, but is
+  // object" the moment a Vaadin-written key was loaded). The real kid
+  // lives in its own `kid` field per design + per Vaadin's writer.
   const std::string projection =
-      R"({"_id":1,"alg":1,"publicKeyPem":1,"notAfter":1})";
+      R"({"_id":0,"kid":1,"alg":1,"publicKeyPem":1,"notAfter":1})";
   const std::string list = db.get_documents("idp_signing_keys",
                                               /*query=*/std::string{},
                                               projection);
@@ -115,7 +120,7 @@ std::vector<SigningKeyView> load_keys_from_collection(IMongodbClient &db) {
   for (const auto &row : arr) {
     if (!row.is_object()) continue;
     SigningKeyView v;
-    v.kid          = row.value("_id", std::string{});
+    v.kid          = row.value("kid", std::string{});
     v.alg          = row.value("alg", std::string{"RS256"});
     v.publicKeyPem = row.value("publicKeyPem", std::string{});
     // notAfter may be a Mongo Extended JSON date object or a plain epoch.
