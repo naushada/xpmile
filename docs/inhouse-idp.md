@@ -149,6 +149,22 @@ Items the design's [§12 *Still open*](design/inhouse-idp/inhouse-idp-design.md#
 
 ---
 
+## Database name conventions (today)
+
+The two MongoDB databases this project uses are **fixed by the design** at `xpmile` (business) and `idp` (auth). The names appear as string literals across the stack:
+
+- `docker/mongo-init.js` (seed + role grants)
+- C++ `idp::*` service classes (`kDb = "idp"`)
+- Java `IdpSigningKeyService` / `IdpClientService` (`IDP_DATABASE = "idp"`)
+- `scripts/migrate-account-split.py` (`client["xpmile"]["account"]`, `client["idp"]["account"]`)
+- The Phase K cross-DB read in `webservice.cpp` (`db.get_document("idp", "account", …)`)
+
+The `MONGO_DB` env var on the wsdbagent containers only controls the agent's *default* db for wire requests whose `req.db` is empty — and after the dbproto cross-DB fix in PR #24 (commit `22a2bad`), almost every IdP-side call sets `req.db` explicitly anyway. So renaming `xpmile` → `xpmile_v2` would require touching the source files above too, not just env vars.
+
+Making the db names env-driven (with the current literals as defaults) is a tracked follow-up — see the design's *Still open* section.
+
+---
+
 ## Troubleshooting
 
 ### `/authorize` returns `invalid_client`
