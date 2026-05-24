@@ -267,6 +267,28 @@ The migration unsets `xpmile.account.loginCredentials.passwordHash` and puts the
 - `migrate-account-split.py` actually created the `idp.account` doc — `db.idp.account.findOne({accountCode: '…'})` should return a doc with `passwordHash`.
 - The marvel-side wsdbagent is on the post-Phase-K image (i.e. CI has run since merge).
 
+### IdP login for a NEW account (created via Vaadin) returns `invalid_credentials`
+**Known limitation today.** The Vaadin **Accounts** view POSTs to marvel's `/api/v1/account` endpoint, which writes the new account to `xpmile.account` (nested `loginCredentials.passwordHash`) but **not** to `idp.account`. Symptoms:
+
+- Legacy `POST /api/v1/account/login` ✅ works for the new account (the hash is in `xpmile.account.loginCredentials.passwordHash`; Phase K's fallback never fires).
+- IdP `POST /api/v1/idp/login` ❌ returns `invalid_credentials` (no row in `idp.account`).
+
+Workaround until the dual-write is implemented: after creating accounts via Vaadin, drop the migration's schema-version gate and re-run the migration to sync the new accounts into `idp.account`:
+
+```sh
+# Drop the gate doc so the migration re-walks every account
+podman exec agent-mongo mongosh --quiet \
+    'mongodb://root:changeme@localhost:27017/?authSource=admin' \
+    --eval 'db.getSiblingDB("xpmile").schema_version.drop()'
+
+# Re-run the migration — idempotent at the per-doc level, so already-migrated
+# accounts are no-ops on the idp side (the find_one + insert-if-absent pattern).
+./scripts/migrate-account-split.py \
+    --mongo-uri 'mongodb://xpmile:xpmile_pass@localhost:27017/?authSource=admin'
+```
+
+Proper fix tracked: `handle_account_POST` (+ `handle_account_PUT` for password updates) should dual-write — business fields to `xpmile.account`, auth fields to `idp.account` — atomically. See the design's *Still open* §10.
+
 ---
 
 ## References
