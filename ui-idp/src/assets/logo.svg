@@ -1,12 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Minimal placeholder logo — replace with the real xpmile mark in
-     a follow-up. SVG is inline-embeddable so it survives without an
-     <img> request. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 36" width="120" height="36" role="img" aria-label="xpmile">
-  <text x="0" y="26"
-        font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Helvetica Neue, Arial, sans-serif"
-        font-size="22" font-weight="700"
-        fill="#0072a3">xpmile</text>
-  <rect x="103" y="6" width="14" height="14" rx="3" fill="#0072a3"/>
-  <path d="M107 13 l3 3 l5 -6" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<!--
+  xpmile IdP login portal logo.
+
+  Composition (left → right):
+    - Shield mark in Clarity-blue with white "xp" cutout — references
+      the parent brand + signals "secure access" without resorting to
+      a literal padlock.
+    - Wordmark "xpmile" in deep-blue-grey, tight letter-spacing for a
+      modern feel.
+
+  No external font dependencies: the wordmark falls back to the
+  user's system sans (matches everything else in the SPA's styles.scss).
+  No raster fallback: SVG at this size renders pixel-perfect on
+  HiDPI, and the file's <2 kB so it inlines fine if you ever want it
+  embedded.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 168 44" width="168" height="44"
+     role="img" aria-label="xpmile">
+
+  <!-- ── Shield mark ─────────────────────────────────────────────── -->
+  <!-- Classic heater-shield silhouette: flat top, gently curving sides,
+       pointed apex. Drawn with a single cubic so it stays smooth at
+       any size. -->
+  <path d="M22 4
+           C 30 4 38 6 38 6
+           V 22
+           C 38 32 30 38 22 40
+           C 14 38 6  32 6  22
+           V 6
+           C 6  6  14 4 22 4 Z"
+        fill="#0072a3"/>
+
+  <!-- "xp" monogram cutout. Path-traced rather than <text> so the
+       glyphs look identical on every host (no system-font drift)
+       and the strokes match the shield's visual weight at 44 px. -->
+  <g fill="#ffffff" stroke="none">
+    <!-- 'x' -->
+    <path d="M14.0 16.5
+             L16.0 16.5
+             L17.6 19.4
+             L19.2 16.5
+             L21.2 16.5
+             L18.6 21.0
+             L21.3 25.5
+             L19.3 25.5
+             L17.6 22.4
+             L15.9 25.5
+             L13.9 25.5
+             L16.6 21.0 Z"/>
+    <!-- 'p' -->
+    <path d="M22.4 16.5
+             L24.2 16.5
+             L24.2 17.5
+             C 24.7 16.7 25.6 16.3 26.6 16.3
+             C 28.9 16.3 30.5 18.0 30.5 20.5
+             C 30.5 23.0 28.9 24.7 26.6 24.7
+             C 25.7 24.7 24.7 24.4 24.2 23.7
+             L24.2 28.5
+             L22.4 28.5 Z
+             M 24.2 20.5
+             C 24.2 22.0 25.2 23.1 26.4 23.1
+             C 27.7 23.1 28.7 22.0 28.7 20.5
+             C 28.7 19.0 27.7 17.9 26.4 17.9
+             C 25.2 17.9 24.2 19.0 24.2 20.5 Z"/>
+  </g>
+
+  <!-- ── Wordmark ─────────────────────────────────────────────────── -->
+  <text x="50" y="29"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, 'Helvetica Neue', Arial, sans-serif"
+        font-size="24" font-weight="700" letter-spacing="-0.6"
+        fill="#21343f">xpmile</text>
+
+  <!-- Subtle accent under the wordmark — picks up the shield blue and
+       echoes the bottom edge of the shield for visual rhythm. -->
+  <rect x="50" y="34" width="34" height="2.2" rx="1.1" fill="#0072a3"/>
 </svg>
