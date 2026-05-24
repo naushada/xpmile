@@ -4,14 +4,27 @@
 const appUser = process.env.MONGO_APP_USER || 'xpmile';
 const appPass = process.env.MONGO_APP_PASS || 'xpmile_pass';
 
-// Create the app user in the admin database with readWrite on xpmile only.
+// Create the app user in the admin database. Needs readWrite on BOTH
+//   - xpmile  (business data: shipments, accounts as business records, …)
+//   - idp     (in-house IdP auth state: idp_signing_keys, idp_clients,
+//              sessions, idp_codes, password_reset_tokens, account, …)
+// Without the second role the on-prem Vaadin admin's IdP views (Phase B/J)
+// blow up with `not authorized on idp to execute command`, the
+// wsdbagent-idp container can't read/write its db, and the seed-default-
+// idp-sso.sh script's upserts fail. Per-deployment alternative: drop the
+// idp role and grant a separate user — but the two databases live on one
+// mongod and share a single agent stack, so one user with both roles is
+// the simplest correct shape.
 db = db.getSiblingDB('admin');
 db.createUser({
   user: appUser,
   pwd:  appPass,
-  roles: [{ role: 'readWrite', db: 'xpmile' }]
+  roles: [
+    { role: 'readWrite', db: 'xpmile' },
+    { role: 'readWrite', db: 'idp'    }
+  ]
 });
-print(`App DB user '${appUser}' created with readWrite on 'xpmile'`);
+print(`App DB user '${appUser}' created with readWrite on 'xpmile' + 'idp'`);
 
 // Seed the application database.
 db = db.getSiblingDB('xpmile');
