@@ -79,15 +79,95 @@ The admin is now reachable at **http://&lt;on-prem-host&gt;:8090** (port overrid
 
 In the Vaadin admin:
 
-6. **IdP Signing Keys** → button *Generate new key* → leave the "Activate immediately" checkbox ✓ → *Generate*. One RSA-2048 keypair is born; the private PEM stays in MongoDB; the public key is exposed via JWKS within ~60 s of the cloud-side reload poll. **Verify** with `curl -s https://<idp-host>/api/v1/idp/jwks | jq` — the `keys` array should now have your key (was `[]` before).
-7. **IdP Clients** → *Register client…* → fill in:
-   - `clientId` = the RP's identifier (e.g. `xpmile-spa`)
-   - `clientName` = a human label
-   - `redirectUris` = one per line, EXACT byte match required (trailing slashes + case matter); for marvel federation use `https://<marvel-host>/api/v1/sso/callback/inhouse`
-   - `postLogoutRedirectUris` = one per line, same matching rules; e.g. `https://<marvel-host>/login`
-   - leave the defaults for scopes (`openid`, `email`, `profile`) and grantTypes (`authorization_code`)
+#### 6. IdP Signing Keys → Generate the active RSA keypair
 
-You can SKIP step 7 (and the marvel-side SSO configuration step that would otherwise come next via the **SSO Configuration** view) if you'd rather run `./scripts/seed-default-idp-sso.sh` — see the next section.
+The cloud-side IdP can't mint id_tokens until there's at least one row in `idp.idp_signing_keys` with `active: true`. The view manages the lifecycle (generate / activate / set-notAfter / delete).
+
+1. Side-nav → **IdP Signing Keys**.
+2. Click **Generate new key** (top toolbar). A small dialog appears.
+3. Leave the **Activate immediately** checkbox ✓ (so the new key replaces the previously-active one atomically — `IdpSigningKeyService.activate()` sets the target row to `active:true` first, then clears every other row's `active` flag, so there's never a moment with zero active keys).
+4. Click **Generate**. A row appears with `kid=k-<8 hex>`, `alg=RS256`, `active=✓`, `created=now`, `notAfter=never`.
+
+**Verify** the cloud picked it up:
+```sh
+curl -s https://idp-63c97365e6ef.herokuapp.com/api/v1/idp/jwks | jq
+# Within ~60 s the `keys` array should contain one entry with your kid
+# (was `{"keys":[]}` before). Empty after >60 s = the cloud reload
+# poll hasn't fired yet (it runs every ~60 s on a dedicated thread —
+# WebServer::reload_idp in webservice.cpp).
+```
+
+**Routine rotation** (later, not needed for this first setup): click **Generate new key** again with auto-activate ✓ — old key stays in JWKS so in-flight RP tokens still verify; new tokens are signed with the new key. Use **Set expiry…** on the old row to retire it (it drops out of JWKS once `now >= notAfter`).
+
+#### 7. IdP Clients → Register the marvel SPA as an RP
+
+Each relying party that wants to authenticate through this IdP needs a row in `idp.idp_clients`. The cloud-side `IdpClientRegistry` reads this collection on startup + every ~60 s and validates every `/authorize` request against it.
+
+1. Side-nav → **IdP Clients**.
+2. Click **Register client…** (top toolbar). A modal form opens.
+3. Fill in the form:
+
+| Field | Value (for marvel as the RP) | Notes |
+|---|---|---|
+| **clientId (_id)** | `xpmile-spa` | The natural key — appears in `/authorize?client_id=xpmile-spa`. Stored as the doc's `_id`, so renaming = delete + recreate. |
+| **clientName** | `xpmile IdP (marvel SPA)` | Human label shown in the grid. Free-text. |
+| **redirectUris** (one per line) | `https://marvel-3a78bd953f5f.herokuapp.com/api/v1/sso/callback/inhouse` | EXACT byte match against what marvel sends. Trailing slashes + case matter. Add one line per allowed URI; `/authorize` rejects any URI not in this list with `invalid_request: redirect_uri not registered for client`. |
+| **postLogoutRedirectUris** (one per line) | `https://marvel-3a78bd953f5f.herokuapp.com/login` | Same EXACT-match rule. Used by `/end_session?post_logout_redirect_uri=…`. |
+| **scopes** (one per line) | `openid`<br>`email`<br>`profile` | Pre-filled for new clients. `openid` is required by OIDC; the others gate email/name claims in the id_token. |
+| **grantTypes** (one per line) | `authorization_code` | Pre-filled. The only grant the IdP supports in v1 — refresh tokens are out of scope. |
+
+4. Click **Save**. The grid refreshes; `xpmile-spa` shows up with `#redirects=1`, `#scopes=3`.
+
+#### 8. SSO Configuration → Add the in-house IdP as a provider on marvel
+
+The other side of the wiring: marvel's `xpmile.sso_config` needs an entry that tells it to render a *"Sign in with xpmile IdP"* button + how to route `/api/v1/sso/login?provider=inhouse` to the right issuer URL.
+
+1. Side-nav → **SSO Configuration**.
+2. Set **Public base URL** to `https://marvel-3a78bd953f5f.herokuapp.com` (marvel's own URL — callback URLs are pinned to this origin). Skip if already filled in.
+3. Click **Add provider**. A row is added; a form pops out.
+4. Fill in:
+
+| Field | Value | Notes |
+|---|---|---|
+| **id** | `inhouse` | URL path segment — marvel will accept `/api/v1/sso/callback/inhouse`. Must match the `id` used on the marvel-side callback URL you registered above. |
+| **Display name** | `xpmile IdP` | Shown on marvel's login screen as the button label. |
+| **Protocol** | `oidc` | (Not SAML.) The OIDC fields below become required. |
+| **Issuer** | `https://idp-63c97365e6ef.herokuapp.com/api/v1/idp` | The path-bearing URL — must match `IDP_ISSUER` on the idp dyno + the `iss` claim minted into id_tokens. |
+| **Client ID** | `xpmile-spa` | Must match the `clientId` you registered in step 7. |
+| **Client secret** | *(leave blank)* | Not validated by the IdP's `/token` in v1 (PKCE covers RP auth). Write-only field — leaving blank keeps any stored value. |
+| **Scopes** | `openid email profile` | Space-separated. The IdP advertises these in its discovery doc. |
+| **Default role** | `Customer` | The role given to JIT-created marvel accounts (`resolve_account` when the IdP claims an email not yet linked). |
+| **Allowed email domains** | *(leave blank)* | Empty = JIT-create regardless of email domain. Restrict later if needed. |
+
+5. Click **Save configuration** (bottom-left). The doc is persisted to `xpmile.sso_config.providers`.
+
+**Verify** marvel picked it up (after ~60 s):
+```sh
+curl -s 'https://marvel-3a78bd953f5f.herokuapp.com/api/v1/sso/providers' | jq
+# Should now show:
+#   { "providers": [ { "id": "inhouse", "displayName": "xpmile IdP", … } ] }
+```
+
+You can SKIP steps 7 and 8 entirely if you'd rather run `./scripts/seed-default-idp-sso.sh` — see the next section.
+
+#### 9. Make sure there's an account in idp.account to log in WITH
+
+The IdP authenticates against `idp.account` (separate from `xpmile.account`, by design). Three ways to get accounts into it:
+
+| Source | How |
+|---|---|
+| **Migrate existing xpmile.account records** (recommended for the seed `admin` account) | `./scripts/migrate-account-split.py --mongo-uri '<your-uri>'`. Idempotent + gated by `xpmile.schema_version`. Copies `passwordHash` + `email/name/role` to `idp.account` and `$unset`s `loginCredentials.passwordHash` on the xpmile side. After this, marvel's legacy `POST /api/v1/account/login` keeps working via Phase K's cross-DB fallback. |
+| **Create new accounts via Vaadin Accounts view, then re-run migration** | The current **Accounts** view writes to `xpmile.account` via marvel's `/api/v1/account` endpoint (which hashes with the same PBKDF2-SHA256). Re-running the migration moves the new auth fields to `idp.account`. The migration's idempotent so this is safe. |
+| **Direct mongosh insert** (for testing only) | Use `MongodbClient::hash_password(plain)` from a one-shot — the IdP login pipeline uses `MongodbClient::verify_password()` which expects the `$pbkdf2-sha256$i=<n>$<salt>$<hash>` shape. Awkward by hand; not recommended outside dev. |
+
+For first-time setup, run the migration:
+```sh
+./scripts/migrate-account-split.py \
+    --mongo-uri 'mongodb://xpmile:xpmile_pass@localhost:27017/?authSource=admin'
+# Expected: `inserted idp.account: accountCode=admin` (+ any other accounts).
+```
+
+After this, you can log in to the IdP at `https://<idp-host>/idp/login` with `admin` / `admin@123` (the seed credentials).
 
 Both apps hot-reload these collections within ~60 s — no redeploy needed for routine config changes.
 
