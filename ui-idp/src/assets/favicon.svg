@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Compact square favicon — just the shield mark from assets/logo.svg.
+  SVG favicon support is universal in modern browsers (2023+); we
+  intentionally don't ship a .ico to keep the asset count small.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
+  <path d="M22 4
+           C 30 4 38 6 38 6
+           V 22
+           C 38 32 30 38 22 40
+           C 14 38 6  32 6  22
+           V 6
+           C 6  6  14 4 22 4 Z"
+        fill="#0072a3"/>
+  <g fill="#ffffff">
+    <path d="M14.0 16.5 L16.0 16.5 L17.6 19.4 L19.2 16.5 L21.2 16.5
+             L18.6 21.0 L21.3 25.5 L19.3 25.5 L17.6 22.4 L15.9 25.5
+             L13.9 25.5 L16.6 21.0 Z"/>
+    <path d="M22.4 16.5 L24.2 16.5 L24.2 17.5
+             C 24.7 16.7 25.6 16.3 26.6 16.3
+             C 28.9 16.3 30.5 18.0 30.5 20.5
+             C 30.5 23.0 28.9 24.7 26.6 24.7
+             C 25.7 24.7 24.7 24.4 24.2 23.7
+             L24.2 28.5 L22.4 28.5 Z
+             M 24.2 20.5
+             C 24.2 22.0 25.2 23.1 26.4 23.1
+             C 27.7 23.1 28.7 22.0 28.7 20.5
+             C 28.7 19.0 27.7 17.9 26.4 17.9
+             C 25.2 17.9 24.2 19.0 24.2 20.5 Z"/>
+  </g>
+</svg>
