@@ -72,6 +72,25 @@ In the **on-prem Vaadin admin** (`http://<host>:8090`, opt-in via `./onprem/run-
 
 Both apps hot-reload these collections within ~60 s — no redeploy needed for routine config changes.
 
+### Shortcut: seed the marvel ↔ IdP wiring in one script
+
+Step 7 (IdP client registration) AND the marvel-side `sso_config` entry that adds the in-house IdP as a provider can both land via one mongosh invocation:
+
+```sh
+MARVEL_BASE_URL='https://marvel-3a78bd953f5f.herokuapp.com' \
+IDP_ISSUER_URL='https://idp-63c97365e6ef.herokuapp.com/api/v1/idp' \
+  ./scripts/seed-default-idp-sso.sh
+```
+
+The script idempotently upserts two things in one go:
+
+- `xpmile.sso_config.providers` — adds a new OIDC entry with `id="inhouse"`, `displayName="xpmile IdP"`, the right issuer URL + scopes (`openid email profile`) + default JIT role (`Customer`). Marvel's login screen renders a *"Sign in with xpmile IdP"* button alongside the password form within ~60 s.
+- `idp.idp_clients` — registers `clientId="xpmile-spa"` with `redirectUris=[<MARVEL_BASE_URL>/api/v1/sso/callback/inhouse]` (exact byte match) + the matching post-logout URI.
+
+The signing key (step 6) still has to come from the Vaadin **IdP Signing Keys → Generate** view — `mongosh` can't easily produce a strong RSA-2048 keypair, so we leave that to Java's `KeyPairGenerator`.
+
+Every other piece (provider id, client id, scopes, default role, etc.) is overridable via env vars — see the script's header for the full knob list.
+
 ---
 
 ## Verifying the deploy
