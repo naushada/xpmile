@@ -75,6 +75,7 @@ on:
       # silently.
       - 'run.sh'
       - 'run-agent.sh'
+      - 'run-idp.sh'
       - 'deploy-heroku.sh'
       - 'docker-compose.yml'
       - 'docker-compose.agent.yml'
@@ -106,6 +107,7 @@ on:
       # silently.
       - 'run.sh'
       - 'run-agent.sh'
+      - 'run-idp.sh'
       - 'deploy-heroku.sh'
       - 'docker-compose.yml'
       - 'docker-compose.agent.yml'
