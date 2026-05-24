@@ -56,19 +56,38 @@ On the **on-prem MongoDB machine**, after the next CI publish:
 
 # 5) Tell run-agent.sh to bring up the second wsdbagent. Without IDP_SERVER_HOST,
 #    only the marvel-side agent starts (marvel-only deployments).
+#    If run-agent is ALREADY up, re-running `start` is safe — it picks up the
+#    new IDP_SERVER_HOST and adds wsdbagent-idp to the running stack.
 echo 'IDP_SERVER_HOST=idp-63c97365e6ef.herokuapp.com' >> .env
 ./run-agent.sh start
+# Confirm both wsdbagents are up + the cert-watcher:
+./run-agent.sh status
+# Expected names: agent-mongo, agent-wsdbagent, agent-wsdbagent-idp,
+#                 xpmile-cert-watcher, [agent-onprem-ui if started].
 ```
 
-In the **on-prem Vaadin admin** (`http://<host>:8090`, opt-in via `./onprem/run-onprem.sh start`):
+**Launch the on-prem Vaadin admin** (opt-in — not started by `./run-agent.sh start`):
 
-6. **IdP Signing Keys** → *Generate new key* (leave the "Activate immediately" checkbox ✓). One RSA-2048 keypair is born; the private PEM stays in MongoDB; the public key is exposed via JWKS within ~60 s of the cloud-side reload poll.
+```sh
+# From the repo root on the on-prem machine. First call builds the
+# image (~3 min); subsequent calls reuse it. Idempotent.
+./onprem/run-onprem.sh start
+./onprem/run-onprem.sh status   # confirm agent-onprem-ui is "Up"
+```
+
+The admin is now reachable at **http://&lt;on-prem-host&gt;:8090** (port overridable via `ONPREM_PORT` in `.env`). No authentication — runs behind the customer's physical access controls. Side-nav has six items; the two that matter for the IdP are **IdP Signing Keys** and **IdP Clients**.
+
+In the Vaadin admin:
+
+6. **IdP Signing Keys** → button *Generate new key* → leave the "Activate immediately" checkbox ✓ → *Generate*. One RSA-2048 keypair is born; the private PEM stays in MongoDB; the public key is exposed via JWKS within ~60 s of the cloud-side reload poll. **Verify** with `curl -s https://<idp-host>/api/v1/idp/jwks | jq` — the `keys` array should now have your key (was `[]` before).
 7. **IdP Clients** → *Register client…* → fill in:
    - `clientId` = the RP's identifier (e.g. `xpmile-spa`)
    - `clientName` = a human label
-   - `redirectUris` = one per line, EXACT byte match required (trailing slashes + case matter)
-   - `postLogoutRedirectUris` = one per line, same matching rules
+   - `redirectUris` = one per line, EXACT byte match required (trailing slashes + case matter); for marvel federation use `https://<marvel-host>/api/v1/sso/callback/inhouse`
+   - `postLogoutRedirectUris` = one per line, same matching rules; e.g. `https://<marvel-host>/login`
    - leave the defaults for scopes (`openid`, `email`, `profile`) and grantTypes (`authorization_code`)
+
+You can SKIP step 7 (and the marvel-side SSO configuration step that would otherwise come next via the **SSO Configuration** view) if you'd rather run `./scripts/seed-default-idp-sso.sh` — see the next section.
 
 Both apps hot-reload these collections within ~60 s — no redeploy needed for routine config changes.
 

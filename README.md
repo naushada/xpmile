@@ -225,6 +225,9 @@ public interface and `src/` for the implementation.
 ├── run.sh                          Local stack wrapper (build / start / logs / status)
 ├── run-agent.sh                    On-prem stack wrapper — mongo + both wsdbagents + cert-watcher (start / refresh-certs / logs)
 ├── run-idp.sh                      idp Heroku app wrapper — one-time stack:set container + config:set + ps:scale, plus release / logs / status / verify
+├── onprem/
+│   ├── run-onprem.sh               Opt-in launcher for the Vaadin admin UI (on-prem; http://<host>:8090). Not started by run-agent.
+│   └── …                           Spring Boot + Vaadin source for the admin (Accounts, SSO Configuration, IdP Signing Keys, IdP Clients)
 ├── deploy-heroku.sh                Manual Heroku deploy escape hatch (CI auto-deploys on push to main)
 └── scripts/
     ├── migrate-account-split.py    Pre-A migration — split passwordHash out of xpmile.account into idp.account (idempotent, gated by schema_version)
