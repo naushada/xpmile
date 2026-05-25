@@ -77,10 +77,20 @@ void sign_jwt_on_prem(IMongodbClient &db,
   if (req.sval == "current" || req.sval.empty()) {
     query = R"({"active":true})";
   } else {
-    query = std::string(R"({"_id":")") + req.sval + R"("})";
+    // Match by the explicit kid field — NOT _id. Vaadin's
+    // IdpSigningKeyService writes _id as a Mongo ObjectId() (auto-
+    // generated), with the domain kid in its own top-level `kid`
+    // field. The earlier projection here read _id as the kid, which
+    // failed against Vaadin-written keys (same bug PR #33 fixed in
+    // the cloud-side idp_jwks.cpp); this is the sibling fix on the
+    // wsdbagent side.
+    query = std::string(R"({"kid":")") + req.sval + R"("})";
   }
+  // Exclude _id (an ObjectId — would surface as {"$oid":"..."} in
+  // canonical JSON and break value<string>("_id") with type_error.302).
+  // Project the `kid` field instead — that's where the real kid lives.
   const std::string projection =
-      R"({"_id":1,"privateKeyPem":1,"alg":1})";
+      R"({"_id":0,"kid":1,"privateKeyPem":1,"alg":1})";
 
   const std::string doc_json = db.get_document(req.coll, query, projection);
   if (doc_json.empty()) {
@@ -96,7 +106,7 @@ void sign_jwt_on_prem(IMongodbClient &db,
     return;
   }
 
-  const std::string kid = doc.value("_id", std::string{});
+  const std::string kid = doc.value("kid", std::string{});
   const std::string pem = doc.value("privateKeyPem", std::string{});
   const std::string alg = doc.value("alg", std::string{"RS256"});
 

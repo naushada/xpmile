@@ -2067,10 +2067,18 @@ std::string MicroService::handle_idp(std::string &in, IMongodbClient &dbInst) {
 
   std::string rsp;
   switch (res.status) {
-  case 302: rsp = build_redirect(res.location);              break;
-  case 400: rsp = build_responseERROR(res.body, "400 Bad Request");    break;
-  case 401: rsp = build_responseERROR(res.body, "401 Unauthorized");   break;
-  default:  rsp = build_responseOK(res.body, res.content_type);        break;
+  case 302: rsp = build_redirect(res.location);                         break;
+  case 400: rsp = build_responseERROR(res.body, "400 Bad Request");     break;
+  case 401: rsp = build_responseERROR(res.body, "401 Unauthorized");    break;
+  case 403: rsp = build_responseERROR(res.body, "403 Forbidden");       break;
+  case 404: rsp = build_responseERROR(res.body, "404 Not Found");       break;
+  case 500: rsp = build_responseERROR(res.body, "500 Internal Server Error"); break;
+  case 503: rsp = build_responseERROR(res.body, "503 Service Unavailable"); break;
+  // 200 + every other 2xx falls to the OK path. Earlier this default
+  // also accidentally rendered 500 / 503 as HTTP 200 (the IdP's
+  // `/token` 500 "signing failed" landed on marvel as a 200 with no
+  // id_token, which marvel then logged as `callback_failed`).
+  default:  rsp = build_responseOK(res.body, res.content_type);         break;
   }
   if (!res.set_cookie.empty())
     rsp = attach_set_cookie(rsp, res.set_cookie);
