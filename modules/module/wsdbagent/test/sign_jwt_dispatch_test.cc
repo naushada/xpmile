@@ -148,7 +148,12 @@ TEST(SignJwtDispatch, RoundTrip_SignThenVerifyWithPublicKey) {
 
   MockMongodbClient db;
   nlohmann::json key_doc = {
-      {"_id",           "kid-test-1"},
+      // Production shape (matches Vaadin IdpSigningKeyService): the
+      // domain kid lives in its own `kid` field, NOT in _id (which is
+      // an auto-gen ObjectId in production). Earlier tests seeded
+      // `_id = "kid-…"` which agreed with the old buggy reader; the
+      // new reader (paired with PR #33's idp_jwks fix) reads `kid`.
+      {"kid",           "kid-test-1"},
       {"alg",           "RS256"},
       {"privateKeyPem", priv_pem},
       {"active",        true},
@@ -181,7 +186,7 @@ TEST(SignJwtDispatch, KidCurrent_QueriesByActiveTrue) {
   const std::string priv_pem = read_file(IDP_TEST_PRIV_KEY_PATH);
   MockMongodbClient db;
   nlohmann::json key_doc = {
-      {"_id", "active-kid"}, {"alg", "RS256"},
+      {"kid", "active-kid"}, {"alg", "RS256"},
       {"privateKeyPem", priv_pem}, {"active", true},
   };
   db.canned_doc = key_doc.dump();
@@ -202,7 +207,7 @@ TEST(SignJwtDispatch, SpecificKid_QueriesById) {
   const std::string priv_pem = read_file(IDP_TEST_PRIV_KEY_PATH);
   MockMongodbClient db;
   nlohmann::json key_doc = {
-      {"_id", "kid-specific"}, {"alg", "RS256"},
+      {"kid", "kid-specific"}, {"alg", "RS256"},
       {"privateKeyPem", priv_pem}, {"active", false},
   };
   db.canned_doc = key_doc.dump();
@@ -236,7 +241,7 @@ TEST(SignJwtDispatch, NonRs256AlgInStoredKey_Errors) {
   const std::string priv_pem = read_file(IDP_TEST_PRIV_KEY_PATH);
   MockMongodbClient db;
   nlohmann::json key_doc = {
-      {"_id", "k"}, {"alg", "ES256"},  // wrong alg
+      {"kid", "k"}, {"alg", "ES256"},  // wrong alg
       {"privateKeyPem", priv_pem}, {"active", true},
   };
   db.canned_doc = key_doc.dump();
@@ -253,7 +258,7 @@ TEST(SignJwtDispatch, NonRs256AlgInStoredKey_Errors) {
 TEST(SignJwtDispatch, MalformedPrivateKey_Errors) {
   MockMongodbClient db;
   nlohmann::json key_doc = {
-      {"_id", "k"}, {"alg", "RS256"},
+      {"kid", "k"}, {"alg", "RS256"},
       {"privateKeyPem", "-----BEGIN PRIVATE KEY-----\nGARBAGE\n-----END PRIVATE KEY-----\n"},
       {"active", true},
   };
