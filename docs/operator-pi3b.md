@@ -6,6 +6,35 @@ For Pi 4 / Pi 5 / amd64 boxes, use the generic instructions in [`docs/inhouse-id
 
 ---
 
+## TL;DR — single-command install (shape A)
+
+If you just want a working agent install on a Pi 3B (or any Linux host) with podman or docker already present, run:
+
+```sh
+curl -sSf https://raw.githubusercontent.com/naushada/xpmile/main/install-agent.sh | bash
+```
+
+The script:
+1. **Detects** your container engine (`podman-compose` or `docker compose`) + your CPU architecture. On a Pi 3B (Cortex-A53 / armv8.0-A) it auto-pins `MONGO_TAG=4.4.18` — the last mongo build that boots on pre-armv8.2-A arm64.
+2. **Prompts** for `SERVER_HOST` (marvel Heroku) and optionally `IDP_SERVER_HOST` (idp Heroku).
+3. **Writes** `~/xpmile-agent/{docker-compose.agent.yml, .env}` — both embedded in the script, no repo clone needed.
+4. **Pulls** `xpmile-mongo`, `xpmile-wsdbagent`, `alpine` from Docker Hub. The mongo image is pre-built per-arch (no local Dockerfile build on your host).
+5. **Extracts** the rotated InnerTLS cert family from `xpmile-uniservice` (a one-time ~500 MB pull — a follow-up PR will move the cert family into the wsdbagent image and remove this step).
+6. **Brings up** all 4 containers and **verifies** the wsdbagent connects to marvel.
+
+After install: log in to `https://<your-marvel-host>/login` with `admin / admin@123` (change it immediately via the marvel UI).
+
+If you'd rather inspect first:
+```sh
+curl -sSO https://raw.githubusercontent.com/naushada/xpmile/main/install-agent.sh
+less install-agent.sh   # ~430 lines — every step is commented
+bash install-agent.sh
+```
+
+The rest of this guide is the **long-form** install — useful if you want to hack on the agent code, override defaults the script doesn't expose, or pick path B (docker) / path C (runc) instead of A (podman).
+
+---
+
 ## What you're installing
 
 Three landings, depending on how much you want the Pi to do:
