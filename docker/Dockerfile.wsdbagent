@@ -1,3 +1,13 @@
+# ── Global build ARGs ────────────────────────────────────────────────
+# BuildKit scopes ARGs declared AFTER a FROM to that stage only — they
+# become invisible to subsequent FROM lines. Both ARGs we use across
+# multiple stages MUST be declared up here, BEFORE any FROM. Without
+# this, BuildKit fails with `base name (${BUILDER_IMAGE}) should not be
+# blank` because BUILDER_IMAGE is undefined in the cpp-builder FROM if
+# it was declared inside the previous stage's scope.
+ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
+ARG UNISERVICE_REF=docker.io/naushada/xpmile-uniservice:latest
+
 # ============================================================
 # Stage 0: Pull the freshly-minted InnerTLS cert family from this
 #          workflow's just-built uniservice image.
@@ -15,14 +25,12 @@
 # produced the matching CA + server cert — `latest` is wrong because
 # it can lag if uniservice CI fails mid-rollout. The CI workflow
 # passes `${UNISERVICE_IMAGE}:${{ github.sha }}` here.
-ARG UNISERVICE_REF=docker.io/naushada/xpmile-uniservice:latest
 FROM ${UNISERVICE_REF} AS uniservice-source
 
 # ============================================================
 # Stage 1: Build wsdbagent (shares toolchain with main Dockerfile)
 # ============================================================
 # BUILDER_IMAGE: see docker/Dockerfile for the three-context rationale.
-ARG BUILDER_IMAGE=localhost/xpmile-cpp-builder:bootstrap
 FROM ${BUILDER_IMAGE} AS cpp-builder
 
 # The root CMakeLists.txt does pkg_check_modules(XMLSEC REQUIRED ...) for the
