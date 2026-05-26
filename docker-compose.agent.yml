@@ -50,6 +50,11 @@ services:
     build:
       context: ./docker
       dockerfile: Dockerfile.mongo
+      args:
+        # Override per-deploy: `MONGO_VERSION=4.4` in .env for Pi-3B-class
+        # hosts (Cortex-A53 / armv8.0-A — mongo:5+ requires armv8.2-A).
+        # Defaults to 7 on amd64 + Pi 4/5 / other arm64 hosts.
+        MONGO_VERSION: ${MONGO_VERSION:-7}
     image: xpmile-mongo:latest
     container_name: agent-mongo
     user: "999:999"
