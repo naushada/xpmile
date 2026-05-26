@@ -147,6 +147,13 @@ env:
   BOOTSTRAP_IMAGE:  docker.io/naushada/xpmile-cpp-builder
   WSDBAGENT_IMAGE:  docker.io/naushada/xpmile-wsdbagent
   UNISERVICE_IMAGE: docker.io/naushada/xpmile-uniservice
+  # Per-arch mongo images so install-agent.sh can `podman pull` instead
+  # of building locally — removes Dockerfile.mongo + mongo-init.js from
+  # the operator's filesystem surface entirely. Two tags published:
+  #   docker.io/naushada/xpmile-mongo:7         (default, amd64 + Pi 4/5 arm64)
+  #   docker.io/naushada/xpmile-mongo:4.4.18    (Cortex-A53 / Pi 3B — pre-armv8.2-A)
+  # `:latest` floats to `:7`.
+  MONGO_IMAGE:      docker.io/naushada/xpmile-mongo
   HEROKU_APP:       marvel
   # Second Heroku app — the in-house OIDC identity provider. Per
   # docs/design/inhouse-idp/inhouse-idp-design.md §12 (Q1 resolved
@@ -278,6 +285,65 @@ jobs:
             ${{ env.WSDBAGENT_IMAGE }}:${{ github.sha }}
           cache-from: type=registry,ref=${{ env.WSDBAGENT_IMAGE }}:buildcache
           cache-to:   type=registry,ref=${{ env.WSDBAGENT_IMAGE }}:buildcache,mode=max
+
+  # Job — publish xpmile-mongo so install-agent.sh can `podman pull`
+  # instead of building locally on the operator's machine. Two flavour
+  # tags published per push (operator picks via MONGO_TAG env var):
+  #   ${MONGO_IMAGE}:7         — default for amd64 + Pi 4/5 arm64
+  #   ${MONGO_IMAGE}:4.4.18    — Cortex-A53 / Pi 3B (last pre-armv8.2-A
+  #                              build; bare 4.4 floats to 4.4.19+ which
+  #                              SIGILL-crashes on Cortex-A53)
+  #   ${MONGO_IMAGE}:latest    — alias for :7
+  # The image is `mongo:{7,4.4.18}` + mongo-init.js baked at
+  # /docker-entrypoint-initdb.d/ — see docker/Dockerfile.mongo.
+  # No dependency on bootstrap or test (no C++ involved); runs in
+  # parallel with wsdbagent for ~50 % faster publish wall-clock.
+  mongo:
+    name: Publish xpmile-mongo (multi-arch, both major versions)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mongo_version: "7"
+            extra_tag: latest
+          - mongo_version: "4.4.18"
+            extra_tag: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build + push xpmile-mongo:${{ matrix.mongo_version }}
+        uses: docker/build-push-action@v5
+        with:
+          context: docker
+          file: docker/Dockerfile.mongo
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            MONGO_VERSION=${{ matrix.mongo_version }}
+          # ::: tag list :::
+          #   :<version>                 e.g. :7, :4.4.18  — operator-pinnable version
+          #   :<version>-<sha>           immutable per-commit tag for rollback
+          #   :latest                    only set for the default (7) row via extra_tag
+          tags: |
+            ${{ env.MONGO_IMAGE }}:${{ matrix.mongo_version }}
+            ${{ env.MONGO_IMAGE }}:${{ matrix.mongo_version }}-${{ github.sha }}
+            ${{ matrix.extra_tag != '' && format('{0}:{1}', env.MONGO_IMAGE, matrix.extra_tag) || '' }}
 
   uniservice:
     name: Publish xpmile-uniservice + release marvel + idp on Heroku

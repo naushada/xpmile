@@ -19,7 +19,19 @@ MongoDB listens on `localhost:27017` (remove that port mapping in `docker-compos
 
 ## Running on-prem in production (Docker Hub)
 
-If you're an **operator** installing this release rather than a developer hacking on the code, follow the dedicated **[Operator guide](docs/operator-guide.md)**. It covers installing the on-prem stack (`wsdbagent` + MongoDB + cert-watcher + Vaadin admin UI) from Docker Hub images, configuring SSO providers, the cert-rotation playbook, and troubleshooting. The rest of this README is developer-oriented.
+If you're an **operator** installing this release rather than a developer hacking on the code, the fastest path is a single curl:
+
+```sh
+curl -sSf https://raw.githubusercontent.com/naushada/xpmile/main/install-agent.sh | bash
+```
+
+That brings up the on-prem agent stack (`agent-mongo` + `agent-wsdbagent` + optional `agent-wsdbagent-idp` + `xpmile-cert-watcher`) from pre-built Docker Hub images — no repo clone, no local Dockerfile builds, auto-pins `mongo:4.4.18` if it detects a Raspberry Pi 3B (Cortex-A53 / armv8.0-A). Operator-facing docs:
+
+- **[Operator guide](docs/operator-guide.md)** — long-form install, SSO provider config, cert rotation, troubleshooting.
+- **[Pi 3B install guide](docs/operator-pi3b.md)** — Pi-3B-specific (1 GB RAM, swap setup, armv8.0-A mongo pin, auto-start at boot).
+- **[runc install guide](docs/operator-runc.md)** — lightest install (no engine daemon, no compose) for memory-constrained hosts.
+
+The rest of this README is developer-oriented.
 
 ---
 
