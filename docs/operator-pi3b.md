@@ -24,6 +24,15 @@ The script:
 
 After install: log in to `https://<your-marvel-host>/login` with `admin / admin@123` (change it immediately via the marvel UI).
 
+**Reboot survival** — the script does NOT enable systemd-user linger. With rootless podman (the default), containers stop on host reboot and don't auto-restart unless you also run **one** post-install command:
+
+```sh
+sudo loginctl enable-linger $(whoami)
+( crontab -l 2>/dev/null; echo '@reboot sleep 30 && cd ~/xpmile-agent && podman-compose -f docker-compose.agent.yml up -d' ) | crontab -
+```
+
+That makes user systemd survive the reboot + the `@reboot` cron line brings the stack back up. See §10 for the full reasoning (rootless podman lifecycle quirks, systemd-user alternative).
+
 If you'd rather inspect first:
 ```sh
 curl -sSO https://raw.githubusercontent.com/naushada/xpmile/main/install-agent.sh
@@ -375,6 +384,19 @@ Or use the one-shot script (which does the same thing): see [`docs/inhouse-idp.m
 
 ## 6. Optional: bring up the Vaadin admin (shape B)
 
+### First: what do you actually need Vaadin for?
+
+The on-prem Vaadin admin is **not** how you create regular user accounts. That's confusing for first-time operators, so:
+
+| Surface | What it manages | When you reach for it |
+|---|---|---|
+| **marvel UI** (logged in as `admin`) | Business accounts in `xpmile.account` (shippers, branches, regular users with `role: User/Admin`), shipments, etc. | Day-to-day user management — *no Vaadin install needed* |
+| **Vaadin admin** | Auth-plane state in the `idp` database: SSO providers (`sso_config`), IdP signing keys (`idp.idp_signing_keys`), IdP client registrations (`idp.idp_clients`) | Wiring up SSO/OIDC, generating IdP RSA keypairs, registering OIDC RPs |
+
+If all you want is more users on the marvel app, just log in as `admin / admin@123` and use the marvel UI's **Accounts** page. Skip this entire section.
+
+### Option A — Vaadin on the Pi (shape B, in-place)
+
 **Memory check first.** `free -h` should show at least ~600 MB free *before* you start Vaadin. If you've also got X11 or the desktop running, kill that with `sudo systemctl set-default multi-user.target && sudo reboot` and come back here in headless mode.
 
 ```sh
@@ -387,7 +409,62 @@ Or use the one-shot script (which does the same thing): see [`docs/inhouse-idp.m
 
 Reach it at `http://<pi-ip>:8090`. From here the steps are identical to the generic guide — see [`docs/inhouse-idp.md`](inhouse-idp.md) → §6/§7/§8 (Vaadin walkthrough).
 
-If the build OOMs (`cc1 killed`, or `java.lang.OutOfMemoryError`), bump swap to 4 GB and retry, OR build the image on a desktop and `podman save | ssh pi podman load` it.
+If the build OOMs (`cc1 killed`, or `java.lang.OutOfMemoryError`), bump swap to 4 GB and retry, OR run **Option B** below instead.
+
+### Option B — Vaadin on your Mac/desktop, mongo on the Pi (Recommended for Pi 3B)
+
+The Pi 3B's 1 GB RAM is genuinely tight for Vaadin (~480 MB idle + ~900 MB build spike). The clean alternative is to **leave Vaadin off the Pi entirely** and run it on your dev machine, pointing at the Pi's MongoDB. The Pi stays in shape A's ~450 MB footprint and Vaadin uses your laptop's resources.
+
+Vaadin is a standard Java Spring Boot app that connects to MongoDB via a regular `mongodb://…` URI — it does NOT go through wsdbagent. So all you need is mongo to be reachable from your Mac. SSH tunnel is the easiest path (no Pi config change, no firewall edits, mongo never on the LAN):
+
+```sh
+# Terminal 1 — on your Mac. Leaves an SSH tunnel open so
+# Pi:localhost:27017 looks like Mac:localhost:27017.
+ssh -fN -L 27017:localhost:27017 naushada@<pi-ip>
+# -f → background after auth, -N → don't run a remote command, runs silently.
+# Kill later with: pkill -f "ssh -fN -L 27017"
+```
+
+Then run Vaadin one of two ways on the Mac. Both clone the repo first (only the `onprem/` subtree is used):
+
+```sh
+git clone --depth 1 https://github.com/naushada/xpmile.git ~/xpmile
+cd ~/xpmile/onprem
+```
+
+**Option B.1 — pure Maven** (fastest dev-iteration; needs JDK 17 + Maven):
+
+```sh
+SPRING_DATA_MONGODB_URI='mongodb://xpmile:xpmile_pass@localhost:27017/xpmile?authSource=admin' \
+  mvn spring-boot:run
+```
+
+**Option B.2 — same `onprem/Dockerfile`, run locally via podman** (no JDK install needed):
+
+```sh
+podman build -t xpmile-onprem-ui .
+podman run --rm -p 8090:8090 \
+  -e SPRING_DATA_MONGODB_URI='mongodb://xpmile:xpmile_pass@host.containers.internal:27017/xpmile?authSource=admin' \
+  xpmile-onprem-ui
+```
+
+`host.containers.internal` inside the container resolves to your Mac's loopback through the podman-machine VM — which is where the SSH tunnel lands. For Option B.1 the URI is just `localhost:27017` because mvn runs natively, not in a container.
+
+Either way: browse to **`http://localhost:8090`** on the Mac and the Vaadin admin loads. The data it manages lives in the Pi's mongo — same `sso_config`, same `idp.idp_signing_keys`, same `idp.idp_clients`. From the Vaadin UI's point of view, mongo is just "the database"; it doesn't care that the bytes are 4000 miles away over an SSH tunnel.
+
+**Security**: never bypass the SSH tunnel by adding `ports: ["27017:27017"]` to the Pi's compose and exposing mongo on the LAN unauthenticated. The whole on-prem trust model assumes mongo is reachable only from `localhost`/`agent-net`. SSH-tunneled access keeps that invariant intact.
+
+### Remote access to Vaadin from off-LAN
+
+If you went with Option A (Vaadin on the Pi) and want to admin it from anywhere:
+
+| Scenario | How |
+|---|---|
+| **Same LAN as the Pi** | Just open `http://<pi-ip>:8090`. |
+| **Off-LAN, Pi reachable over SSH** | `ssh -L 8090:localhost:8090 naushada@<pi-ip>` from your Mac, then `http://localhost:8090`. |
+| **Off-LAN, want a real URL** | Install [Tailscale](https://tailscale.com) on both Pi and Mac (free for personal). `tailscale up` on each. Vaadin lives at `http://<pi-tailscale-ip>:8090` from anywhere you're tailscaled. Zero NAT/cert work. |
+
+**Hard rule**: never put `<pi-public-ip>:8090` on the public internet via router port-forwarding. The on-prem Vaadin admin has **no authentication** by design — it's a recovery/admin tool that lives behind physical or network access controls. A public port-forward would give the internet root-equivalent control over your SSO config + IdP signing keys.
 
 ---
 
