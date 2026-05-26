@@ -174,12 +174,15 @@ services:
     image: docker.io/library/alpine:3.19
     container_name: xpmile-cert-watcher
     restart: unless-stopped
-    # The watcher POSTs to the podman API socket bind-mounted at
-    # /run/podman/podman.sock. macOS `podman machine` uses a Fedora VM with
-    # SELinux enforcing — the default `container_t` label denies access to
-    # the socket's `var_run_t`. `label=disable` turns off container labeling
-    # so the sidecar can read/write the socket. No-op on Linux hosts without
-    # SELinux (Raspberry Pi OS, Debian, Ubuntu).
+    # The watcher POSTs to the container-engine REST API bind-mounted at
+    # /run/podman/podman.sock (path is podman-named for backward compat;
+    # operators on Docker mount /var/run/docker.sock to that same path
+    # via PODMAN_SOCKET — see env block below). macOS `podman machine`
+    # uses a Fedora VM with SELinux enforcing — the default
+    # `container_t` label denies access to the socket's `var_run_t`.
+    # `label=disable` turns off container labeling so the sidecar can
+    # read/write the socket. No-op on Linux hosts without SELinux
+    # (Raspberry Pi OS, Debian, Ubuntu).
     security_opt:
       - label=disable
     command:
@@ -189,6 +192,32 @@ services:
         set -eu
         apk add --no-cache curl >/dev/null
         log() { printf '[cert-watcher %s] %s\n' "$$(date -u +%H:%M:%S)" "$$1"; }
+
+        # ── Detect the container engine ────────────────────────────────
+        # The mounted socket may be podman's libpod or docker's API.
+        # Probe a libpod-only endpoint first; fall back to docker's
+        # /_ping. Sets RESTART_URL_FMT to the matching restart endpoint
+        # template (printf-substituted with the container name).
+        SOCK=/run/podman/podman.sock
+        if curl -fsS -o /dev/null --unix-socket $$SOCK \
+                'http://d/v4.0.0/libpod/_ping' 2>/dev/null; then
+          ENGINE=podman
+          RESTART_URL_FMT='http://d/v4.0.0/libpod/containers/%s/restart?timeout=5'
+        elif curl -fsS -o /dev/null --unix-socket $$SOCK \
+                  'http://d/_ping' 2>/dev/null; then
+          ENGINE=docker
+          # Docker REST: GET /_ping → "OK", restart at /v1.41/containers/.../restart
+          # (?t= for seconds, not ?timeout=). v1.41 is supported by Docker 20.10+.
+          RESTART_URL_FMT='http://d/v1.41/containers/%s/restart?t=5'
+        else
+          log "FATAL — no container engine REST API responds on $$SOCK"
+          log "       (expected podman libpod or docker API). Check the"
+          log "       host-side socket path in PODMAN_SOCKET — it must"
+          log "       point at the actual engine socket on this host."
+          exit 1
+        fi
+        log "detected engine: $$ENGINE  (restart URL pattern: $$RESTART_URL_FMT)"
+
         log "watching /watch every $${POLL_SECONDS:-5}s for cert changes"
         # Both agents share the same cert family (design Q1 — same image
         # to both Heroku apps → one InnerTLS CA on-prem). When the file
@@ -198,9 +227,10 @@ services:
         # treated as "not present, nothing to restart".
         restart_agent() {
           ctr="$$1"
+          url=$$(printf "$$RESTART_URL_FMT" "$$ctr")
           rc=$$(curl -fsS -o /dev/null -w '%%{http_code}' \
-                     -X POST --unix-socket /run/podman/podman.sock \
-                     "http://d/v4.0.0/libpod/containers/$${ctr}/restart?timeout=5" || echo "000")
+                     -X POST --unix-socket $$SOCK \
+                     "$$url" || echo "000")
           case "$$rc" in
             2*) log "  $$ctr restarted (HTTP $$rc)" ;;
             404) log "  $$ctr not present (skipped — marvel-only stack)" ;;
