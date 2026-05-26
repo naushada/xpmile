@@ -26,7 +26,7 @@ Shape **A** is what most Pi 3B operators want. Section §6 covers when to add Va
 
 | Container | Idle RSS | Under load (steady) | Build / first-pull spike | Notes |
 |---|---:|---:|---:|---|
-| `agent-mongo` (mongo:4.4) | ~280 MB | ~350 MB | n/a (image is pulled, not built) | mongo's WiredTiger cache defaults to ½(RAM − 1 GB) — on a 1 GB Pi the floor (~256 MB) applies. |
+| `agent-mongo` (mongo:4.4.18) | ~280 MB | ~350 MB | n/a (image is pulled, not built) | mongo's WiredTiger cache defaults to ½(RAM − 1 GB) — on a 1 GB Pi the floor (~256 MB) applies. |
 | `agent-wsdbagent` | ~30 MB | ~50 MB | ~50 MB during compose-up | Per agent — there are two of these on a marvel+idp install. |
 | `agent-wsdbagent-idp` | ~30 MB | ~50 MB | ~50 MB | Same image, second container. |
 | `xpmile-cert-watcher` | ~5 MB | ~5 MB | ~5 MB | Alpine + a polling shell loop. |
@@ -216,9 +216,12 @@ Edit `.env` with `nano`/`vim`. The two settings you MUST change from the templat
 **Pi-3B-only setting:**
 
 ```sh
-# Append to .env. Pins mongo to 4.4 so it actually starts on the Pi 3B's
-# armv8.0-A cores. mongo:5+ requires armv8.2-A.
-MONGO_VERSION=4.4
+# Append to .env. Pins mongo to 4.4.18 so it actually starts on the Pi 3B's
+# armv8.0-A cores. mongo:5+ requires armv8.2-A — AND mongo:4.4.x where
+# x ≥ 19 also tightened to armv8.2-A. 4.4.18 is the last release that
+# boots on Cortex-A53. Don't use the bare `4.4` floating tag — it now
+# resolves to a post-4.4.19 build that SIGILL-crashes on the Pi.
+MONGO_VERSION=4.4.18
 ```
 
 Optional: change `MONGO_ROOT_PASS` + `MONGO_APP_PASS` to something less guessable than the defaults (`changeme` / `xpmile_pass`). The on-prem mongo isn't internet-exposed, but defense in depth.
@@ -232,7 +235,7 @@ Optional: change `MONGO_ROOT_PASS` + `MONGO_APP_PASS` to something less guessabl
 ```
 
 This:
-1. **Builds** `xpmile-mongo:latest` from `docker/Dockerfile.mongo` (`mongo:4.4` base because of `MONGO_VERSION=4.4`). First build ~3–5 min on a Pi 3B; subsequent runs reuse the cache.
+1. **Builds** `xpmile-mongo:latest` from `docker/Dockerfile.mongo` (`mongo:4.4.18` base because of `MONGO_VERSION=4.4.18`). First build ~3–5 min on a Pi 3B; subsequent runs reuse the cache.
 2. **Pulls** `docker.io/naushada/xpmile-wsdbagent:latest` (multi-arch; the arm64 manifest fits the Pi). ~2 min on first pull.
 3. **Auto-runs** `./run-agent.sh refresh-certs` if `./certs/cloud-issued/innertls/` is missing — that itself pulls `xpmile-uniservice:latest` (~400 MB; ~3 min on a Pi).
 4. **Starts** `agent-mongo`, `agent-wsdbagent`, `agent-wsdbagent-idp` (because `IDP_SERVER_HOST` is set), `xpmile-cert-watcher`.
@@ -251,7 +254,18 @@ podman logs --tail 5 agent-wsdbagent-idp
 # Expected: "inner TLS established" + "session started"
 ```
 
-If `agent-mongo` keeps restarting and `podman logs agent-mongo` shows `Illegal instruction (core dumped)` — you missed `MONGO_VERSION=4.4` in `.env` and got mongo 7. Stop, fix, `./run-agent.sh clean` (deletes the data volume too — fresh deploy is OK), `./run-agent.sh start`.
+### Pi-3B traps (and how to recognise them in the logs)
+
+Three compat issues hit us during the first live install on the Pi 3B (May 2026); the code + docs now ship correct defaults, but if you bring up an older revision you'll see one of:
+
+| Log signature | What it is | Fix |
+|---|---|---|
+| `podman logs agent-mongo` repeats `Illegal instruction (core dumped)` + `MongoDB requires ARMv8.2-A or higher` | `MONGO_VERSION` is unset or set to the floating `4.4` tag (now resolves to 4.4.19+ which requires armv8.2-A) | `MONGO_VERSION=4.4.18` in `.env`, then `./run-agent.sh clean && ./run-agent.sh start` |
+| `STEP 1/2: FROM mongo:4.4.18` → `short-name "mongo" did not resolve to an alias and no unqualified-search registries are defined` | Older `Dockerfile.mongo` has bare `FROM mongo:…`; Debian 13 Trixie ships podman with empty `unqualified-search-registries` | Pull latest `main` (`Dockerfile.mongo` is fully-qualified `docker.io/library/mongo:…`), OR add `unqualified-search-registries = ["docker.io"]` to `/etc/containers/registries.conf.d/00-xpmile.conf` |
+| `agent-mongo` shows `Up X (unhealthy)` despite mongo serving requests fine, AND `./run-agent.sh start` hangs forever in its healthcheck wait loop | Healthcheck uses `mongosh` (only in mongo:5+), absent in 4.4 | Pull latest `main` (compose healthcheck now portable: `command -v mongosh \|\| mongo`). For interim, `kill` the stuck script and `podman-compose up -d` directly |
+| `podman logs agent-mongo` shows `@/docker-entrypoint-initdb.d/mongo-init.js:4:7 failed to load` | `mongo-init.js` used ES6 (`const`, template literals); mongo:4.4's legacy shell only does ES5 | Pull latest `main` (rewritten to ES5; works on both 4.4 and 5+ shells) |
+
+The "image platform (linux/amd64) does not match the expected platform (linux/arm64)" warning logged twice during `./run-agent.sh refresh-certs` on arm64 hosts is **benign** — the uniservice image is amd64-only by design (Heroku is amd64), but `refresh-certs` only `podman create` + `podman cp` cert files out, never executes the binary, so the arch mismatch doesn't matter.
 
 **At this point the Pi can serve as the bridge for federated login.** A user clicking *Sign in with xpmile IdP* on marvel walks → idp Heroku app → wsdbagent-idp → mongo on the Pi → back through.
 
