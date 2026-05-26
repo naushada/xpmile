@@ -22,7 +22,7 @@
 # Build context is empty — every source is fetched from upstream
 # inside the Dockerfile.
 
-FROM ubuntu:focal
+FROM docker.io/library/ubuntu:focal
 
 ENV TZ=Asia/Calcutta DEBIAN_FRONTEND=noninteractive
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone

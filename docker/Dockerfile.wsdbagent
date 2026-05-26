@@ -26,7 +26,7 @@ RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" -DBUILD_TESTS=OFF && make -j2 wsdbag
 # ============================================================
 # Stage 2: Minimal runtime image
 # ============================================================
-FROM ubuntu:focal AS runtime
+FROM docker.io/library/ubuntu:focal AS runtime
 
 ENV TZ=Asia/Calcutta DEBIAN_FRONTEND=noninteractive
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone

@@ -1,13 +1,20 @@
 // Runs once on first startup (when the data volume is empty).
 // Creates a scoped app user and inserts the bootstrap admin document.
+//
+// ES5-only — the mongo:4.4 legacy shell does NOT support `const`,
+// template literals, or arrow functions; only `var`, string
+// concatenation, and `function () {}`. mongosh (5+) handles ES6+
+// fine. This file must stay backwards-compatible so the same image
+// works on mongo:4.4.18 (Pi-3B / Cortex-A53 / armv8.0-A — see
+// docs/operator-pi3b.md) AND mongo:7+.
 
-const appUser = process.env.MONGO_APP_USER || 'xpmile';
-const appPass = process.env.MONGO_APP_PASS || 'xpmile_pass';
+var appUser = (typeof process !== "undefined" && process.env && process.env.MONGO_APP_USER) || "xpmile";
+var appPass = (typeof process !== "undefined" && process.env && process.env.MONGO_APP_PASS) || "xpmile_pass";
 
 // Create the app user in the admin database. Needs readWrite on BOTH
-//   - xpmile  (business data: shipments, accounts as business records, …)
+//   - xpmile  (business data: shipments, accounts as business records, ...)
 //   - idp     (in-house IdP auth state: idp_signing_keys, idp_clients,
-//              sessions, idp_codes, password_reset_tokens, account, …)
+//              sessions, idp_codes, password_reset_tokens, account, ...)
 // Without the second role the on-prem Vaadin admin's IdP views (Phase B/J)
 // blow up with `not authorized on idp to execute command`, the
 // wsdbagent-idp container can't read/write its db, and the seed-default-
@@ -15,19 +22,22 @@ const appPass = process.env.MONGO_APP_PASS || 'xpmile_pass';
 // idp role and grant a separate user — but the two databases live on one
 // mongod and share a single agent stack, so one user with both roles is
 // the simplest correct shape.
-db = db.getSiblingDB('admin');
+db = db.getSiblingDB("admin");
 db.createUser({
   user: appUser,
   pwd:  appPass,
   roles: [
-    { role: 'readWrite', db: 'xpmile' },
-    { role: 'readWrite', db: 'idp'    }
+    { role: "readWrite", db: "xpmile" },
+    { role: "readWrite", db: "idp"    }
   ]
 });
-print(`App DB user '${appUser}' created with readWrite on 'xpmile' + 'idp'`);
+print("App DB user " + appUser + " created with readWrite on xpmile + idp");
 
-// Seed the application database.
-db = db.getSiblingDB('xpmile');
+// Seed the application database with the bootstrap admin (admin / admin@123).
+// passwordHash is PBKDF2-SHA256 with 600000 iterations; the in-tree backend
+// (mongodbc.cpp verify_password) reads this format directly. Operators
+// SHOULD change this password after the first login via the marvel UI.
+db = db.getSiblingDB("xpmile");
 db.account.insertOne({
   isAccountCodeAutoGen: false,
   awbPrefix: "AWB",
@@ -56,9 +66,9 @@ db.account.insertOne({
     iban: ""
   }
 });
-print("Bootstrap admin document created — accountCode: admin (passwordHash: pbkdf2-sha256)");
+print("Bootstrap admin document created — accountCode: admin, password: admin@123 (CHANGE AFTER FIRST LOGIN)");
 
-// SSO collections (docs/design/sso/sso-design.md §10, §13).
+// SSO collections (docs/design/sso/sso-design.md sec 10, sec 13).
 // sso_config holds a single document — the source of truth for SSO providers,
 // managed by the on-prem Vaadin admin UI and hot-reloaded by the C++ backend.
 // Seeded empty: an empty publicBaseUrl keeps SSO disabled until an operator

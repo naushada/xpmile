@@ -75,7 +75,7 @@ RUN cmake .. -DCMAKE_CXX_FLAGS="-fconcepts" && make -j2
 # ============================================================
 # Stage 2: Build Angular UI
 # ============================================================
-FROM node:18-alpine AS ui-builder
+FROM docker.io/library/node:18-alpine AS ui-builder
 ENV NG_BUILD_MAX_WORKERS=1
 ENV NODE_OPTIONS=--max_old_space_size=1536
 
@@ -105,7 +105,7 @@ RUN npx ng build --configuration production --aot --base-href /webui/ --progress
 # on EVERY build — both marvel and idp dynos ship the same image
 # with both SPAs baked in. Marvel users never navigate to /idp/*,
 # idp users never navigate to /webui/* — no conflict.
-FROM node:18-alpine AS ui-idp-builder
+FROM docker.io/library/node:18-alpine AS ui-idp-builder
 ENV NG_BUILD_MAX_WORKERS=1
 ENV NODE_OPTIONS=--max_old_space_size=1024
 ARG UI_BUST=0
@@ -122,7 +122,7 @@ RUN npx ng build --configuration production --base-href /idp/ --progress=false
 # ============================================================
 # Stage 3: Minimal runtime image
 # ============================================================
-FROM ubuntu:focal AS runtime
+FROM docker.io/library/ubuntu:focal AS runtime
 
 ENV TZ=Asia/Calcutta DEBIAN_FRONTEND=noninteractive
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone

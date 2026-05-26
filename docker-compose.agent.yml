@@ -70,7 +70,12 @@ services:
     networks:
       - agent-net
     healthcheck:
-      test: ["CMD-SHELL", "mongosh -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --eval \"db.adminCommand('ping')\" --quiet"]
+      # mongosh ships in mongo:5+; mongo:4.4 only has the legacy `mongo` shell
+      # (Pi-3B operators pin to MONGO_VERSION=4.4.18 — see docker/Dockerfile.mongo).
+      # Try mongosh first, fall back to mongo so the same compose file works
+      # on both image lines. The PATH check is silent (>/dev/null), so the
+      # actual ping output is the only thing podman parses for health state.
+      test: ["CMD-SHELL", "( command -v mongosh >/dev/null && SHELL_CMD=mongosh || SHELL_CMD=mongo ) && $$SHELL_CMD -u $$MONGO_INITDB_ROOT_USERNAME -p $$MONGO_INITDB_ROOT_PASSWORD --eval \"db.adminCommand('ping')\" --quiet"]
       interval: 10s
       timeout: 5s
       retries: 5

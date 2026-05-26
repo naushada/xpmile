@@ -1,10 +1,16 @@
-# Build arg lets Pi-3B-class hosts pin to mongo:4.4 (last release that
-# runs on armv8.0-A). mongo:5+ requires armv8.2-A on arm64, so the
-# default tag won't start on Cortex-A53 boxes. amd64 + Pi 4/5 keep the
-# modern default; override per-deploy by setting `MONGO_VERSION=4.4`
-# in `.env` — docker-compose.agent.yml passes it through as a build
-# arg. The on-disk + on-wire data formats are compatible 4.4 → 7;
-# only the runtime binary differs.
+# Build arg lets Pi-3B-class hosts pin mongo to the pre-armv8.2-A line.
+# mongo:5+ requires armv8.2-A on arm64, AND any of mongo:4.4 ≥ 4.4.19
+# also tightened to armv8.2-A — so the only versions that boot on
+# Cortex-A53 (Pi 3B) are mongo:4.4.0 through 4.4.18. Set
+# `MONGO_VERSION=4.4.18` in `.env` for Pi 3B (NOT the floating `4.4`
+# tag, which now resolves to a post-4.4.19 build and SIGILL-crashes).
+# amd64 + Pi 4/5 keep the modern default. The on-disk + on-wire data
+# formats are compatible 4.4 → 7; only the runtime binary differs.
 ARG MONGO_VERSION=7
-FROM mongo:${MONGO_VERSION}
+# Fully-qualified to docker.io/library/... — Debian 13 Trixie ships
+# podman with an EMPTY unqualified-search-registries list (security
+# tightening over Bookworm). A bare `FROM mongo:…` fails resolution on
+# Trixie hosts with no fallback registry. Same fix applied to every
+# other Dockerfile in this directory.
+FROM docker.io/library/mongo:${MONGO_VERSION}
 COPY mongo-init.js /docker-entrypoint-initdb.d/mongo-init.js
