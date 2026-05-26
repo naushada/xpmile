@@ -319,7 +319,8 @@ Deep-dive docs live under [`docs/`](docs/). The most-referenced ones:
 |---|---|
 | [`docs/app.md`](docs/app.md) | Heroku deployment (push, release, config vars, UI cache-busting) |
 | [`docs/inhouse-idp.md`](docs/inhouse-idp.md) | The in-house OIDC IdP — operator deploy guide, Heroku config vars, on-prem provisioning, deferred items, troubleshooting |
-| [`docs/operator-pi3b.md`](docs/operator-pi3b.md) | Pi-3B-specific install — armv8.0-A / mongo:4.4 pin, 1 GB RAM budget, per-container memory + disk requirements, swap setup, auto-start via systemd-user or `@reboot` cron |
+| [`docs/operator-pi3b.md`](docs/operator-pi3b.md) | Pi-3B-specific install — armv8.0-A / mongo:4.4 pin, 1 GB RAM budget, per-container memory + disk requirements, swap setup, auto-start via systemd-user or `@reboot` cron. Covers paths A (podman), B (docker), and points at C (runc) |
+| [`docs/operator-runc.md`](docs/operator-runc.md) | Lightest install — `runc` + systemd directly (no docker, no podman, no cert-watcher sidecar). For Pi-3B-class hosts where ~100 MB of engine-layer RAM saving matters; replaces compose with per-container `config.json` + systemd units, and the cert-watcher with `systemd.path` |
 | [`docs/design/inhouse-idp/inhouse-idp-design.md`](docs/design/inhouse-idp/inhouse-idp-design.md), [`inhouse-idp-tdd-plan.md`](docs/design/inhouse-idp/inhouse-idp-tdd-plan.md) | Two-Heroku-app + dual-DB design for the IdP; phase-by-phase delivery status with commit hashes |
 | [`docs/ws-db-agent.md`](docs/ws-db-agent.md) | The on-prem `wsdbagent` — mTLS setup, manual run, troubleshooting (applies to both marvel + idp agents) |
 | [`docs/dashboard-monthly-report.md`](docs/dashboard-monthly-report.md) | Dashboard **Download Report** button — Excel export of the active month's shipments (AWB, status, last-update timestamp) |
