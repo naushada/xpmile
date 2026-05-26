@@ -95,8 +95,10 @@ sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 "${USER}"
 
 ## 3. Repo clone — same as paths A/B
 
+Shallow clone is the right default — saves ~140 MB on the SD card:
+
 ```sh
-git clone https://github.com/naushada/xpmile.git ~/xpmile
+git clone --depth 1 https://github.com/naushada/xpmile.git ~/xpmile
 cd ~/xpmile
 cp .env.agent .env
 $EDITOR .env                                         # set SERVER_HOST, IDP_SERVER_HOST, MONGO_VERSION=4.4
@@ -104,9 +106,21 @@ $EDITOR .env                                         # set SERVER_HOST, IDP_SERV
 
 You're **not** going to use `docker-compose.agent.yml` itself — but the
 repo carries the cert helper (`./run-agent.sh refresh-certs`),
-`mongo-init.js`, and the SSO/IdP seed scripts that path A/B use. The
-operator scripts are still useful with runc; they don't depend on the
-container engine.
+`docker/mongo-init.js` (bind-mounted into the mongo bundle in §5a),
+and the SSO/IdP seed scripts that path A/B use. The operator scripts
+are still useful with runc; they don't depend on the container engine.
+
+The minimum file set for the runc path is even smaller than path A/B's
+(no `Dockerfile.mongo` — we use upstream mongo:4.4 directly):
+
+```
+run-agent.sh                       # only for refresh-certs
+docker/mongo-init.js               # bind-mounted at runtime into the mongo bundle
+scripts/seed-default-idp-sso.sh    # only if you wire the in-house IdP
+```
+
+Sparse checkout works the same way as in
+[`operator-pi3b.md`](./operator-pi3b.md#what-run-agentsh-actually-reads).
 
 ```sh
 ./run-agent.sh refresh-certs                         # writes ./certs/cloud-issued/innertls/{ca,client}.{crt,key}

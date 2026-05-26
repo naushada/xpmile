@@ -166,15 +166,37 @@ now and ignore §§3–10 here.
 
 ## 3. Clone the repo
 
-The on-prem stack only needs the agent compose + scripts + the on-prem Vaadin source (if you go with shape B):
+The on-prem stack only needs the agent compose + scripts + the on-prem Vaadin source (if you go with shape B). On a Pi 3B SD card a **shallow clone** is the right default — no git history, ~10 MB on disk vs ~150 MB+ for a full clone, `git pull` still works for updates:
 
 ```sh
 cd ~
-git clone https://github.com/naushada/xpmile.git
+git clone --depth 1 https://github.com/naushada/xpmile.git
 cd xpmile
 ```
 
 You're **not** going to compile any C++ on the Pi — the wsdbagent image is pulled multi-arch from Docker Hub. The repo is mostly here for the compose file + the operator scripts.
+
+### What `run-agent.sh` actually reads
+
+If you're disk-constrained even at 10 MB (Pi Zero 2 W on 4 GB card) and want to know the absolute minimum, only these five files are touched at runtime:
+
+```
+run-agent.sh                       # the wrapper
+docker-compose.agent.yml           # services + volumes + env wiring
+.env.agent                         # template — copied to .env on first run
+docker/Dockerfile.mongo            # built into xpmile-mongo:latest at first start
+docker/mongo-init.js               # COPY'd into that image; creates xpmile + idp app users
+```
+
+The full `modules/`, `ui/`, `test/`, `onprem/`, `docs/` trees are unused at runtime. A sparse-checkout pulls the agent slice in ~50 KB:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse https://github.com/naushada/xpmile.git
+cd xpmile
+git sparse-checkout set run-agent.sh docker-compose.agent.yml .env.agent docker/Dockerfile.mongo docker/mongo-init.js
+```
+
+Future updates need `git pull && git sparse-checkout reapply`. For most operators the plain `--depth 1` above is the better trade.
 
 ---
 
