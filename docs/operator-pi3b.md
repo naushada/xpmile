@@ -135,15 +135,11 @@ docker compose version      # ≥ 2.x  (note: `docker compose`, no hyphen)
    - `docker compose -f docker-compose.agent.yml down`
    - `docker compose -f docker-compose.agent.yml logs -f`
 2. **Reboots are auto-handled.** Docker's `dockerd` is a system service that starts at boot (`systemctl enable --now docker`), and the compose file's `restart: unless-stopped` policy survives the host reboot natively. **You can ignore §10's `@reboot` cron / systemd-user dance entirely.**
-3. **The `xpmile-cert-watcher` sidecar won't work as-is** — it shells out to podman's libpod REST API (`http://d/v4.0.0/libpod/containers/.../restart`) via the bind-mounted socket. Docker's REST API is at a different path (`/v1.41/containers/.../restart`). Two workarounds:
-
-   - **Easiest** — comment out the `xpmile-cert-watcher` service block in `docker-compose.agent.yml`, then after each `./run-agent.sh refresh-certs`, restart the agents manually:
-     ```sh
-     ./run-agent.sh refresh-certs
-     docker restart agent-wsdbagent agent-wsdbagent-idp
-     ```
-     Wire this into `cron` if you want it on a schedule (e.g. every 15 min).
-   - **Sidecar swap** — replace the cert-watcher's `command:` block with one that uses the docker REST API + `/var/run/docker.sock`. Untested in tree; if you do it, share the patch.
+3. **`xpmile-cert-watcher` auto-detects the engine.** The sidecar's startup probes the bind-mounted socket — libpod's `/v4.0.0/libpod/_ping` first, docker's `/_ping` second — and picks the matching restart URL template (`/v1.41/containers/.../restart?t=5` for Docker). Override the host-side socket path in `.env` if yours isn't the default:
+   ```sh
+   PODMAN_SOCKET=/var/run/docker.sock
+   ```
+   (The env var stays named `PODMAN_SOCKET` for backward compatibility — it's really "whatever-engine socket the watcher should mount". The watcher logs `detected engine: docker` on startup so you can confirm.)
 
 The rest of this guide says `podman` in commands; replace with `docker` (and `podman-compose` with `docker compose`) where applicable. The `Dockerfile.mongo` build + image semantics are identical.
 
