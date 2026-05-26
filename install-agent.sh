@@ -262,21 +262,24 @@ services:
       - -c
       - |
         set -eu
-        apk add --no-cache curl >/dev/null
+        apk add --no-cache curl jq util-linux >/dev/null
         log() { printf '[cert-watcher %s] %s\n' "$$(date -u +%H:%M:%S)" "$$1"; }
         SOCK=/run/podman/podman.sock
         if curl -fsS -o /dev/null --unix-socket $$SOCK 'http://d/v4.0.0/libpod/_ping' 2>/dev/null; then
-          ENGINE=podman
-          RESTART_URL_FMT='http://d/v4.0.0/libpod/containers/%s/restart?timeout=5'
+          ENGINE=podman; API_BASE='http://d/v4.0.0/libpod'
+          RESTART_URL_FMT="$$API_BASE/containers/%s/restart?timeout=5"
         elif curl -fsS -o /dev/null --unix-socket $$SOCK 'http://d/_ping' 2>/dev/null; then
-          ENGINE=docker
-          RESTART_URL_FMT='http://d/v1.41/containers/%s/restart?t=5'
+          ENGINE=docker; API_BASE='http://d/v1.41'
+          RESTART_URL_FMT="$$API_BASE/containers/%s/restart?t=5"
         else
           log "FATAL — no container engine REST API responds on $$SOCK"
           exit 1
         fi
-        log "detected engine: $$ENGINE"
-        log "watching /watch every $${POLL_SECONDS:-5}s for cert changes"
+        log "detected engine: $$ENGINE  (API base: $$API_BASE)"
+
+        WSDBAGENT_REF="$${WSDBAGENT_REF:-docker.io/naushada/xpmile-wsdbagent:latest}"
+        WSDBAGENT_REF_URLENC=$$(echo "$$WSDBAGENT_REF" | sed 's|/|%2F|g; s|:|%3A|g')
+
         restart_agent() {
           ctr="$$1"
           url=$$(printf "$$RESTART_URL_FMT" "$$ctr")
@@ -287,9 +290,64 @@ services:
             *)  log "  $$ctr restart FAILED (HTTP $$rc)" ;;
           esac
         }
-        LAST=""
+
+        get_local_digest() {
+          curl -fsS --unix-socket $$SOCK "$$API_BASE/images/$$WSDBAGENT_REF_URLENC/json" 2>/dev/null \
+            | jq -r '.Id // empty' || true
+        }
+
+        pull_and_extract_certs() {
+          log "auto-pull: pulling $$WSDBAGENT_REF…"
+          OLD_DIGEST=$$(get_local_digest)
+          if [ "$$ENGINE" = "podman" ]; then
+            curl -fsS -o /dev/null -X POST --unix-socket $$SOCK \
+                 "$$API_BASE/images/pull?reference=$$WSDBAGENT_REF" \
+              || { log "  pull FAILED — will retry next cycle"; return 1; }
+          else
+            IMG=$${WSDBAGENT_REF%:*}; TAG=$${WSDBAGENT_REF##*:}
+            [ "$$IMG" = "$$WSDBAGENT_REF" ] && TAG=latest
+            curl -fsS -o /dev/null -X POST --unix-socket $$SOCK \
+                 "$$API_BASE/images/create?fromImage=$$IMG&tag=$$TAG" \
+              || { log "  pull FAILED — will retry next cycle"; return 1; }
+          fi
+          NEW_DIGEST=$$(get_local_digest)
+          [ -z "$$NEW_DIGEST" ] && { log "  cannot read new digest"; return 0; }
+          [ "$$NEW_DIGEST" = "$$OLD_DIGEST" ] && { log "  digest unchanged ($${NEW_DIGEST:7:12}…) — no extract"; return 0; }
+          log "  new digest $${NEW_DIGEST:7:12}…; extracting certs"
+
+          CREATE_JSON='{"Image":"'"$$WSDBAGENT_REF"'","Cmd":["/bin/true"]}'
+          CID=$$(curl -fsS -X POST --unix-socket $$SOCK -H "Content-Type: application/json" \
+                       -d "$$CREATE_JSON" "$$API_BASE/containers/create" | jq -r '.Id' 2>/dev/null) || true
+          [ -z "$$CID" ] || [ "$$CID" = "null" ] && { log "  container create FAILED"; return 1; }
+
+          mkdir -p /watch/.staging
+          curl -fsS --unix-socket $$SOCK \
+               "$$API_BASE/containers/$$CID/archive?path=/opt/wsdbagent/baked-certs/" \
+            | tar -xf - -C /watch/.staging --strip-components=1 \
+            || { log "  archive extract FAILED"; rm -rf /watch/.staging; \
+                 curl -fsS -o /dev/null -X DELETE --unix-socket $$SOCK "$$API_BASE/containers/$$CID" || true; \
+                 return 1; }
+
+          flock /watch/.lock -c '
+            mv -f /watch/.staging/ca.crt     /watch/ca.crt
+            mv -f /watch/.staging/client.crt /watch/client.crt
+            mv -f /watch/.staging/client.key /watch/client.key
+            chmod 600 /watch/client.key
+          ' || log "  flock+mv had a hiccup (md5sum loop will recover)"
+          rm -rf /watch/.staging
+          curl -fsS -o /dev/null -X DELETE --unix-socket $$SOCK "$$API_BASE/containers/$$CID" || true
+          log "  certs republished to /watch"
+        }
+
+        log "watching /watch every $${POLL_SECONDS:-5}s for cert changes"
+        [ "$${AUTO_PULL:-1}" = "1" ] \
+          && log "auto-pulling $$WSDBAGENT_REF every $${IMAGE_POLL_SECONDS:-900}s" \
+          || log "AUTO_PULL=0 → image polling disabled"
+        LAST=""; LAST_PULL_TIME=0
         while true; do
-          NEW=$$(find /watch -type f \( -name '*.crt' -o -name '*.key' -o -name '*.pem' \) -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
+          NEW=$$(flock -s /watch/.lock find /watch -maxdepth 1 -type f \
+                   \( -name '*.crt' -o -name '*.key' -o -name '*.pem' \) \
+                   -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
           if [ -n "$$NEW" ] && [ "$$NEW" != "$$LAST" ]; then
             if [ -n "$$LAST" ]; then
               log "cert change detected ($$LAST -> $$NEW); restarting agents"
@@ -300,12 +358,23 @@ services:
             fi
             LAST=$$NEW
           fi
+          if [ "$${AUTO_PULL:-1}" = "1" ]; then
+            NOW=$$(date +%s)
+            if [ $$((NOW - LAST_PULL_TIME)) -ge $${IMAGE_POLL_SECONDS:-900} ]; then
+              pull_and_extract_certs || true
+              LAST_PULL_TIME=$$NOW
+            fi
+          fi
           sleep $${POLL_SECONDS:-5}
         done
     environment:
       POLL_SECONDS: ${CERT_WATCH_POLL_SECONDS:-5}
+      IMAGE_POLL_SECONDS: ${IMAGE_POLL_SECONDS:-900}
+      AUTO_PULL: ${AUTO_PULL:-1}
+      WSDBAGENT_REF: ${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}
     volumes:
-      - ./certs/cloud-issued/innertls:/watch:ro
+      # :rw because the auto-pull loop writes refreshed certs into /watch.
+      - ./certs/cloud-issued/innertls:/watch:rw
       - ${PODMAN_SOCKET:-/run/podman/podman.sock}:/run/podman/podman.sock
     depends_on:
       wsdbagent:
