@@ -105,7 +105,7 @@ Swap is **not** a substitute for RAM at steady state — if you see `kswapd0` co
 
 ## 2. Install the container engine
 
-Two supported engines on the Pi. **Pick one** — don't install both side-by-side.
+Three supported runtimes on the Pi. **Pick one** — don't install more than one side-by-side.
 
 ### Path A — podman (project default; rootless, no daemon)
 
@@ -142,6 +142,25 @@ docker compose version      # ≥ 2.x  (note: `docker compose`, no hyphen)
    (The env var stays named `PODMAN_SOCKET` for backward compatibility — it's really "whatever-engine socket the watcher should mount". The watcher logs `detected engine: docker` on startup so you can confirm.)
 
 The rest of this guide says `podman` in commands; replace with `docker` (and `podman-compose` with `docker compose`) where applicable. The `Dockerfile.mongo` build + image semantics are identical.
+
+### Path C — runc only (lightest; no daemon, no compose, no sidecar)
+
+For operators who want to skip a full container engine and drive things
+directly through the OCI runtime + systemd. Saves ~100–200 MB of RAM
+vs path A/B on a Pi 3B and removes the cert-watcher sidecar entirely
+(`systemd.path` watches the certs dir instead).
+
+The trade-off is operator complexity: no `docker ps`, no
+`./run-agent.sh`, hand-edited `config.json` files per container,
+image updates are manual `skopeo copy` + `umoci unpack` calls. Worth it
+when memory pressure is the binding constraint; not worth it on a Pi 4
+with 4 GB RAM. Most operators should pick A or B.
+
+Full walkthrough — install, image pipeline, per-container `config.json`,
+systemd units, cert-rotation `path` unit, update procedure,
+troubleshooting — lives in [`operator-runc.md`](./operator-runc.md).
+The rest of this guide assumes path A or B; if you go C, jump there
+now and ignore §§3–10 here.
 
 ---
 
