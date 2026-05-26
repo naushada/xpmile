@@ -19,7 +19,7 @@ The script:
 2. **Prompts** for `SERVER_HOST` (marvel Heroku) and optionally `IDP_SERVER_HOST` (idp Heroku).
 3. **Writes** `~/xpmile-agent/{docker-compose.agent.yml, .env}` — both embedded in the script, no repo clone needed.
 4. **Pulls** `xpmile-mongo`, `xpmile-wsdbagent`, `alpine` from Docker Hub. The mongo image is pre-built per-arch (no local Dockerfile build on your host).
-5. **Extracts** the rotated InnerTLS cert family from `xpmile-uniservice` (a one-time ~500 MB pull — a follow-up PR will move the cert family into the wsdbagent image and remove this step).
+5. **Extracts** the rotated InnerTLS cert family from `xpmile-wsdbagent`'s `/opt/wsdbagent/baked-certs/` directory — same image we're already pulling for the agent, so this is a ~10 MB no-op marginal cost. (CI bakes the matching client cert family in at build time — see PR #44.)
 6. **Brings up** all 4 containers and **verifies** the wsdbagent connects to marvel.
 
 After install: log in to `https://<your-marvel-host>/login` with `admin / admin@123` (change it immediately via the marvel UI).

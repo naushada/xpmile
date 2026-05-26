@@ -17,7 +17,12 @@ set -euo pipefail
 
 COMPOSE_FILE="docker-compose.agent.yml"
 COMPOSE_CMD="podman-compose"
-UNISERVICE_IMAGE="${UNISERVICE_IMAGE:-docker.io/naushada/xpmile-uniservice:latest}"
+# CI bakes the matching client cert family into the wsdbagent image
+# itself (Dockerfile.wsdbagent stage 0 → COPY --from=uniservice-source).
+# refresh-certs extracts from THIS image (~10 MB) instead of pulling
+# uniservice (~500 MB). Pin override:
+#   WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:<sha>
+WSDBAGENT_IMAGE="${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}"
 CERTS_DEST="./certs/cloud-issued/innertls"
 
 # ── colours ───────────────────────────────────────────────────────────────────
@@ -175,11 +180,13 @@ cmd_clean() {
   ok "Containers and data volume removed."
 }
 
-# Pull the latest uniservice image from Docker Hub and extract the
+# Pull the latest wsdbagent image from Docker Hub and extract the
 # rotated client cert family into ${CERTS_DEST}. docker/Dockerfile
-# mints a fresh CA per build, so the on-prem wsdbagent's trust
-# anchor + client cert pair must rotate to stay valid against the
-# new server cert.
+# (uniservice) mints a fresh CA per build, AND wsdbagent's CI step
+# now bakes the matching client cert family into THIS image's
+# /opt/wsdbagent/baked-certs/ (Dockerfile.wsdbagent stage 0). So
+# refresh-certs is a ~10 MB pull (we already need wsdbagent anyway)
+# instead of the old ~500 MB uniservice pull.
 #
 # The xpmile-cert-watcher sidecar md5sums ${CERTS_DEST} every ~5s
 # and POSTs a restart to agent-wsdbagent on any change — so once
@@ -189,17 +196,21 @@ cmd_clean() {
 # Run on a systemd timer (e.g. every 15 min) or directly after a
 # CI deploy notification.
 cmd_refresh_certs() {
-  section "Refreshing wsdbagent certs from ${UNISERVICE_IMAGE}"
-  info "Pulling ${UNISERVICE_IMAGE}…"
-  podman pull "${UNISERVICE_IMAGE}" \
+  section "Refreshing wsdbagent certs from ${WSDBAGENT_IMAGE}"
+  info "Pulling ${WSDBAGENT_IMAGE}…"
+  podman pull "${WSDBAGENT_IMAGE}" \
     || die "podman pull failed — check network / Docker Hub auth"
 
   local cid
-  cid=$(podman create "${UNISERVICE_IMAGE}") \
-    || die "podman create failed against ${UNISERVICE_IMAGE}"
+  cid=$(podman create "${WSDBAGENT_IMAGE}") \
+    || die "podman create failed against ${WSDBAGENT_IMAGE}"
   mkdir -p "${CERTS_DEST}"
-  podman cp "${cid}:/opt/xAPP/granada/agent-certs/." "${CERTS_DEST}/" \
-    || { podman rm -f "${cid}" >/dev/null 2>&1; die "podman cp /opt/xAPP/granada/agent-certs/ failed"; }
+  if ! podman cp "${cid}:/opt/wsdbagent/baked-certs/." "${CERTS_DEST}/" 2>/dev/null; then
+    podman rm -f "${cid}" >/dev/null 2>&1
+    die "podman cp /opt/wsdbagent/baked-certs/ failed — image predates the cert-rebake (PR #44).
+  Either pull the latest wsdbagent (this image already is — re-run after CI publishes a fresh
+  build) or pin to a specific :<sha> that has /opt/wsdbagent/baked-certs/ baked in."
+  fi
   podman rm -f "${cid}" >/dev/null
   chmod 600 "${CERTS_DEST}"/client.key 2>/dev/null || true
 
