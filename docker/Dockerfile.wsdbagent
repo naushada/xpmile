@@ -1,4 +1,24 @@
 # ============================================================
+# Stage 0: Pull the freshly-minted InnerTLS cert family from this
+#          workflow's just-built uniservice image.
+# ============================================================
+# docker/Dockerfile (uniservice) mints a brand-new InnerTLS CA, server
+# cert, AND matching client cert family on every build (PR #8). The
+# CLOUD-side image bakes in the CA + server cert. The AGENT-side image
+# (this one) bakes in the CLIENT cert family — same CA, signed in the
+# same build — so the operator never has to pull uniservice on the
+# agent host just to extract certs. ./run-agent.sh refresh-certs and
+# install-agent.sh both extract from THIS image (~10 MB pull) instead
+# of uniservice (~500 MB).
+#
+# UNISERVICE_REF MUST be the per-sha tag of the SAME workflow run that
+# produced the matching CA + server cert — `latest` is wrong because
+# it can lag if uniservice CI fails mid-rollout. The CI workflow
+# passes `${UNISERVICE_IMAGE}:${{ github.sha }}` here.
+ARG UNISERVICE_REF=docker.io/naushada/xpmile-uniservice:latest
+FROM ${UNISERVICE_REF} AS uniservice-source
+
+# ============================================================
 # Stage 1: Build wsdbagent (shares toolchain with main Dockerfile)
 # ============================================================
 # BUILDER_IMAGE: see docker/Dockerfile for the three-context rationale.
@@ -57,6 +77,15 @@ RUN ldconfig
 
 RUN mkdir -p /opt/wsdbagent
 COPY --from=cpp-builder /src/build/wsdbagent /opt/wsdbagent/wsdbagent
+
+# Bake the matching cert family from this workflow run's uniservice.
+# Operator-side `./run-agent.sh refresh-certs` and `install-agent.sh`
+# pull THIS image (~10 MB cumulative on top of the agent binary they
+# already need) and `podman cp /opt/wsdbagent/baked-certs/.` into their
+# host-side ./certs/cloud-issued/innertls/. The wsdbagent runtime itself
+# still reads from --tls-ca /certs/ca.crt (bind-mounted) so existing
+# operator deployments need NO change to the running container.
+COPY --from=uniservice-source /opt/xAPP/granada/agent-certs/ /opt/wsdbagent/baked-certs/
 
 WORKDIR /opt/wsdbagent
 

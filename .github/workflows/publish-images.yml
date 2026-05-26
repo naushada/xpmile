@@ -248,7 +248,14 @@ jobs:
 
   wsdbagent:
     name: Publish xpmile-wsdbagent (multi-arch)
-    needs: [bootstrap, test]
+    # Now serialized after uniservice — wsdbagent's Dockerfile bakes in
+    # the matching client cert family from THIS workflow run's uniservice
+    # image (Stage 0 of Dockerfile.wsdbagent, COPY --from=uniservice-source).
+    # Operator-side refresh-certs then extracts from wsdbagent (~10 MB)
+    # instead of uniservice (~500 MB). Adds ~10 min wall-clock vs the
+    # old parallel layout, but correctness requires same-build CA + client
+    # cert pairing.
+    needs: [bootstrap, test, uniservice]
     # Skip on PR runs — PRs validate (bootstrap + test) but do not
     # publish to Docker Hub. Publish only on push to main / manual
     # dispatch.
@@ -278,8 +285,14 @@ jobs:
           file: docker/Dockerfile.wsdbagent
           platforms: linux/amd64,linux/arm64
           push: true
+          # UNISERVICE_REF pins to THIS workflow's per-sha uniservice tag
+          # so wsdbagent bakes in the matching CA + client cert family.
+          # `:latest` would be wrong — it can lag a CI release that took
+          # a different path through uniservice (e.g. Heroku release failed
+          # but Docker Hub publish succeeded).
           build-args: |
             BUILDER_IMAGE=${{ env.BOOTSTRAP_IMAGE }}:bootstrap
+            UNISERVICE_REF=${{ env.UNISERVICE_IMAGE }}:${{ github.sha }}
           tags: |
             ${{ env.WSDBAGENT_IMAGE }}:latest
             ${{ env.WSDBAGENT_IMAGE }}:${{ github.sha }}

@@ -27,11 +27,10 @@
 #        - docker.io/naushada/xpmile-wsdbagent:latest    (multi-arch)
 #        - docker.io/library/alpine:3.19                 (cert-watcher sidecar)
 #   5. Extracts the rotated InnerTLS cert family (ca + client cert/key)
-#      from the running cloud uniservice image. Pulls
-#        docker.io/naushada/xpmile-uniservice:latest
-#      one-time (~500 MB on first install — a follow-up PR will replace
-#      this with the cert family baked into wsdbagent at CI time, so
-#      uniservice no longer touches the operator's host at all).
+#      from the wsdbagent image's /opt/wsdbagent/baked-certs/ directory.
+#      CI bakes the matching client cert family at build time (PR #44),
+#      so this is just a ~10 MB extract from an image we already pull for
+#      the agent itself — uniservice no longer touches the operator host.
 #   6. Brings up: agent-mongo, agent-wsdbagent, optional agent-wsdbagent-idp,
 #      xpmile-cert-watcher.
 #   7. Verifies: containers up + wsdbagent connected to marvel.
@@ -60,7 +59,6 @@ MONGO_APP_PASS="${MONGO_APP_PASS:-xpmile_pass}"
 
 MONGO_IMAGE="${MONGO_IMAGE:-docker.io/naushada/xpmile-mongo}"
 WSDBAGENT_IMAGE="${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}"
-UNISERVICE_IMAGE="${UNISERVICE_IMAGE:-docker.io/naushada/xpmile-uniservice:latest}"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pretty output
@@ -325,27 +323,30 @@ ok "wrote $INSTALL_DIR/docker-compose.agent.yml"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Cert extraction — one-time per install, plus on any cert rotation.
-# (Follow-up PR will bake the matching cert family into wsdbagent at CI
-# time so this step disappears entirely. For now: ~500 MB uniservice pull.)
+# CI bakes the matching client cert family into the wsdbagent image
+# itself (Dockerfile.wsdbagent stage 0 → COPY --from=uniservice-source).
+# Operator extracts from wsdbagent (~10 MB — the same image compose
+# will pull next) instead of uniservice (~500 MB, was the old path).
 # ──────────────────────────────────────────────────────────────────────────────
-section "Extracting InnerTLS cert family from $UNISERVICE_IMAGE"
-info "this pulls ~500 MB once. The follow-up PR will move certs into the wsdbagent image"
-info "and this step will become a no-op."
+section "Extracting InnerTLS cert family from $WSDBAGENT_IMAGE"
+info "~10 MB pull (same image compose will reuse for agent-wsdbagent + agent-wsdbagent-idp)"
 
-# NB: cert path inside the uniservice image is /opt/xAPP/granada/agent-certs/
-# (see run-agent.sh refresh-certs for the canonical source of this path).
-# `podman cp <cid>:<src>/. <dst>/` copies the directory's contents.
-$ENGINE pull "$UNISERVICE_IMAGE" || die "pull failed — check network / Docker Hub auth"
-CID=$($ENGINE create "$UNISERVICE_IMAGE")
+$ENGINE pull "$WSDBAGENT_IMAGE" || die "pull failed — check network / Docker Hub auth"
+CID=$($ENGINE create "$WSDBAGENT_IMAGE")
 trap "$ENGINE rm -f $CID >/dev/null 2>&1 || true" EXIT
-$ENGINE cp "$CID:/opt/xAPP/granada/agent-certs/." "$INSTALL_DIR/certs/cloud-issued/innertls/" \
-  || die "couldn't extract /opt/xAPP/granada/agent-certs/ from $UNISERVICE_IMAGE — wrong image, or its layout changed"
+if ! $ENGINE cp "$CID:/opt/wsdbagent/baked-certs/." "$INSTALL_DIR/certs/cloud-issued/innertls/" 2>/dev/null; then
+  $ENGINE rm -f "$CID" >/dev/null 2>&1 || true
+  die "couldn't extract /opt/wsdbagent/baked-certs/ — image predates the cert-rebake (PR #44).
+  Pull a post-PR-44 wsdbagent (latest after this PR's CI publishes), OR pin
+  WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:<sha> to a build that has the baked-certs/ dir."
+fi
 $ENGINE rm -f "$CID" >/dev/null 2>&1 || true
 trap - EXIT
 for f in ca.crt client.crt client.key; do
   [[ -s "$INSTALL_DIR/certs/cloud-issued/innertls/$f" ]] \
-    || die "expected $f not present after extraction — uniservice image layout changed?"
+    || die "expected $f not present after extraction — wsdbagent baked-certs layout changed?"
 done
+chmod 600 "$INSTALL_DIR/certs/cloud-issued/innertls/client.key" 2>/dev/null || true
 ok "extracted ca.crt + client.crt + client.key"
 
 # ──────────────────────────────────────────────────────────────────────────────
