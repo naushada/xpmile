@@ -195,25 +195,27 @@ services:
       - -c
       - |
         set -eu
-        apk add --no-cache curl >/dev/null
+        apk add --no-cache curl jq util-linux >/dev/null
         log() { printf '[cert-watcher %s] %s\n' "$$(date -u +%H:%M:%S)" "$$1"; }
 
         # ── Detect the container engine ────────────────────────────────
         # The mounted socket may be podman's libpod or docker's API.
         # Probe a libpod-only endpoint first; fall back to docker's
-        # /_ping. Sets RESTART_URL_FMT to the matching restart endpoint
-        # template (printf-substituted with the container name).
+        # /_ping. Sets URL templates for restart / pull / create /
+        # archive / delete depending on which engine answers.
         SOCK=/run/podman/podman.sock
         if curl -fsS -o /dev/null --unix-socket $$SOCK \
                 'http://d/v4.0.0/libpod/_ping' 2>/dev/null; then
           ENGINE=podman
-          RESTART_URL_FMT='http://d/v4.0.0/libpod/containers/%s/restart?timeout=5'
+          API_BASE='http://d/v4.0.0/libpod'
+          RESTART_URL_FMT="$$API_BASE/containers/%s/restart?timeout=5"
         elif curl -fsS -o /dev/null --unix-socket $$SOCK \
                   'http://d/_ping' 2>/dev/null; then
           ENGINE=docker
           # Docker REST: GET /_ping → "OK", restart at /v1.41/containers/.../restart
           # (?t= for seconds, not ?timeout=). v1.41 is supported by Docker 20.10+.
-          RESTART_URL_FMT='http://d/v1.41/containers/%s/restart?t=5'
+          API_BASE='http://d/v1.41'
+          RESTART_URL_FMT="$$API_BASE/containers/%s/restart?t=5"
         else
           log "FATAL — no container engine REST API responds on $$SOCK"
           log "       (expected podman libpod or docker API). Check the"
@@ -221,9 +223,9 @@ services:
           log "       point at the actual engine socket on this host."
           exit 1
         fi
-        log "detected engine: $$ENGINE  (restart URL pattern: $$RESTART_URL_FMT)"
+        log "detected engine: $$ENGINE  (API base: $$API_BASE)"
 
-        log "watching /watch every $${POLL_SECONDS:-5}s for cert changes"
+        # ── restart_agent (existing, unchanged) ────────────────────────
         # Both agents share the same cert family (design Q1 — same image
         # to both Heroku apps → one InnerTLS CA on-prem). When the file
         # set on /watch changes, restart EVERY agent we can find. The
@@ -242,10 +244,112 @@ services:
             *)  log "  $$ctr restart FAILED (HTTP $$rc — will retry next change)" ;;
           esac
         }
+
+        # ── pull_and_extract_certs (NEW — auto-pull loop) ──────────────
+        # Pull docker.io/naushada/xpmile-wsdbagent:latest periodically.
+        # If the local image digest changes after pull, extract the
+        # baked-in cert family (/opt/wsdbagent/baked-certs/) and atomically
+        # publish it into the /watch host-mounted directory. The existing
+        # md5sum loop below then sees the file set change and fires
+        # restart_agent — same machinery as a manual `./run-agent.sh
+        # refresh-certs`, but with zero operator action.
+        #
+        # AUTO_PULL=0 to disable (e.g. when operator pins WSDBAGENT_IMAGE
+        # to a specific :<sha> and doesn't want automatic updates).
+        # IMAGE_POLL_SECONDS=900 (15 min) is a conservative default —
+        # Docker Hub's anonymous-pull rate limit is 100/6h, so a 15 min
+        # cadence consumes 24/day, well clear of the limit.
+        WSDBAGENT_REF="$${WSDBAGENT_REF:-docker.io/naushada/xpmile-wsdbagent:latest}"
+        # NOTE: we percent-encode `:` and `/` because podman libpod's
+        # /images/<name>/json route uses path-segment matching.
+        WSDBAGENT_REF_URLENC=$$(echo "$$WSDBAGENT_REF" | sed 's|/|%2F|g; s|:|%3A|g')
+
+        get_local_digest() {
+          curl -fsS --unix-socket $$SOCK \
+               "$$API_BASE/images/$$WSDBAGENT_REF_URLENC/json" 2>/dev/null \
+            | jq -r '.Id // empty' || true
+        }
+
+        pull_and_extract_certs() {
+          log "auto-pull: pulling $$WSDBAGENT_REF…"
+          OLD_DIGEST=$$(get_local_digest)
+          # POST /images/pull (podman) or /images/create (docker).
+          if [ "$$ENGINE" = "podman" ]; then
+            curl -fsS -o /dev/null -X POST --unix-socket $$SOCK \
+                 "$$API_BASE/images/pull?reference=$$WSDBAGENT_REF" \
+              || { log "  pull FAILED — will retry next cycle"; return 1; }
+          else
+            # docker's API splits image:tag into separate query params
+            IMG=$${WSDBAGENT_REF%:*}
+            TAG=$${WSDBAGENT_REF##*:}
+            [ "$$IMG" = "$$WSDBAGENT_REF" ] && TAG=latest
+            curl -fsS -o /dev/null -X POST --unix-socket $$SOCK \
+                 "$$API_BASE/images/create?fromImage=$$IMG&tag=$$TAG" \
+              || { log "  pull FAILED — will retry next cycle"; return 1; }
+          fi
+          NEW_DIGEST=$$(get_local_digest)
+          if [ -z "$$NEW_DIGEST" ]; then
+            log "  pull OK but cannot read new digest — skipping extract"
+            return 0
+          fi
+          if [ "$$NEW_DIGEST" = "$$OLD_DIGEST" ]; then
+            log "  pulled; digest unchanged ($${NEW_DIGEST:7:12}…) — no extract"
+            return 0
+          fi
+          log "  new digest $${NEW_DIGEST:7:12}… (was $${OLD_DIGEST:7:12}…); extracting certs"
+
+          # Create a non-running container so we can `archive` files out.
+          # `Cmd` set to /bin/true — short-lived, never actually runs.
+          CREATE_JSON='{"Image":"'"$$WSDBAGENT_REF"'","Cmd":["/bin/true"]}'
+          CID=$$(curl -fsS -X POST --unix-socket $$SOCK \
+                       -H "Content-Type: application/json" \
+                       -d "$$CREATE_JSON" \
+                       "$$API_BASE/containers/create" \
+                  | jq -r '.Id' 2>/dev/null) || true
+          if [ -z "$$CID" ] || [ "$$CID" = "null" ]; then
+            log "  container create FAILED — skipping extract"
+            return 1
+          fi
+
+          # GET /containers/<id>/archive?path=… → tar stream
+          # Stage into /watch/.staging/, then atomically `mv` each file
+          # into /watch/ so the md5sum loop never sees a half-written set.
+          mkdir -p /watch/.staging
+          curl -fsS --unix-socket $$SOCK \
+               "$$API_BASE/containers/$$CID/archive?path=/opt/wsdbagent/baked-certs/" \
+            | tar -xf - -C /watch/.staging --strip-components=1 \
+              || { log "  archive extract FAILED"; rm -rf /watch/.staging; \
+                   curl -fsS -o /dev/null -X DELETE --unix-socket $$SOCK "$$API_BASE/containers/$$CID" || true; \
+                   return 1; }
+
+          flock /watch/.lock -c '
+            mv -f /watch/.staging/ca.crt     /watch/ca.crt
+            mv -f /watch/.staging/client.crt /watch/client.crt
+            mv -f /watch/.staging/client.key /watch/client.key
+            chmod 600 /watch/client.key
+          ' || log "  flock+mv had a hiccup (md5sum loop will recover)"
+          rm -rf /watch/.staging
+
+          curl -fsS -o /dev/null -X DELETE --unix-socket $$SOCK \
+               "$$API_BASE/containers/$$CID" || true
+
+          log "  certs republished to /watch (md5sum loop will fire restart shortly)"
+        }
+
+        # ── Main loop ─────────────────────────────────────────────────
+        log "watching /watch every $${POLL_SECONDS:-5}s for cert changes"
+        if [ "$${AUTO_PULL:-1}" = "1" ]; then
+          log "auto-pulling $$WSDBAGENT_REF every $${IMAGE_POLL_SECONDS:-900}s"
+        else
+          log "AUTO_PULL=0 → image polling disabled; manual ./run-agent.sh refresh-certs only"
+        fi
         LAST=""
+        LAST_PULL_TIME=0
         while true; do
-          NEW=$$(find /watch -type f \( -name '*.crt' -o -name '*.key' -o -name '*.pem' \) -exec md5sum {} + 2>/dev/null \
-                 | sort | md5sum | cut -d' ' -f1)
+          # ── cadence 1: every poll, check certs ───────────────────────
+          NEW=$$(flock -s /watch/.lock find /watch -maxdepth 1 -type f \
+                   \( -name '*.crt' -o -name '*.key' -o -name '*.pem' \) \
+                   -exec md5sum {} + 2>/dev/null | sort | md5sum | cut -d' ' -f1)
           if [ -n "$$NEW" ] && [ "$$NEW" != "$$LAST" ]; then
             if [ -n "$$LAST" ]; then
               log "cert change detected ($$LAST -> $$NEW); restarting both agents"
@@ -256,12 +360,26 @@ services:
             fi
             LAST=$$NEW
           fi
+          # ── cadence 2: less often, check upstream image ──────────────
+          if [ "$${AUTO_PULL:-1}" = "1" ]; then
+            NOW=$$(date +%s)
+            if [ $$((NOW - LAST_PULL_TIME)) -ge $${IMAGE_POLL_SECONDS:-900} ]; then
+              pull_and_extract_certs || true
+              LAST_PULL_TIME=$$NOW
+            fi
+          fi
           sleep $${POLL_SECONDS:-5}
         done
     environment:
       POLL_SECONDS: ${CERT_WATCH_POLL_SECONDS:-5}
+      IMAGE_POLL_SECONDS: ${IMAGE_POLL_SECONDS:-900}
+      AUTO_PULL: ${AUTO_PULL:-1}
+      WSDBAGENT_REF: ${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}
     volumes:
-      - ${CERTS_DIR:-./certs/cloud-issued/innertls}:/watch:ro
+      # /watch is now :rw (was :ro) because the auto-pull loop writes
+      # rotated certs into it. Without :rw the post-pull `mv` fails
+      # and rotation degrades to manual refresh-certs only.
+      - ${CERTS_DIR:-./certs/cloud-issued/innertls}:/watch:rw
       - ${PODMAN_SOCKET:-/run/podman/podman.sock}:/run/podman/podman.sock
     depends_on:
       wsdbagent:
