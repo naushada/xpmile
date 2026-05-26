@@ -103,17 +103,49 @@ Swap is **not** a substitute for RAM at steady state — if you see `kswapd0` co
 
 ---
 
-## 2. Install podman + podman-compose
+## 2. Install the container engine
+
+Two supported engines on the Pi. **Pick one** — don't install both side-by-side.
+
+### Path A — podman (project default; rootless, no daemon)
 
 ```sh
 sudo apt-get update
 sudo apt-get install -y podman podman-compose git
-# Verify:
 podman --version            # ≥ 4.0
 podman-compose --version    # ≥ 1.0.6
 ```
 
-Pi 3B's stock Bookworm ships podman 4.x — fine. You don't need `docker`.
+Pi 3B's stock Bookworm ships podman 4.x.
+
+### Path B — Docker (rootful, system daemon — what you'll use if you've already got Docker Desktop / `dockerd` muscle memory)
+
+```sh
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2 git
+sudo usermod -aG docker $(whoami) && newgrp docker     # so you can run docker without sudo
+docker --version            # ≥ 24.x
+docker compose version      # ≥ 2.x  (note: `docker compose`, no hyphen)
+```
+
+**Three differences vs podman** that matter for the rest of this guide:
+
+1. `./run-agent.sh` wraps `podman-compose`. On Docker, either edit the script (`COMPOSE_CMD="docker compose"`) or run the equivalent commands directly:
+   - `docker compose -f docker-compose.agent.yml up -d mongodb wsdbagent wsdbagent-idp`
+   - `docker compose -f docker-compose.agent.yml down`
+   - `docker compose -f docker-compose.agent.yml logs -f`
+2. **Reboots are auto-handled.** Docker's `dockerd` is a system service that starts at boot (`systemctl enable --now docker`), and the compose file's `restart: unless-stopped` policy survives the host reboot natively. **You can ignore §10's `@reboot` cron / systemd-user dance entirely.**
+3. **The `xpmile-cert-watcher` sidecar won't work as-is** — it shells out to podman's libpod REST API (`http://d/v4.0.0/libpod/containers/.../restart`) via the bind-mounted socket. Docker's REST API is at a different path (`/v1.41/containers/.../restart`). Two workarounds:
+
+   - **Easiest** — comment out the `xpmile-cert-watcher` service block in `docker-compose.agent.yml`, then after each `./run-agent.sh refresh-certs`, restart the agents manually:
+     ```sh
+     ./run-agent.sh refresh-certs
+     docker restart agent-wsdbagent agent-wsdbagent-idp
+     ```
+     Wire this into `cron` if you want it on a schedule (e.g. every 15 min).
+   - **Sidecar swap** — replace the cert-watcher's `command:` block with one that uses the docker REST API + `/var/run/docker.sock`. Untested in tree; if you do it, share the patch.
+
+The rest of this guide says `podman` in commands; replace with `docker` (and `podman-compose` with `docker compose`) where applicable. The `Dockerfile.mongo` build + image semantics are identical.
 
 ---
 
@@ -325,6 +357,20 @@ The smoke-test cookbook in [`docs/inhouse-idp.md`](inhouse-idp.md#verifying-the-
 ---
 
 ## 10. Surviving reboots — auto-start the agent stack
+
+### If you're on Docker (Path B in §2) — nothing to do here
+
+`dockerd` is a system service (`systemctl is-enabled docker` → `enabled`), so the compose file's `restart: unless-stopped` policy survives host reboots natively. After a reboot, the kernel comes up → systemd starts dockerd → dockerd brings the unless-stopped containers back automatically. Skip the rest of this section.
+
+Verify once after your first reboot:
+
+```sh
+sudo reboot
+# (wait, ssh back in)
+docker ps        # all four containers should be Up without you doing anything
+```
+
+### If you're on podman (Path A in §2) — manual auto-start setup needed
 
 By default, the agent stack does **not** restart on a Pi reboot:
 
