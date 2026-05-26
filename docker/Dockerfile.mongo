@@ -1,2 +1,10 @@
-FROM mongo:7
+# Build arg lets Pi-3B-class hosts pin to mongo:4.4 (last release that
+# runs on armv8.0-A). mongo:5+ requires armv8.2-A on arm64, so the
+# default tag won't start on Cortex-A53 boxes. amd64 + Pi 4/5 keep the
+# modern default; override per-deploy by setting `MONGO_VERSION=4.4`
+# in `.env` — docker-compose.agent.yml passes it through as a build
+# arg. The on-disk + on-wire data formats are compatible 4.4 → 7;
+# only the runtime binary differs.
+ARG MONGO_VERSION=7
+FROM mongo:${MONGO_VERSION}
 COPY mongo-init.js /docker-entrypoint-initdb.d/mongo-init.js
