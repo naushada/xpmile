@@ -7,3 +7,4 @@
 # canonical source is the published xpmile-uniservice image
 # (mints fresh CA per build); these files are local cache only.
 certs/cloud-issued/
+.claude/

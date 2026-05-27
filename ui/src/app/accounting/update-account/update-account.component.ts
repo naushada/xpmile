@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Account, AppGlobals, AppGlobalsDefault } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
@@ -69,7 +69,11 @@ export class UpdateAccountComponent implements OnInit, OnDestroy {
       personalInfo: this.fb.group({
         eventLocation: '',
         role:          '',
-        name:          '',
+        // Name is required so the navbar (main.component.html) has something
+        // to render next to the user icon. Empty `name` produces a blank
+        // <span> that looks like a broken navbar; the fallback in the
+        // template is to render `accountCode` but we'd rather not need it.
+        name:          ['', Validators.required],
         contact:       '',
         email:         '',
         address:       '',

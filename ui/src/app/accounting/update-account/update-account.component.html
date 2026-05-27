@@ -80,7 +80,8 @@
         </clr-select-container>
         <clr-input-container>
           <label>Name</label>
-          <input clrInput name="name" formControlName="name" />
+          <input clrInput name="name" formControlName="name" required />
+          <clr-control-error *clrIfError="'required'">Name is required &mdash; it shows next to the user icon in the navbar.</clr-control-error>
         </clr-input-container>
         <clr-select-container>
           <label>Event Location</label>

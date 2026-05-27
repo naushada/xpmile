@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { FormBuilder, FormGroup } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AppGlobals, AppGlobalsDefault } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 
@@ -35,7 +35,11 @@ export class CreateAccountComponent {
       personalInfo: this.fb.group({
         eventLocation: '',
         role:          '',
-        name:          '',
+        // Name is required so the navbar (main.component.html) has something
+        // to render next to the user icon. Before this fix, accounts created
+        // with name blank rendered an empty <span> and the navbar looked
+        // broken until the user clicked the icon dropdown.
+        name:          ['', Validators.required],
         contact:       '',
         email:         '',
         address:       '',

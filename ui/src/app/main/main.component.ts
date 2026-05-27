@@ -45,6 +45,40 @@ export class MainComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.onMenuSelect('shipping');
     this.onReceiveEvt('singleShipment');
+
+    // ── Session restore on page refresh ─────────────────────────────
+    // loggedInUser is normally set via pubsub.onAccount, which fires
+    // only at login time (LoginComponent emits after a successful
+    // POST /api/v1/account/login). On a browser refresh Angular
+    // bootstraps fresh, pubsub has no buffered emission, and
+    // loggedInUser stays undefined → the navbar renders an empty
+    // <span> next to the user icon.
+    //
+    // The session cookie itself is still valid (HttpOnly, browser
+    // kept it across refresh), so we re-hydrate by calling
+    // /sso/session → accountCode → getAccountInfo(accountCode).
+    // If the session has expired or never existed, /sso/session returns
+    // 401 and we kick back to /login.
+    if (!this.loggedInUser?.loginCredentials?.accountCode) {
+      this.http.getSession().subscribe({
+        next: (sess) => {
+          if (sess?.accountCode) {
+            this.http.getAccountInfo(sess.accountCode).subscribe({
+              next: (acct) => {
+                this.loggedInUser = acct;
+                // Re-publish so any other subscribers (sidebar widgets, etc.)
+                // see the restored user the same way they would on a fresh login.
+                this.pubsub.emit_accountInfo(acct);
+              },
+              error: () => { /* leave loggedInUser unset — non-fatal */ }
+            });
+          } else {
+            this.router.navigateByUrl('/login');
+          }
+        },
+        error: () => { this.router.navigateByUrl('/login'); }
+      });
+    }
   }
 
   onLogout(): void {
