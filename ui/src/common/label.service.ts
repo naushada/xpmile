@@ -4,6 +4,8 @@ import * as JsBarcode from 'jsbarcode';
 import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 
+import { Country } from 'country-state-city';
+
 import { Shipment } from './app-globals';
 import { lookupIata } from './iata-codes';
 
@@ -362,10 +364,20 @@ export class LabelService {
     return formatDate(new Date(), pattern, 'en');
   }
 
+  // Look up the ISO 3166-1 alpha-2 country code from the country-state-city
+  // dataset that already powers the location dropdowns. "United Kingdom" →
+  // "GB", "United Arab Emirates" → "AE", "Kuwait" → "KW". When the operator
+  // saved a value the dataset doesn't recognise (legacy free-text or a
+  // country we don't have), keep the existing first-2-chars truncation as
+  // a graceful fallback rather than rendering blank.
   private countryAlpha2(country?: string): string {
     if (!country) return '';
-    if (country.length <= 3) return country.toUpperCase();
-    return country.slice(0, 2).toUpperCase();
+    const trimmed = country.trim();
+    if (trimmed.length <= 3) return trimmed.toUpperCase();
+    const key = trimmed.toLowerCase();
+    const hit = Country.getAllCountries().find(c => c.name.toLowerCase() === key);
+    if (hit) return hit.isoCode;
+    return trimmed.slice(0, 2).toUpperCase();
   }
 
   // Side barcode rendered into a canvas then rotated 90° via a second
