@@ -5,6 +5,7 @@ import { HttpsvcService } from 'src/common/httpsvc.service';
 import { formatDate } from '@angular/common';
 import { SubSink } from 'subsink';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
+import { InvoiceService } from 'src/common/invoice.service';
 
 import * as JsBarcode from 'jsbarcode';
 import pdfMake from 'pdfmake/build/pdfmake';
@@ -30,7 +31,6 @@ export class ListComponent implements OnInit, OnDestroy {
   private readonly a2Body:       object[] = [];
   private readonly a4Body:       object[] = [];
   private readonly a6Body:       object[] = [];
-  private readonly invoiceBody:  object[] = [];
 
   private readonly pdfStyles = {
     header:       { fontSize: 18, bold: true,  margin: [0, 0, 0, 10] as any },
@@ -50,7 +50,8 @@ export class ListComponent implements OnInit, OnDestroy {
   constructor(
     private fb: FormBuilder,
     private http: HttpsvcService,
-    private subject: PubsubsvcService
+    private subject: PubsubsvcService,
+    private invoice: InvoiceService
   ) {
     this.shipmentListForm = this.fb.group({
       startDate: [formatDate(new Date(), 'MM/dd/yyyy', 'en')],
@@ -109,13 +110,8 @@ export class ListComponent implements OnInit, OnDestroy {
   }
 
   onCreateInvoice(): void {
-    this.buildInvoiceBody();
-    pdfMake.createPdf({
-      info:        { title: 'A4 Invoice', author: 'Mohd Naushad Ahmed', subject: 'A4 Invoice for Shipment', keywords: 'A4 Invoice' },
-      pageMargins: 10,
-      content:     this.invoiceBody,
-      styles:      this.pdfStyles as any
-    }).download('A4-invoice');
+    if (!this.rowsSelected?.length) return;
+    this.invoice.downloadCommercialInvoice(this.rowsSelected, 'commercial-invoice');
   }
 
   textToBase64Barcode(text: string, ht: number, fSize = 15): string {
@@ -265,66 +261,4 @@ export class ListComponent implements OnInit, OnDestroy {
     });
   }
 
-  private buildInvoiceBody(): void {
-    this.invoiceBody.length = 0;
-    this.rowsSelected.forEach((elm: Shipment) => {
-      const si       = elm.shipment.shipmentInformation;
-      const sender   = elm.shipment.senderInformation;
-      const receiver = elm.shipment.receiverInformation;
-      const awbno    = elm.shipment.awbno;
-
-      const blankRow  = () => [{text: '', rowSpan: 10, border: [true, false, false, false]},
-                                {text: '', border: [true, false, false, false]},
-                                {text: '', border: [true, false, false, false]},
-                                {text: '', border: [true, false, false, false]},
-                                {text: '', border: [true, false, false, false]},
-                                {text: '', border: [true, false, false, false]},
-                                {text: '', border: [true, false, true,  false]}];
-      const lastBlank = () => [{text: '', rowSpan: 10, border: [true, false, true, true]},
-                                ...blankRow().slice(1)];
-
-      this.invoiceBody.push([{
-        table: {
-          headerRows: 1,
-          widths: ['*', '*'],
-          heights: 20,
-          body: [
-            [{text: 'Commercial Invoice', colSpan: 2, border: [false, false, false, true], alignment: 'center', bold: true, margin: 10}, ''],
-            [{text: `International Air Way Bill NO: ${awbno}`, border: [true, false, true, true]},
-             {image: this.textToBase64Barcode(awbno, 70), fit: [150, 150], border: [true, false, true, true]}],
-            [{text: `DATE OF EXPORTATION: ${si.activity.at(0).date}`, border: [false, false, true, false]},
-             {text: 'EXPORT REFERENCE (i.e. Order no, etc)', border: [false, false, false, false]}],
-            [{text: `SHIPPER/EXPORTER (complete name and address)\n${sender.name}\n${sender.city}\n${sender.country}\n${sender.address}\n${sender.contact}\n${sender.email}`},
-             {text: `CONSIGNEE (complete name and address)\n${receiver.name}\n${receiver.address}\n${receiver.city}\n${receiver.country}\n${receiver.contact}`, border: [true, true, true, true]}],
-            [{text: `COUNTRY OF EXPORT:\n${sender.country}`},
-             {text: 'IMPORTER - IF OTHER THAN CONSIGNEE (complete name and address)', rowSpan: 3}],
-            [{text: 'COUNTRY OF MANUFACTURE:'}, ''],
-            [{text: `COUNTRY OF ULTIMATE DESTINATION:\n${receiver.country}`}, ''],
-            [{text: '', colSpan: 2, border: [false, false, false, false]}],
-            [{
-              colSpan: 2, headerRows: 1, heights: 80, border: [false, false, false, false],
-              table: {
-                body: [
-                  [{text: 'NO. OF PKGS.'}, {text: 'TYPE OF PKGS.'}, {text: 'FULL DESCRIPTION'}, {text: 'QTY.'}, {text: 'HS Code'}, {text: 'UNIT VALUE'}, {text: 'TOTAL VALUE'}],
-                  [{text: si.numberOfItems, rowSpan: 3}, {text: si.service, rowSpan: 3}, {text: si.goodsDescription, rowSpan: 3},
-                   {text: si.numberOfItems, rowSpan: 3}, {text: si.hsCode, rowSpan: 3},
-                   {text: si.customsValue,  rowSpan: 3}, {text: si.customsValue, rowSpan: 3}],
-                  [{text: ''}, '', '', '', '', '', ''],
-                  [{text: ''}, '', '', '', '', '', ''],
-                  ...Array.from({length: 9}, blankRow),
-                  lastBlank(),
-                  [{text: 'TOTAL PKGS.'}, {text: '', colSpan: 4}, '', '', '', '', {text: 'TOTAL INVOICE VALUE'}],
-                  [{text: si.numberOfItems}, {text: '', colSpan: 4}, '', '', '', '', {text: `${si.currency} ${si.customsValue}`}],
-                ]
-              }
-            }],
-            ...Array.from({length: 7}, () => [{text: '', colSpan: 2, border: [false, false, false, false]}, {text: ''}]),
-            [{text: 'SIGNATURE OF SHIPPER/EXPORTER', height: 200, border: [false, true, false, false]},
-             {text: 'DATE', border: [false, true, false, false], alignment: 'center'}],
-          ]
-        },
-        pageBreak: 'after'
-      }]);
-    });
-  }
 }
