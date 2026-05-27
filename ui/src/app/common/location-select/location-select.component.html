@@ -22,13 +22,24 @@
   </div>
 
   <div class="clr-col-12 clr-col-md-4">
-    <clr-input-container>
+    <!--
+      Click-open dropdown for cities when the country-state-city package has
+      data for the selected state; free-text input fallback when it doesn't
+      (the package's city coverage is uneven by region — empty list would
+      otherwise trap the operator).
+    -->
+    <clr-select-container *ngIf="cities.length > 0 || legacyCity">
       <label>City</label>
-      <input clrInput [formControl]="cityControl" [attr.list]="uid + '-cities'" />
-      <datalist [id]="uid + '-cities'">
+      <select clrSelect [formControl]="cityControl">
+        <option value=""></option>
         <option *ngIf="legacyCity" [value]="legacyCity">{{ legacyCity }} (unknown)</option>
-        <option *ngFor="let c of cities" [value]="c.name"></option>
-      </datalist>
+        <option *ngFor="let c of cities" [value]="c.name">{{ c.name }}</option>
+      </select>
+    </clr-select-container>
+    <clr-input-container *ngIf="cities.length === 0 && !legacyCity">
+      <label>City</label>
+      <input clrInput [formControl]="cityControl"
+             [placeholder]="stateControl.value ? 'Type city name' : 'Pick a state first'" />
     </clr-input-container>
   </div>
 </div>
