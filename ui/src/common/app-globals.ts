@@ -339,6 +339,20 @@ export interface Account {
 		city: string;
 		state: string;
 		postalCode: string;
+		/**
+		 * Optional profile photo as a base64 data URL
+		 * (e.g. "data:image/jpeg;base64,/9j/4AA…"). Stored inline in the
+		 * account doc rather than a separate collection or GridFS because:
+		 *  - we already fetch the full account on login (one round trip)
+		 *  - the upload flow client-side-resizes to ≤256×256 + JPEG-encodes
+		 *    at ~85% quality, yielding ~30-50 KB per photo
+		 *  - well under mongo's 16 MB BSON doc limit and the dbproto
+		 *    message-size budget (which has plenty of headroom for shipment
+		 *    payloads much larger than this).
+		 * The navbar renders an <img> with this as src when present, else
+		 * falls back to the generic user icon.
+		 */
+		photoBase64?: string;
       };
     customerInfo: {
         companyName: string;

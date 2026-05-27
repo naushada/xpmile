@@ -34,14 +34,47 @@
         <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role !== 'Customer'">{{this.loggedInUser?.personalInfo?.name || this.loggedInUser?.loginCredentials?.accountCode}}</span>
         <clr-dropdown>
             <button type="button" class="nav-icon" clrDropdownTrigger aria-label="toggle settings menu">
-                <clr-icon shape="user" ></clr-icon>
+                <!-- If the logged-in user has uploaded a profile photo, show it
+                     in place of the generic user icon. Photo is base64 inline
+                     in the account doc — see Account.personalInfo.photoBase64
+                     in app-globals.ts. -->
+                <img *ngIf="loggedInUser?.personalInfo?.photoBase64"
+                     [src]="loggedInUser?.personalInfo?.photoBase64"
+                     alt="profile"
+                     style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; vertical-align: middle;" />
+                <clr-icon *ngIf="!loggedInUser?.personalInfo?.photoBase64" shape="user"></clr-icon>
             </button>
             <clr-dropdown-menu *clrIfOpen clrPosition="bottom-right">
-                <a href="..." clrDropdownItem>About</a>
-                <a href="..." clrDropdownItem>Preferences</a>
+                <a clrDropdownItem style="cursor: pointer" (click)="aboutOpen = true">About</a>
                 <a clrDropdownItem style="cursor: pointer" (click)="onLogout()">Log out</a>
             </clr-dropdown-menu>
         </clr-dropdown>
+
+        <!-- About modal — replaces the dead `href="..."` link that used to be in
+             the dropdown. Stays out of the DOM until the user clicks About. -->
+        <clr-modal [(clrModalOpen)]="aboutOpen" [clrModalSize]="'sm'">
+          <h3 class="modal-title">About xpmile</h3>
+          <div class="modal-body">
+            <p>
+              Logistics + shipment-tracking platform with an in-house OIDC
+              identity provider. Cloud-side runs on Heroku; the on-prem
+              <code>wsdbagent</code> bridges to a customer-controlled MongoDB
+              behind NAT over mutually-authenticated TLS.
+            </p>
+            <table class="table table-compact" style="margin-top: 12px;">
+              <tbody>
+                <tr><th>Version</th><td>v1.0 (continuous deploy)</td></tr>
+                <tr><th>Marvel host</th><td><code>{{currentHost}}</code></td></tr>
+                <tr><th>Source</th><td><a href="https://github.com/naushada/xpmile" target="_blank" rel="noopener">github.com/naushada/xpmile</a></td></tr>
+                <tr><th>Docs</th><td><a href="https://github.com/naushada/xpmile/tree/main/docs" target="_blank" rel="noopener">/docs</a></td></tr>
+                <tr><th>License</th><td>see repository</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" (click)="aboutOpen = false">Close</button>
+          </div>
+        </clr-modal>
       </div>
     </clr-header>
     
