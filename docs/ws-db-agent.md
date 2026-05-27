@@ -72,9 +72,12 @@ modules/module/wsdbagent/
     └── wsdbagent_main.cpp  CLI entry point
 certs/
 ├── generate.sh             OpenSSL script — used only for local dev (manual rotation)
-└── cloud-issued/innertls/  Rotated client cert family from the latest published
-                            xpmile-uniservice image (gitignored, populated by
-                            ./run-agent.sh refresh-certs)
+└── cloud-issued/innertls/  Rotated client cert family. As of v1.1.0 (PR #44),
+                            populated by extracting `/opt/wsdbagent/baked-certs/`
+                            from the published xpmile-wsdbagent image — NOT from
+                            xpmile-uniservice anymore. Gitignored; written by
+                            `./run-agent.sh refresh-certs` OR by the auto-pull
+                            cert-watcher sidecar (PR #46).
 docker/
 └── Dockerfile.wsdbagent    Standalone container image
 ```
@@ -88,16 +91,47 @@ docker/
 `docker/Dockerfile` mints a fresh CA + server + client cert family **every build**:
 the CA private key is born and purged inside a single `RUN` so it never lands in
 any image layer. The server family is baked into the runtime image at
-`/opt/xAPP/granada/certs/`; the matching client family is staged at
-`/opt/xAPP/granada/agent-certs/` for extraction.
+`/opt/xAPP/granada/certs/`.
+
+As of **v1.1.0 (PR #44)**, the matching **client cert family is also baked
+into the `xpmile-wsdbagent` image** at `/opt/wsdbagent/baked-certs/`. CI
+serializes the wsdbagent job after uniservice (`needs: [bootstrap, test,
+uniservice]`) and passes `UNISERVICE_REF=…:${{ github.sha }}` so wsdbagent
+COPYs the per-sha cert family — i.e. cloud-side server cert + on-prem client
+cert always come from the same CI build. The operator never has to pull
+`uniservice` (~500 MB) on the agent host just to scrape certs.
 
 Because every Heroku deploy rolls the CA, on-prem `wsdbagent` instances must
 refresh their cert pair in lockstep — otherwise the next reconnect fails with
-`tls_process_client_certificate verify failed`.
+`tls_process_client_certificate verify failed`. Two mechanisms handle this:
+
+1. **Auto-pull cert-watcher** (PR #46) — the sidecar polls Docker Hub every
+   `IMAGE_POLL_SECONDS` (default 900 = 15 min), pulls fresh wsdbagent on
+   digest change, and atomically republishes the baked-cert family into
+   `./certs/cloud-issued/innertls/`. Hands-off. Opt out with `AUTO_PULL=0`.
+2. **Manual `./run-agent.sh refresh-certs`** — for operators who want explicit
+   control (e.g. CI/CD pipeline, change windows).
 
 ### Bringing the stack up on the MongoDB machine
 
-First-time, one-shot:
+**Recommended (v1.1.0+) — one-curl installer:**
+
+```sh
+SUDO_PASS='your-sudo-pwd' \
+  SERVER_HOST=marvel-…herokuapp.com \
+  IDP_SERVER_HOST=idp-…herokuapp.com \
+  WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:v1.1.0 \
+  MONGO_TAG=4.4.18-v1.1.0 \
+  curl -sSf https://raw.githubusercontent.com/naushada/xpmile/v1.1.0/install-agent.sh | bash
+```
+
+`install-agent.sh` (PR #43, post-#54) auto-detects Pi 3B + rootless podman,
+writes a systemd-user unit for reboot survival, attempts to enable linger
+via the 3-tier sudo fallback (incl. `SUDO_PASS`), and brings up all 4
+containers serially via the auto-written `start-stack.sh` wrapper. See
+`docs/operator-pi3b.md` for the full walkthrough.
+
+**Legacy (pre-v1.1.0 path, still supported):**
 
 ```sh
 cp .env.agent .env             # set SERVER_HOST=marvel-…herokuapp.com
@@ -107,30 +141,54 @@ cp .env.agent .env             # set SERVER_HOST=marvel-…herokuapp.com
 `./run-agent.sh start` auto-invokes `refresh-certs` when
 `./certs/cloud-issued/innertls/` is missing or empty. The wsdbagent image
 is pulled from Docker Hub (`docker.io/naushada/xpmile-wsdbagent:latest`,
-published per deploy by CI) — no local build needed. Pin to a specific
-build by setting `WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:<sha>`
+published per-deploy by CI). Pin to a specific build with
+`WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:v1.1.0` (or `:<sha>`)
 in `.env`.
 
 ### Manual cert refresh (between deploys)
 
 ```sh
-./run-agent.sh refresh-certs   # podman pull + extract → certs/cloud-issued/innertls/
+./run-agent.sh refresh-certs   # podman pull wsdbagent + extract → certs/cloud-issued/innertls/
 ```
 
-Pulls `docker.io/naushada/xpmile-uniservice:latest`, runs `podman cp
-/opt/xAPP/granada/agent-certs/.` into `./certs/cloud-issued/innertls/`. Pin to
-a specific deploy by setting `UNISERVICE_IMAGE=...:<sha>`.
+**As of v1.1.0 (PR #44)** this pulls `docker.io/naushada/xpmile-wsdbagent:latest`
+(~10 MB — the same image the agents already need) and runs `podman cp
+/opt/wsdbagent/baked-certs/.` into `./certs/cloud-issued/innertls/`.
+Pre-v1.1.0 this used to pull `xpmile-uniservice:latest` (~500 MB just to
+scrape three cert files); that path is gone.
 
-The `xpmile-cert-watcher` sidecar (in `docker-compose.agent.yml`) md5sums that
-dir every `CERT_WATCH_POLL_SECONDS` (default 5) and POSTs
-`/libpod/containers/agent-wsdbagent/restart` via the host podman socket on any
-change. End-to-end rotation latency from `refresh-certs` to a fresh wsdbagent
-handshake ≈ 15 s.
+Pin to a specific deploy by setting `WSDBAGENT_IMAGE=…:v1.1.0` (or `:<sha>`).
 
-For continuous rotation, run `refresh-certs` on a systemd timer or cron:
+### Auto-rotation via the cert-watcher sidecar
+
+The `xpmile-cert-watcher` sidecar (defined in `docker-compose.agent.yml`)
+runs two loops:
+
+| Loop | Cadence | Action |
+|---|---|---|
+| `md5sum /watch` | `POLL_SECONDS` (default 5) | If the cert file set on disk changes, POST `/containers/agent-wsdbagent/restart` (libpod REST OR Docker REST, auto-detected per PR #39). |
+| Docker Hub pull *(NEW in v1.1.0 — PR #46)* | `IMAGE_POLL_SECONDS` (default 900) | `podman pull` the configured `WSDBAGENT_REF`. If the local image digest changed, `podman create` a temp container, `cp` `/opt/wsdbagent/baked-certs/` to a staging dir, then `flock`-protected `mv` of each cert atomically into `/watch`. The first loop then sees the change and restarts the agents. |
+
+End-to-end rotation latency from a fresh CI publish → wsdbagent reconnected
+with new certs ≈ `IMAGE_POLL_SECONDS` + `POLL_SECONDS` + ~10 s handshake.
+Default 15 min + 5 s + 10 s = ~16 min.
+
+Opt out of the auto-pull loop with `AUTO_PULL=0` in `.env`; the md5sum loop
+keeps watching for manual `./run-agent.sh refresh-certs`. With BOTH the cron
+recipe below AND auto-pull running, you get faster rotation (cron rounds
+down to whatever its cadence is) but no harm; the loops are independent.
+
+### Optional: cron-based rotation (pre-v1.1.0 default, now belt-and-suspenders)
+
 ```sh
 echo '*/15 * * * * cd /path/to/xpmile && ./run-agent.sh refresh-certs >/dev/null' | crontab -
 ```
+
+Useful when:
+- You've set `AUTO_PULL=0` (operator-controlled rotation only)
+- You want a hard upper bound on rotation lag independent of Docker Hub's API
+- You're on the legacy `./run-agent.sh start` path that doesn't ship the
+  auto-pull cert-watcher (pre-v1.1.0)
 
 ### Local dev (no rotation)
 
