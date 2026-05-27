@@ -53,7 +53,12 @@ name: Publish container images & release marvel + idp
 
 on:
   push:
-    branches: [main]
+    # `main` keeps publishing rolling `:latest` + `:<sha>`.
+    # `release/vX.Y` branches publish `:vX.Y` (rolling within the release line).
+    # `vX.Y.Z` tags publish `:vX.Y.Z` (immutable, the recommended pin).
+    # See CHANGELOG.md → "Image-tag scheme" for the operator-facing detail.
+    branches: [main, 'release/**']
+    tags:     ['v*']
     paths:
       # Skip the workflow when nothing publishable changed — saves
       # ~1 GB of registry pulls per docs-only PR.
@@ -278,6 +283,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Compute the version-aware image tag from the git ref:
+      #   refs/tags/v1.1.0          → version_tag=v1.1.0  (immutable point release)
+      #   refs/heads/release/v1.1   → version_tag=v1.1    (rolling within minor release line)
+      #   anything else (main, PR)  → version_tag=""      (no extra tag)
+      # Used in the `tags:` block below to add `:vX.Y(.Z)` alongside :latest + :<sha>.
+      - name: Compute version tag from git ref
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            echo "tag=${GITHUB_REF_NAME#release/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build + push xpmile-wsdbagent
         uses: docker/build-push-action@v5
         with:
@@ -293,9 +315,14 @@ jobs:
           build-args: |
             BUILDER_IMAGE=${{ env.BOOTSTRAP_IMAGE }}:bootstrap
             UNISERVICE_REF=${{ env.UNISERVICE_IMAGE }}:${{ github.sha }}
+          # The third tag is only included when version_tag is non-empty
+          # (release branch push OR vX.Y.Z tag push). GHA strips empty
+          # lines from the multi-line tags string, so the conditional
+          # `&& ... || ''` produces a clean no-op on main pushes.
           tags: |
             ${{ env.WSDBAGENT_IMAGE }}:latest
             ${{ env.WSDBAGENT_IMAGE }}:${{ github.sha }}
+            ${{ steps.version.outputs.tag != '' && format('{0}:{1}', env.WSDBAGENT_IMAGE, steps.version.outputs.tag) || '' }}
           cache-from: type=registry,ref=${{ env.WSDBAGENT_IMAGE }}:buildcache
           cache-to:   type=registry,ref=${{ env.WSDBAGENT_IMAGE }}:buildcache,mode=max
 
@@ -340,6 +367,21 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Same version-tag-from-ref logic as the wsdbagent job. Output is
+      # composed with the mongo_version matrix value so each variant
+      # gets its own per-release tag (e.g. mongo:4.4.18-v1.1.0).
+      - name: Compute version tag from git ref
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            echo "tag=${GITHUB_REF_NAME#release/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build + push xpmile-mongo:${{ matrix.mongo_version }}
         uses: docker/build-push-action@v5
         with:
@@ -350,13 +392,15 @@ jobs:
           build-args: |
             MONGO_VERSION=${{ matrix.mongo_version }}
           # ::: tag list :::
-          #   :<version>                 e.g. :7, :4.4.18  — operator-pinnable version
-          #   :<version>-<sha>           immutable per-commit tag for rollback
-          #   :latest                    only set for the default (7) row via extra_tag
+          #   :<version>                       e.g. :7, :4.4.18           — operator-pinnable version
+          #   :<version>-<sha>                 immutable per-commit tag for rollback
+          #   :latest                          only set for the default (7) row via extra_tag
+          #   :<version>-<release_tag>         e.g. :7-v1.1.0             — only on release branch / tag push
           tags: |
             ${{ env.MONGO_IMAGE }}:${{ matrix.mongo_version }}
             ${{ env.MONGO_IMAGE }}:${{ matrix.mongo_version }}-${{ github.sha }}
             ${{ matrix.extra_tag != '' && format('{0}:{1}', env.MONGO_IMAGE, matrix.extra_tag) || '' }}
+            ${{ steps.version.outputs.tag != '' && format('{0}:{1}-{2}', env.MONGO_IMAGE, matrix.mongo_version, steps.version.outputs.tag) || '' }}
 
   uniservice:
     name: Publish xpmile-uniservice + release marvel + idp on Heroku
@@ -389,6 +433,19 @@ jobs:
           username: _
           password: ${{ secrets.HEROKU_API_KEY }}
 
+      # Same version-tag-from-ref logic as the wsdbagent + mongo jobs.
+      - name: Compute version tag from git ref
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/heads/release/* ]]; then
+            echo "tag=${GITHUB_REF_NAME#release/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
       # Build amd64 only (Heroku is amd64). The same manifest is pushed
       # to both Docker Hub (mirror) and registry.heroku.com/marvel/web
       # in one shot — the Docker Hub copy is what `./run-agent.sh
@@ -417,9 +474,15 @@ jobs:
           build-args: |
             BUILDER_IMAGE=${{ env.BOOTSTRAP_IMAGE }}:bootstrap
             UI_BUST=${{ github.sha }}
+          # tags list:
+          #   :latest                          rolling on main
+          #   :<sha>                           immutable per commit
+          #   :<release_tag>                   only on release branch / tag push (e.g. :v1.1.0)
+          #   registry.heroku.com/.../web      release-track artifact for `heroku container:release`
           tags: |
             ${{ env.UNISERVICE_IMAGE }}:latest
             ${{ env.UNISERVICE_IMAGE }}:${{ github.sha }}
+            ${{ steps.version.outputs.tag != '' && format('{0}:{1}', env.UNISERVICE_IMAGE, steps.version.outputs.tag) || '' }}
             registry.heroku.com/${{ env.HEROKU_APP }}/web
             registry.heroku.com/${{ env.HEROKU_APP_IDP }}/web
           cache-from: type=registry,ref=${{ env.UNISERVICE_IMAGE }}:buildcache
