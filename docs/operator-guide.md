@@ -59,25 +59,44 @@ The on-prem operator has two scripted entry points:
 
 ## 3. Quick start — install from Docker Hub
 
-The fastest path is the one-shot installer. It sanity-checks the host (architecture, container runtime, disk, network, port 8090), pulls the multi-arch images from Docker Hub up-front, prompts for `SERVER_HOST` / `XPMILE_BACKEND_BASE_URL` if `.env` is missing, brings the stack up, and probes each container's health.
+Two installer paths today. Pick by your host class.
+
+### 3a. Shape-A only (mongo + agents): one-file `install-agent.sh` (Recommended for v1.1)
+
+For most operators — the path the v1.1 release optimises for. No repo clone needed; the installer embeds the compose + init scripts. Auto-detects the Pi 3B and pins `mongo:4.4.18`. Writes a systemd-user unit + tries to enable linger for reboot survival in one shot.
+
+```sh
+SERVER_HOST=marvel-<hash>.herokuapp.com \
+  IDP_SERVER_HOST=idp-<hash>.herokuapp.com \
+  SUDO_PASS='your-sudo-password' \
+  curl -sSf https://raw.githubusercontent.com/naushada/xpmile/main/install-agent.sh | bash
+```
+
+Full walkthrough: [`docs/operator-pi3b.md`](./operator-pi3b.md). For the ultra-light variant skipping the container engine entirely (`runc` + systemd directly), see [`docs/operator-runc.md`](./operator-runc.md).
+
+### 3b. Shape-B (with Vaadin): the original repo-clone installer
+
+If you need the Vaadin admin UI bundled with the agent install (registering OIDC clients, generating IdP signing keys), use the original `install.sh` from the release branch. Pulls multi-arch images, prompts for env, brings up the full stack including `agent-onprem-ui`.
 
 **One-liner over `curl` (the script clones the rest of the repo itself):**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/naushada/xpmile/release/v1.0/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/naushada/xpmile/release/v1.1/install.sh | bash
 ```
 
-It clones `xpmile` (branch `release/v1.0`) into `./xpmile/` and re-execs itself from inside. Override the target dir with `XPMILE_DIR=/opt/xpmile curl ... | bash`, or override the ref to pin to a specific patch tag with `XPMILE_REF=v1.0.1`. The installer is idempotent — re-running on an already-installed host is safe.
+It clones `xpmile` (branch `release/v1.1`) into `./xpmile/` and re-execs itself from inside. Override the target dir with `XPMILE_DIR=/opt/xpmile curl ... | bash`, or override the ref to pin to a specific patch tag with `XPMILE_REF=v1.1.0`. The installer is idempotent.
 
 **Explicit clone (preferred if you want to inspect or pin to a tag):**
 
 ```sh
-git clone --branch release/v1.0 --depth 1 https://github.com/naushada/xpmile.git
+git clone --branch release/v1.1 --depth 1 https://github.com/naushada/xpmile.git
 cd xpmile
 ./install.sh                # ~5 min on amd64; ~20–25 min first run on a Pi
 ```
 
-> **Trust note for the curl pipe.** `curl | bash` runs whatever bytes the URL serves. Read `install.sh` once if you're not sure, and pin to an immutable tag (`XPMILE_REF=v1.0.1`) rather than the rolling branch once a patch tag is available. If your organisation forbids the pattern entirely, use the explicit-clone form — the install behaviour is identical.
+For the previous release line (`v1.0.x` — pre-Pi-3B install path, pre-profile-photo, etc.), substitute `release/v1.0` and `XPMILE_REF=v1.0.x`.
+
+> **Trust note for the curl pipe.** `curl | bash` runs whatever bytes the URL serves. Read the script once if you're not sure, and pin to an immutable tag (`XPMILE_REF=v1.1.0`) rather than the rolling branch once a patch tag is available. If your organisation forbids the pattern entirely, use the explicit-clone form — the install behaviour is identical.
 
 If you'd rather do it by hand (e.g. inside an Ansible role), the underlying lifecycle scripts work directly:
 
