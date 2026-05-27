@@ -97,7 +97,7 @@ MONGO_IMAGE="${MONGO_IMAGE:-docker.io/naushada/xpmile-mongo}"
 #   - On main:                XPMILE_RELEASE_DEFAULT="main"     + VERSION="main"
 #   - On release/v1.X branch: XPMILE_RELEASE_DEFAULT="v1.X.0"   + VERSION="v1.X.0"
 # The PR cutting each release branch updates BOTH files.
-XPMILE_RELEASE_DEFAULT="main"
+XPMILE_RELEASE_DEFAULT="v1.1.1"
 XPMILE_RELEASE="${XPMILE_RELEASE:-$XPMILE_RELEASE_DEFAULT}"
 
 # Pin defaults when XPMILE_RELEASE is a semver tag; otherwise leave on :latest.
