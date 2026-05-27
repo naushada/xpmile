@@ -45,14 +45,74 @@
                 <clr-icon *ngIf="!loggedInUser?.personalInfo?.photoBase64" shape="user"></clr-icon>
             </button>
             <clr-dropdown-menu *clrIfOpen clrPosition="bottom-right">
+                <a clrDropdownItem style="cursor: pointer" (click)="openProfile()">My Profile</a>
                 <a clrDropdownItem style="cursor: pointer" (click)="aboutOpen = true">About</a>
                 <a clrDropdownItem style="cursor: pointer" (click)="onLogout()">Log out</a>
             </clr-dropdown-menu>
         </clr-dropdown>
 
+        <!-- My Profile modal — self-service edit of the logged-in user's name +
+             profile photo. Shorter path than Accounting → Update Account → look
+             up self → save. Photo upload reuses the same client-side resize
+             pipeline as update-account.component.ts (canvas → 256x256 →
+             toDataURL jpeg 0.85). Save calls the same updateAccountInfo
+             endpoint scoped to loggedInUser.accountCode. -->
+        <clr-modal [(clrModalOpen)]="profileOpen" [clrModalSize]="'md'">
+          <h3 class="modal-title">My Profile</h3>
+          <div class="modal-body">
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+              <img *ngIf="profilePhotoBase64" [src]="profilePhotoBase64"
+                   alt="profile preview"
+                   style="width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 1px solid #ccc;" />
+              <div *ngIf="!profilePhotoBase64"
+                   style="width: 96px; height: 96px; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; color: #888; font-size: 12px;">
+                no photo
+              </div>
+              <div>
+                <label class="btn btn-outline" style="margin: 0; cursor: pointer;">
+                  Choose image…
+                  <input type="file" accept="image/*" (change)="onProfilePhotoSelected($event)" style="display: none;" />
+                </label>
+                <button *ngIf="profilePhotoBase64" type="button"
+                        class="btn btn-outline btn-danger"
+                        (click)="profilePhotoBase64 = ''" style="margin-left: 6px;">Remove</button>
+                <div class="clr-subtext" style="margin-top: 6px;">JPEG/PNG, resized to 256&times;256 client-side.</div>
+              </div>
+            </div>
+
+            <div class="clr-form-control">
+              <label class="clr-control-label">Display name</label>
+              <div class="clr-control-container">
+                <input type="text" class="clr-input" [(ngModel)]="profileName"
+                       placeholder="how you appear in the navbar" />
+              </div>
+            </div>
+
+            <div *ngIf="profileError" class="alert alert-danger" style="margin-top: 12px;">
+              <div class="alert-items">
+                <div class="alert-item static">
+                  <div class="alert-icon-wrapper">
+                    <clr-icon class="alert-icon" shape="exclamation-circle"></clr-icon>
+                  </div>
+                  <span class="alert-text">{{profileError}}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" (click)="profileOpen = false" [disabled]="profileSaving">Cancel</button>
+            <button type="button" class="btn btn-primary" (click)="saveProfile()" [disabled]="profileSaving">
+              {{profileSaving ? 'Saving…' : 'Save'}}
+            </button>
+          </div>
+        </clr-modal>
+
         <!-- About modal — replaces the dead `href="..."` link that used to be in
              the dropdown. Stays out of the DOM until the user clicks About. -->
-        <clr-modal [(clrModalOpen)]="aboutOpen" [clrModalSize]="'sm'">
+        <!-- `sm` truncated the right column on the table; `lg` (~770px)
+             fits the marvel host URL + GitHub link without horizontal scroll
+             even on the narrowest realistic browser (~800px desktop). -->
+        <clr-modal [(clrModalOpen)]="aboutOpen" [clrModalSize]="'lg'">
           <h3 class="modal-title">About xpmile</h3>
           <div class="modal-body">
             <p>

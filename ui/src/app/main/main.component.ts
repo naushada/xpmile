@@ -27,6 +27,17 @@ export class MainComponent implements OnInit, OnDestroy {
   /** Read-only host string (e.g. "marvel-xxxx.herokuapp.com") shown in About. */
   currentHost = window?.location?.host || '';
 
+  /** ── My Profile modal state ─────────────────────────────────────
+   *  Self-service edit of the logged-in user's name + photo without
+   *  having to navigate to Accounting → Update Account → look up self.
+   *  profilePhotoBase64 / profileName are working copies that don't
+   *  touch loggedInUser until the operator clicks Save.                  */
+  profileOpen      = false;
+  profilePhotoBase64 = '';
+  profileName        = '';
+  profileSaving      = false;
+  profileError       = '';
+
   subsink = new SubSink();
 
   constructor(private pubsub: PubsubsvcService, public stats: ShipmentStatsService,
@@ -118,5 +129,100 @@ export class MainComponent implements OnInit, OnDestroy {
 
   public onReceiveEvt(navItem: any): void {
     this.selectedNavItem = navItem;
+  }
+
+  // ── My Profile modal — self-service photo + display-name edit ───────
+  openProfile(): void {
+    // Seed working copies from the current loggedInUser so the modal opens
+    // pre-filled. Editing in the modal is local until Save.
+    this.profilePhotoBase64 = this.loggedInUser?.personalInfo?.photoBase64 || '';
+    this.profileName        = this.loggedInUser?.personalInfo?.name        || '';
+    this.profileError       = '';
+    this.profileOpen        = true;
+  }
+
+  /**
+   * File input handler. Same resize pipeline as
+   * update-account.component.ts → canvas 256×256 → JPEG @ 0.85.
+   * Keeps the upload payload at ~30-50 KB regardless of input.
+   */
+  onProfilePhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this.profileError = 'Please pick an image file (JPEG, PNG, etc.).';
+      input.value = '';
+      return;
+    }
+    const MAX_BYTES_RAW = 5 * 1024 * 1024;
+    if (file.size > MAX_BYTES_RAW) {
+      this.profileError = `Image too big (${Math.round(file.size / 1024 / 1024)} MB). Max ${MAX_BYTES_RAW / 1024 / 1024} MB before client-side resize.`;
+      input.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 256;
+        const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
+        const w = Math.round(img.width  * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width  = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { this.profileError = 'Browser canvas resize unavailable.'; return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        this.profilePhotoBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        this.profileError = '';
+      };
+      img.onerror = () => { this.profileError = 'Could not decode that image file.'; };
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => { this.profileError = 'Could not read the file.'; };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Save the working copies back to the logged-in user's account doc
+   * via the existing update-account endpoint. On success, patch
+   * loggedInUser locally + re-publish via pubsub so the navbar
+   * picks up the new photo/name immediately (no page reload).
+   */
+  saveProfile(): void {
+    const accCode = this.loggedInUser?.loginCredentials?.accountCode;
+    if (!accCode) {
+      this.profileError = 'No logged-in account; please sign in again.';
+      return;
+    }
+    if (!this.profileName?.trim()) {
+      this.profileError = 'Display name cannot be empty.';
+      return;
+    }
+    // Build a patched account doc — preserve everything else.
+    const patched: Account = {
+      ...(this.loggedInUser as Account),
+      personalInfo: {
+        ...this.loggedInUser!.personalInfo,
+        name:         this.profileName.trim(),
+        photoBase64:  this.profilePhotoBase64
+      }
+    };
+    this.profileSaving = true;
+    this.profileError  = '';
+    this.http.updateAccountInfo(accCode, patched).subscribe({
+      next: () => {
+        this.loggedInUser = patched;
+        this.pubsub.emit_accountInfo(patched);
+        this.profileSaving = false;
+        this.profileOpen   = false;
+      },
+      error: () => {
+        this.profileSaving = false;
+        this.profileError  = 'Save failed — please try again.';
+      }
+    });
   }
 }

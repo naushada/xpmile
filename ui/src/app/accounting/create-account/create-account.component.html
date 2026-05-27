@@ -77,6 +77,32 @@
           <input clrInput name="name" formControlName="name" required />
           <clr-control-error *clrIfError="'required'">Name is required &mdash; it shows next to the user icon in the navbar.</clr-control-error>
         </clr-input-container>
+
+        <!-- Optional profile photo at account-creation time. Same shape as
+             update-account's field; client-side resize to ≤256×256 + JPEG. -->
+        <div class="clr-form-control clr-row">
+          <label class="clr-control-label clr-col-12 clr-col-md-2">Profile photo</label>
+          <div class="clr-control-container clr-col-md-10 clr-col-12">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <img *ngIf="currentPhotoBase64" [src]="currentPhotoBase64"
+                   alt="profile preview"
+                   style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 1px solid #ccc;" />
+              <div *ngIf="!currentPhotoBase64"
+                   style="width: 64px; height: 64px; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; color: #888; font-size: 11px;">
+                no photo
+              </div>
+              <div>
+                <label class="btn btn-outline" style="margin: 0; cursor: pointer;">
+                  Choose image…
+                  <input type="file" accept="image/*" (change)="onPhotoSelected($event)" style="display: none;" />
+                </label>
+                <button *ngIf="currentPhotoBase64" type="button" class="btn btn-outline btn-danger"
+                        (click)="onPhotoClear()" style="margin-left: 6px;">Remove</button>
+              </div>
+            </div>
+            <div class="clr-subtext">Optional &mdash; the user can also upload later via the My Profile dropdown in the navbar.</div>
+          </div>
+        </div>
         <clr-select-container>
           <label>Event Location</label>
           <select clrSelect name="eventLocation" formControlName="eventLocation">
