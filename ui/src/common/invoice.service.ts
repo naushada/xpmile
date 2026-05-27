@@ -201,7 +201,7 @@ export class InvoiceService {
         },
 
         // 7. Reason For Export
-        this.labelValue('Reason For Export', 'N/A', 160),
+        this.labelValue('Reason For Export', 'N/A'),
 
         // 8. Declaration paragraphs
         {
@@ -256,19 +256,29 @@ export class InvoiceService {
   // Label + underlined value row. Mirrors the form-field look in the
   // operator template — fixed-width bold label, then the value typed onto
   // a horizontal rule that runs the rest of the row.
-  private labelValue(label: string, value: string | undefined, lineWidth = 200): any {
+  //
+  // Rendered as a pdfMake table because the table's '*' column width
+  // auto-fits the parent container; the value cell's bottom border
+  // then sizes itself to that column. The earlier canvas-line
+  // implementation drew with absolute coordinates and overflowed the
+  // right CONSIGNEE column into / past the page margin.
+  private labelValue(label: string, value: string | undefined): any {
     return {
-      columns: [
-        { width: 130, text: label, bold: true, fontSize: 9 },
-        {
-          width: '*',
-          stack: [
-            { text: value || ' ', fontSize: 9, margin: [4, 0, 0, 0] },
-            { canvas: [{ type: 'line', x1: 4, y1: 0, x2: lineWidth, y2: 0, lineWidth: 0.5 }] }
-          ]
-        }
-      ],
-      margin: [0, 2, 0, 3]
+      table: {
+        widths: [120, '*'],
+        body: [[
+          { text: label, bold: true, fontSize: 9, border: [false, false, false, false] },
+          { text: value || ' ', fontSize: 9, border: [false, false, false, true] }
+        ]]
+      },
+      layout: {
+        defaultBorder: false,
+        paddingLeft:   () => 0,
+        paddingRight:  () => 0,
+        paddingTop:    () => 1,
+        paddingBottom: () => 2
+      },
+      margin: [0, 1, 0, 2]
     };
   }
 
