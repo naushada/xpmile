@@ -15,6 +15,12 @@
 #     IDP_SERVER_HOST=idp-xxxx.herokuapp.com \
 #     bash install-agent.sh
 #
+#   # Pin to a specific release line (auto-pins all image tags to the
+#   # matching :vX.Y.Z derivatives — see XPMILE_RELEASE section below):
+#   XPMILE_RELEASE=v1.1.0 \
+#     SERVER_HOST=… IDP_SERVER_HOST=… \
+#     curl -sSf https://raw.githubusercontent.com/naushada/xpmile/v1.1.0/install-agent.sh | bash
+#
 #   # Fully hands-off including reboot-survival linger (optional —
 #   # see "Reboot survival" section + SUDO_PASS notes inline):
 #   SERVER_HOST=… IDP_SERVER_HOST=… SUDO_PASS='your-sudo-pwd' \
@@ -70,7 +76,36 @@ MONGO_APP_USER="${MONGO_APP_USER:-xpmile}"
 MONGO_APP_PASS="${MONGO_APP_PASS:-xpmile_pass}"
 
 MONGO_IMAGE="${MONGO_IMAGE:-docker.io/naushada/xpmile-mongo}"
-WSDBAGENT_IMAGE="${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}"
+
+# ── Release-tag self-identification ──────────────────────────────────
+# install-agent.sh hardcodes a XPMILE_RELEASE constant that's the
+# single source of truth for "which release line am I serving from?".
+# On main: "main" (rolling).
+# On release/v1.X branch: "v1.X.0" (or whatever patch line is current).
+# On a vX.Y.Z tag: "vX.Y.Z" (immutable point release).
+#
+# Operator override: `XPMILE_RELEASE=v1.1.0 curl …/install-agent.sh | bash`
+# to force a specific pin even when fetching from `main`.
+#
+# When XPMILE_RELEASE matches `vX.Y.Z` (semver), the script:
+#   - WSDBAGENT_IMAGE defaults to docker.io/.../xpmile-wsdbagent:$XPMILE_RELEASE
+#   - MONGO_TAG defaults to <mongo_major>-$XPMILE_RELEASE
+#     (4.4.18-v1.1.0 on Pi 3B; 7-v1.1.0 elsewhere)
+# Otherwise (XPMILE_RELEASE = "main" / unset / non-semver) → :latest behaviour.
+#
+# Keep this constant in sync with the VERSION file at the repo root:
+#   - On main:                XPMILE_RELEASE_DEFAULT="main"     + VERSION="main"
+#   - On release/v1.X branch: XPMILE_RELEASE_DEFAULT="v1.X.0"   + VERSION="v1.X.0"
+# The PR cutting each release branch updates BOTH files.
+XPMILE_RELEASE_DEFAULT="main"
+XPMILE_RELEASE="${XPMILE_RELEASE:-$XPMILE_RELEASE_DEFAULT}"
+
+# Pin defaults when XPMILE_RELEASE is a semver tag; otherwise leave on :latest.
+if [[ "$XPMILE_RELEASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  : "${WSDBAGENT_IMAGE:=docker.io/naushada/xpmile-wsdbagent:$XPMILE_RELEASE}"
+else
+  WSDBAGENT_IMAGE="${WSDBAGENT_IMAGE:-docker.io/naushada/xpmile-wsdbagent:latest}"
+fi
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pretty output
@@ -138,17 +173,37 @@ if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
   fi
 fi
 
-# MONGO_TAG: explicit env wins, else auto-pin for Pi 3B, else default to latest.
+# MONGO_TAG defaulting: precedence (highest wins):
+#   1. operator-supplied MONGO_TAG env var
+#   2. Pi-3B detected + semver XPMILE_RELEASE → "4.4.18-vX.Y.Z" (pinned)
+#   3. Pi-3B detected (XPMILE_RELEASE not semver) → "4.4.18" (rolling 4.4.x)
+#   4. non-Pi-3B + semver XPMILE_RELEASE → "7-vX.Y.Z" (pinned)
+#   5. fallback → "latest"
+RELEASE_IS_SEMVER=false
+[[ "$XPMILE_RELEASE" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] && RELEASE_IS_SEMVER=true
+
 if [[ -n "${MONGO_TAG:-}" ]]; then
   info "MONGO_TAG=$MONGO_TAG (operator-supplied)"
 elif [[ "$DETECTED_PI" == "pi-3b" ]]; then
-  MONGO_TAG="4.4.18"
-  warn "Raspberry Pi 3 detected (Cortex-A53 / armv8.0-A) → pinning MONGO_TAG=4.4.18"
-  warn "  (mongo:5+ and any 4.4.x ≥ 4.4.19 require armv8.2-A — would SIGILL on this CPU)"
+  if $RELEASE_IS_SEMVER; then
+    MONGO_TAG="4.4.18-$XPMILE_RELEASE"
+    warn "Pi 3 detected + release line $XPMILE_RELEASE → pinning MONGO_TAG=$MONGO_TAG"
+  else
+    MONGO_TAG="4.4.18"
+    warn "Raspberry Pi 3 detected (Cortex-A53 / armv8.0-A) → pinning MONGO_TAG=4.4.18"
+    warn "  (mongo:5+ and any 4.4.x ≥ 4.4.19 require armv8.2-A — would SIGILL on this CPU)"
+  fi
+elif $RELEASE_IS_SEMVER; then
+  MONGO_TAG="7-$XPMILE_RELEASE"
+  info "release line $XPMILE_RELEASE detected → pinning MONGO_TAG=$MONGO_TAG"
 else
   MONGO_TAG="latest"
   info "MONGO_TAG=latest  (override with MONGO_TAG=4.4.18 for pre-armv8.2-A arm64 hosts)"
 fi
+
+info "Effective image pins: WSDBAGENT_IMAGE=$WSDBAGENT_IMAGE, MONGO_TAG=$MONGO_TAG"
+[[ "$XPMILE_RELEASE" != "$XPMILE_RELEASE_DEFAULT" ]] \
+  && info "  (XPMILE_RELEASE=$XPMILE_RELEASE; default would have been $XPMILE_RELEASE_DEFAULT)"
 
 # RAM hint — Pi 3B + shape A is tight; warn if <850 MB.
 RAM_KB="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
