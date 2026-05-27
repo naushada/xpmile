@@ -236,7 +236,7 @@ export class BulkComponent implements OnInit, OnDestroy {
       wb.SheetNames.forEach(sheet => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet]) as any[];
         rows.forEach(row => {
-          accList.push(row.AccountCode);
+          accList.push(String(row.AccountCode));
           this.shipmentExcelRows.push(new ShipmentExcelRow(row));
         });
       });
@@ -248,7 +248,7 @@ export class BulkComponent implements OnInit, OnDestroy {
         this.deduplicate(accList).forEach(code => {
           this.subsink.add(
             this.http.getCustomerInfo(code).subscribe({
-              next:  (data: Account) => { this.accountInfoList.set(data.loginCredentials.accountCode, data); },
+              next:  (data: Account) => { this.accountInfoList.set(String(data.loginCredentials.accountCode), data); },
               error: () => { alert('Invalid AccountCode'); this.isButtonEnabled = true; }
             })
           );
