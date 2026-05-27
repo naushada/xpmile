@@ -125,9 +125,9 @@ export class LabelService {
     const receiver = elm.shipment.receiverInformation;
     const awbno    = elm.shipment.awbno ?? '';
 
-    const date = formatDate(
-      si.activity?.at(0)?.date as any ?? si.createdOn as any ?? new Date(),
-      'MMM d, y', 'en'
+    const date = this.formatShipmentDate(
+      si.activity?.at(0)?.date ?? si.createdOn,
+      'MMM d, y'
     );
     const ref1 = sender.referenceNo ?? '';
 
@@ -342,6 +342,25 @@ export class LabelService {
   // alpha-2 until we wire the country-state-city lookup here. "United
   // Arab Emirates" → "UN", "Kuwait" → "KU"; an operator who saved an
   // ISO-style "KW" gets back "KW" unchanged.
+  // Accept the dd/MM/yyyy strings shipments are stored as (created by the
+  // bulk + single forms via formatDate(... 'dd/MM/yyyy', 'en-GB')) — feeding
+  // those back into Angular's formatDate throws "Unable to convert ... into
+  // a date" and tanks the whole pdfMake build silently. Also handle Date /
+  // ISO-string / numeric-timestamp inputs so this is forgiving.
+  private formatShipmentDate(raw: unknown, pattern: string): string {
+    if (raw instanceof Date) return formatDate(raw, pattern, 'en');
+    if (typeof raw === 'string') {
+      const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) {
+        const [, d, mo, y] = m;
+        return formatDate(new Date(+y, +mo - 1, +d), pattern, 'en');
+      }
+      try { return formatDate(raw as any, pattern, 'en'); } catch { return raw; }
+    }
+    if (typeof raw === 'number') return formatDate(raw, pattern, 'en');
+    return formatDate(new Date(), pattern, 'en');
+  }
+
   private countryAlpha2(country?: string): string {
     if (!country) return '';
     if (country.length <= 3) return country.toUpperCase();
