@@ -5,6 +5,7 @@ import pdfMake from 'pdfmake/build/pdfmake';
 import pdfFonts from 'pdfmake/build/vfs_fonts';
 
 import { Shipment } from './app-globals';
+import { lookupIata } from './iata-codes';
 
 // Module-level — pdfMake.vfs must be set once before any PDF generation.
 pdfMake.vfs = pdfFonts.pdfMake.vfs;
@@ -131,12 +132,12 @@ export class LabelService {
     );
     const ref1 = sender.referenceNo ?? '';
 
-    // 3-letter origin/destination codes. The template uses IATA airport
-    // codes (DXB / KWI). We don't carry an IATA lookup yet, so we use the
-    // first 3 chars of city (upper-cased) as the placeholder — operator
-    // can interpret. A real IATA lookup is a follow-up.
-    const origin = (sender.city || '').slice(0, 3).toUpperCase();
-    const dest   = (receiver.city || '').slice(0, 3).toUpperCase();
+    // 3-letter origin/destination codes from the IATA lookup in
+    // iata-codes.ts. Falls back to the first 3 chars of the city
+    // (upper-cased) when the city isn't in the curated table — the
+    // operator can extend iata-codes.ts as new routes appear.
+    const origin = lookupIata(sender.city)   ?? (sender.city   || '').slice(0, 3).toUpperCase();
+    const dest   = lookupIata(receiver.city) ?? (receiver.city || '').slice(0, 3).toUpperCase();
 
     // Service codes. First slot derives from si.service ("Document" →
     // DOC, "Non Document" → NDC, anything else → first 3 chars uppercase).
