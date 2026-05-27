@@ -700,6 +700,25 @@ Runs once on first container start (when `mongo-data` volume is empty):
    - `accountCode: "admin"` / `accountPassword: "admin@123"`
    - Role: `"Admin"`, event location: `"UAE"`
 
+### Account schema — where each field lives
+
+After the Phase pre-A split, each account is split across two collections in two databases:
+
+| Collection | Field | Notes |
+|---|---|---|
+| `xpmile.account` | `loginCredentials.accountCode` | Login key (e.g. `admin`); guaranteed non-empty. Used as the navbar fallback when `personalInfo.name` is blank. |
+| `xpmile.account` | `loginCredentials.passwordHash` | Legacy field — present pre-migration; **moved to `idp.account` by `scripts/migrate-account-split.py`**. Cross-DB fallback in `webservice.cpp` reads `idp.account` if absent here (Phase K). |
+| `xpmile.account` | `awbPrefix`, `isAccountCodeAutoGen` | Business fields for AWB numbering. |
+| `xpmile.account` | `personalInfo.name` | What the marvel navbar renders next to the user icon. Required by Create Account / Update Account forms (PR #48). |
+| `xpmile.account` | `personalInfo.role` | `Admin` / `User` / `Customer` / etc. — drives UI menu visibility and the navbar's name-vs-companyName branch. |
+| `xpmile.account` | `personalInfo.email`, `contact`, `address`, `city`, `state`, `postalCode`, `eventLocation` | Operator-facing metadata. |
+| `xpmile.account` | **`personalInfo.photoBase64`** *(optional)* | **Profile photo as a base64 data URL** (`data:image/jpeg;base64,…`) — added by PR #49 + #51. Client-side resized to ≤256×256 + JPEG @ 0.85 before upload → ~30-50 KB per photo. Stored inline rather than GridFS or a separate collection because every login already fetches the full account doc in one round trip; adding ~50 KB to that payload is cheaper than a second query, and well under mongo's 16 MB BSON limit + the dbproto message budget. The marvel navbar renders this directly as the `<img>` `src`; absent → falls back to `<clr-icon shape="user">`. Three upload entry-points: **Create Account** form, **Update Account** form, and the **My Profile** modal accessed from the navbar's user dropdown. |
+| `xpmile.account` | `customerInfo.{companyName, quotedAmount, tradingLicense, vat, currency, bankAccountNumber, iban}` | Only meaningful when `personalInfo.role === 'Customer'`. |
+| `idp.account` | `passwordHash` | PBKDF2-SHA256 post-migration. Both legacy login (Phase K fallback) and `/api/v1/idp/login` read here. |
+| `idp.account` | `email`, `name`, `role` | Mirrored from `personalInfo` at migration time so the IdP can serve OIDC `userinfo` without crossing back to `xpmile`. |
+
+Profile-photo storage deserves an explicit callout because operators reasonably expect `mongofiles` / GridFS for image storage — we deliberately don't, because the cost calculus favoured a single-round-trip account fetch (the photo IS account metadata viewed at every login) over a separate file collection that would need its own access-control, indexing, and per-photo cleanup.
+
 ---
 
 ## Test suite
