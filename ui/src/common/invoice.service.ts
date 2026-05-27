@@ -57,9 +57,9 @@ export class InvoiceService {
     const receiver = elm.shipment.receiverInformation;
     const awbno    = elm.shipment.awbno ?? '';
 
-    const date = formatDate(
-      si.activity?.at(0)?.date as any ?? si.createdOn as any ?? new Date(),
-      'dd/MM/yyyy', 'en-GB'
+    const date = this.formatShipmentDate(
+      si.activity?.at(0)?.date ?? si.createdOn,
+      'dd/MM/yyyy'
     );
 
     const totalWeight  = `${si.weight ?? ''} ${si.weightUnits ?? 'KG'}`.trim();
@@ -234,6 +234,25 @@ export class InvoiceService {
     };
   }
 
+  // Accept the dd/MM/yyyy strings shipments are stored as (created by the
+  // bulk + single forms via formatDate(... 'dd/MM/yyyy', 'en-GB')) — feeding
+  // those back into Angular's formatDate throws "Unable to convert ... into
+  // a date" and tanks the whole pdfMake build silently. Also handle the
+  // Date-object and ISO-string cases so this helper is forgiving.
+  private formatShipmentDate(raw: unknown, pattern: string): string {
+    if (raw instanceof Date) return formatDate(raw, pattern, 'en-GB');
+    if (typeof raw === 'string') {
+      const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) {
+        const [, d, mo, y] = m;
+        return formatDate(new Date(+y, +mo - 1, +d), pattern, 'en-GB');
+      }
+      try { return formatDate(raw as any, pattern, 'en-GB'); } catch { return raw; }
+    }
+    if (typeof raw === 'number') return formatDate(raw, pattern, 'en-GB');
+    return formatDate(new Date(), pattern, 'en-GB');
+  }
+
   // Label + underlined value row. Mirrors the form-field look in the
   // operator template — fixed-width bold label, then the value typed onto
   // a horizontal rule that runs the rest of the row.
@@ -253,14 +272,16 @@ export class InvoiceService {
     };
   }
 
-  // CODE-39 with the asterisk sentinels visible below, matching the
-  // operator template's barcode style. JsBarcode's own `displayValue`
-  // renders the digits without the asterisks, so we render them
-  // separately as a centred caption.
+  // Barcode used at the top-right of the invoice. CODE128 (not CODE39)
+  // because CODE39 throws on lowercase or unsupported characters and
+  // would tank the pdfMake build for any non-canonical awbno. The
+  // operator template's *<awbno>* visual comes from the caption text
+  // rendered separately above; switching the internal encoder doesn't
+  // affect that.
   private code39(text: string): string {
     const canvas = document.createElement('canvas');
     JsBarcode(canvas, text || 'N/A', {
-      format:       'CODE39',
+      format:       'CODE128',
       height:       46,
       displayValue: false,
       margin:       0
