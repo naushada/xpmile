@@ -222,9 +222,13 @@ services:
     pull_policy: always
     container_name: agent-wsdbagent
     restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_healthy
+    # depends_on: REMOVED deliberately — see start-stack.sh + install-agent.sh
+    # rationale. podman-compose 1.3 honours depends_on at `up -d <one-svc>`
+    # time by trying to "ensure" the upstream service, which means re-create
+    # it, which races with the existing container and emits
+    #   `Error: container name "agent-mongo" is already in use`
+    # The wrapper's iteration order (mongodb FIRST, then this) is the start
+    # ordering; wsdbagent's --backoff-5 handles mongo not being ready yet.
     environment:
       ARGS: >-
         --server-host ${SERVER_HOST:?SERVER_HOST must be set}
@@ -246,9 +250,7 @@ services:
     pull_policy: always
     container_name: agent-wsdbagent-idp
     restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_healthy
+    # depends_on: removed — see sibling wsdbagent service for rationale.
     environment:
       ARGS: >-
         --server-host ${IDP_SERVER_HOST:?IDP_SERVER_HOST must be set when using the IdP profile}
@@ -388,9 +390,9 @@ services:
       # :rw because the auto-pull loop writes refreshed certs into /watch.
       - ./certs/cloud-issued/innertls:/watch:rw
       - ${PODMAN_SOCKET:-/run/podman/podman.sock}:/run/podman/podman.sock
-    depends_on:
-      wsdbagent:
-        condition: service_started
+    # depends_on: removed — see wsdbagent service for rationale.
+    # cert-watcher's main loop polls /watch + agent restart endpoints
+    # regardless of agent state, so an out-of-order start is harmless.
 
 networks:
   agent-net: {}
@@ -447,14 +449,28 @@ fi
 SERVICES=(mongodb wsdbagent xpmile-cert-watcher)
 [[ ${#PROFILE_ARG[@]} -gt 0 ]] && SERVICES+=(wsdbagent-idp)
 
+# Service → container-name map. compose uses container_name: directives,
+# so this stays in sync with the embedded compose file.
+declare -A SVC2CTR=(
+  [mongodb]=agent-mongo
+  [wsdbagent]=agent-wsdbagent
+  [wsdbagent-idp]=agent-wsdbagent-idp
+  [xpmile-cert-watcher]=xpmile-cert-watcher
+)
+
 for svc in "${SERVICES[@]}"; do
-  echo "[start-stack $(date -u +%H:%M:%S)] up -d --no-deps $svc"
-  # --no-deps prevents compose from trying to recreate any dependent
-  # service (which is what triggers the multi-service hang).
-  # `|| true` so a single-service failure doesn't abort the loop —
-  # the next iteration's logs will show what's wrong and the operator
-  # can systemctl --user restart xpmile-agent to try again.
-  $COMPOSE -f docker-compose.agent.yml "${PROFILE_ARG[@]}" up -d --no-deps "$svc" \
+  ctr="${SVC2CTR[$svc]}"
+  echo "[start-stack $(date -u +%H:%M:%S)] up -d $svc  (container=$ctr)"
+  # Safety net: remove any pre-existing container with this name BEFORE
+  # asking compose to create it. Without this, a re-install (or any
+  # second bring-up after a partial first one) hits
+  #   `Error: container name "agent-mongo" is already in use`
+  # because podman doesn't have a --replace equivalent we can use here.
+  # The embedded compose has no `depends_on:` (intentionally — see the
+  # compose comments above), so this `up -d $svc` truly touches only
+  # the one service.
+  podman rm -f "$ctr" >/dev/null 2>&1 || true
+  $COMPOSE -f docker-compose.agent.yml "${PROFILE_ARG[@]}" up -d "$svc" \
     || echo "[start-stack] WARN — $svc failed; continuing"
 done
 echo "[start-stack $(date -u +%H:%M:%S)] done — see \`podman ps\` for live state"
