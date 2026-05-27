@@ -24,14 +24,13 @@ The script:
 
 After install: log in to `https://<your-marvel-host>/login` with `admin / admin@123` (change it immediately via the marvel UI).
 
-**Reboot survival** — the script does NOT enable systemd-user linger. With rootless podman (the default), containers stop on host reboot and don't auto-restart unless you also run **one** post-install command:
+**Reboot survival** — the install script already writes a systemd-user unit (`~/.config/systemd/user/xpmile-agent.service`) and `systemctl --user enable`s it. The only piece it CAN'T do for you is enable linger (needs `sudo`):
 
 ```sh
 sudo loginctl enable-linger $(whoami)
-( crontab -l 2>/dev/null; echo '@reboot sleep 30 && cd ~/xpmile-agent && podman-compose -f docker-compose.agent.yml up -d' ) | crontab -
 ```
 
-That makes user systemd survive the reboot + the `@reboot` cron line brings the stack back up. See §10 for the full reasoning (rootless podman lifecycle quirks, systemd-user alternative).
+Without linger, user systemd dies when your ssh session ends, and the boot-time unit never fires. With linger + the auto-installed unit, after `sudo reboot` the stack comes back on its own. See §10 for what the unit does + the full rootless-podman lifecycle story. Disable boot-start any time with `systemctl --user disable xpmile-agent`.
 
 If you'd rather inspect first:
 ```sh
@@ -527,16 +526,75 @@ sudo reboot
 docker ps        # all four containers should be Up without you doing anything
 ```
 
-### If you're on podman (Path A in §2) — manual auto-start setup needed
+### If you're on podman (Path A in §2) — three options, install-agent.sh handles one for you
 
 By default, the agent stack does **not** restart on a Pi reboot:
 
 - `docker-compose.agent.yml`'s `restart: unless-stopped` policy only catches in-process crashes (e.g. mongo SIGSEGV) — podman re-launches the container. It does NOT survive the host reboot.
 - Rootless podman runs containers under your user systemd scope. When you log out (or reboot), that scope tears down → containers stop.
 
-Two ways to make them come back. **Pick one.**
+Three options, listed in **order of operator-effort** (lowest first). Pick one.
 
-### Option A — `@reboot` cron (simplest)
+### Option C — `install-agent.sh`'s auto-generated systemd-user unit (Recommended)
+
+If you installed via the TL;DR (`curl -sSf …install-agent.sh | bash`) on a rootless-podman host, the script **already** wrote `~/.config/systemd/user/xpmile-agent.service` and ran `systemctl --user enable xpmile-agent.service` for you. Verify with:
+
+```sh
+systemctl --user status xpmile-agent.service
+# Should say `Loaded: loaded (~/.config/systemd/user/xpmile-agent.service; enabled; …)`
+```
+
+What the unit does:
+
+```ini
+[Unit]
+Description=xpmile on-prem agent stack
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=%h/xpmile-agent
+ExecStartPre=/bin/sleep 15
+ExecStart=/usr/bin/podman-compose -f docker-compose.agent.yml [--profile idp] up -d
+ExecStop=/usr/bin/podman-compose -f docker-compose.agent.yml [--profile idp] down
+TimeoutStartSec=600
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
+```
+
+The `--profile idp` part is included automatically when you supplied `IDP_SERVER_HOST` at install time. The 15 s `sleep` lets DNS settle before the first Docker Hub pull (matters on a Pi 3B's first 10 s of uptime).
+
+**Still required** — linger (the one piece `install-agent.sh` can't do, because it needs root):
+
+```sh
+sudo loginctl enable-linger $(whoami)
+```
+
+Without linger, your user systemd dies when your ssh session ends, and the unit never fires at boot. Run this ONCE; then `sudo reboot` and verify with `systemctl --user status xpmile-agent`.
+
+Routine controls:
+
+```sh
+systemctl --user start    xpmile-agent     # bring stack up (also runs at boot)
+systemctl --user stop     xpmile-agent     # bring stack down
+systemctl --user restart  xpmile-agent     # cycle
+systemctl --user disable  xpmile-agent     # opt out of boot start (without deleting)
+```
+
+If you'd rather keep boot-start in your own hands, opt out at install time:
+
+```sh
+INSTALL_SYSTEMD=0 curl -sSf …/install-agent.sh | bash
+```
+
+Then pick **Option A** or **Option B** below.
+
+### Option A — `@reboot` cron (legacy / no systemd preference)
 
 ```sh
 # As the user that runs the agents:
@@ -555,7 +613,9 @@ sudo loginctl enable-linger $(whoami)
 
 After that, your user systemd stays alive across logout AND comes up before login on boot — `@reboot` cron entries fire with podman able to talk to its socket.
 
-### Option B — systemd-user unit (cleaner; survives podman upgrades)
+### Option B — per-container systemd-user units (most granular; survives podman upgrades)
+
+If you need each container managed independently by systemd (e.g. so you can `systemctl --user restart container-agent-wsdbagent` without touching mongo), generate per-container units instead of Option C's single wrapper.
 
 Generate a per-container unit from each running container, then enable:
 
