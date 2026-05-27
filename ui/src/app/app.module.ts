@@ -45,6 +45,7 @@ import { PasswordResetComponent } from './login/password-reset/password-reset.co
 import { AltrefBulkComponent } from './shipping/altref-bulk/altref-bulk.component';
 import { CollectShipmentComponent } from './shipping/collect-shipment/collect-shipment.component';
 import { StatusBadgeComponent } from './common/status-badge/status-badge.component';
+import { LocationSelectComponent } from './common/location-select/location-select.component';
 import { DatePipe } from '@angular/common';
 import { SsoAuthInterceptor } from 'src/common/sso-auth.interceptor';
 import { SessionService, initSession } from 'src/common/session.service';
@@ -88,6 +89,7 @@ import { SessionService, initSession } from 'src/common/session.service';
     AltrefBulkComponent,
     CollectShipmentComponent,
     StatusBadgeComponent,
+    LocationSelectComponent,
   ],
   imports: [
     BrowserModule,

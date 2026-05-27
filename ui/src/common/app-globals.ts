@@ -120,6 +120,7 @@ export const AppGlobalsDefault: AppGlobals = {
     "ReferenceNo",
     "Weight",
     "ReceiverCountry",
+    "ReceiverState",
     "ReceiverCity",
     "ReceiverName",
     "ReceiverAddress",
@@ -269,6 +270,7 @@ export class ShipmentExcelRow {
     ReferenceNo : string
     Weight: string
     ReceiverCity: string;
+    ReceiverState: string;
     ReceiverCountry: string;
     ReceiverName: string;
     ReceiverAddress: string;
@@ -287,6 +289,7 @@ export class ShipmentExcelRow {
         this.ReferenceNo = ent.ReferenceNo;
         this.Weight = ent.Weight;
         this.ReceiverCity = ent.ReceiverCity;
+        this.ReceiverState = String(ent.ReceiverState ?? '');
         this.ReceiverCountry = ent.ReceiverCountry;
         this.ReceiverName = ent.ReceiverName;
         this.ReceiverAddress = ent.ReceiverAddress;
@@ -336,6 +339,7 @@ export interface Account {
 	    contact: string;
 	    email: string;
 	    address: string;
+		country: string;
 		city: string;
 		state: string;
 		postalCode: string;

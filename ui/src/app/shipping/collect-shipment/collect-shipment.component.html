@@ -50,18 +50,11 @@
           <label>Collection Address</label>
           <textarea clrTextarea name="collectionAddress" formControlName="collectionAddress" rows="2"></textarea>
         </clr-textarea-container>
-        <clr-input-container>
-          <label>City / Place</label>
-          <input clrInput name="city" formControlName="city" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>State / Province</label>
-          <input clrInput name="state" formControlName="state" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>Country</label>
-          <input clrInput name="country" formControlName="country" />
-        </clr-input-container>
+        <app-location-select
+          [countryControl]="$any(collectShipmentForm.get('from.country'))"
+          [stateControl]="$any(collectShipmentForm.get('from.state'))"
+          [cityControl]="$any(collectShipmentForm.get('from.city'))">
+        </app-location-select>
         <clr-input-container>
           <label>Postcode</label>
           <input clrInput name="postcode" formControlName="postcode" />

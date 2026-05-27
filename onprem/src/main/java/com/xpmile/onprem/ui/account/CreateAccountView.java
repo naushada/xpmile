@@ -27,7 +27,10 @@ import com.xpmile.onprem.model.PersonalInfo;
 import com.xpmile.onprem.service.AccountService;
 import com.xpmile.onprem.ui.MainLayout;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Dedicated full-page account creation form. Reached from AccountsView's
@@ -52,6 +55,7 @@ public class CreateAccountView extends VerticalLayout {
     private final TextField contact           = new TextField("Contact");
     private final TextField email             = new TextField("Email");
     private final TextField address           = new TextField("Address");
+    private final ComboBox<String> country    = new ComboBox<>("Country");
     private final TextField city              = new TextField("City");
     private final TextField state             = new TextField("State");
     private final TextField postalCode        = new TextField("Postal Code");
@@ -69,6 +73,8 @@ public class CreateAccountView extends VerticalLayout {
 
     public CreateAccountView(AccountService accountService) {
         this.accountService = accountService;
+
+        country.setItems(isoCountryNames());
 
         setSizeFull();
         getStyle().set("padding", "16px").set("overflow-y", "auto");
@@ -128,7 +134,7 @@ public class CreateAccountView extends VerticalLayout {
         col.add(
                 sectionCard("Login Credentials",   VaadinIcon.KEY,         accountCode, accountPassword),
                 sectionCard("Personal Information", VaadinIcon.USER,
-                        role, name, contact, email, address, city, state, postalCode, eventLocation),
+                        role, name, contact, email, address, country, city, state, postalCode, eventLocation),
                 sectionCard("Customer Information", VaadinIcon.BUILDING,
                         companyName, quotedAmount, tradingLicense, vat,
                         currency, bankAccount, iban, awbPrefix)
@@ -212,6 +218,7 @@ public class CreateAccountView extends VerticalLayout {
         pi.setContact(contact.getValue());
         pi.setEmail(email.getValue());
         pi.setAddress(address.getValue());
+        pi.setCountry(country.getValue());
         pi.setCity(city.getValue());
         pi.setState(state.getValue());
         pi.setPostalCode(postalCode.getValue());
@@ -241,5 +248,14 @@ public class CreateAccountView extends VerticalLayout {
     private static void notify(String msg, NotificationVariant variant) {
         Notification n = Notification.show(msg, 3500, Notification.Position.BOTTOM_START);
         n.addThemeVariants(variant);
+    }
+
+    private static List<String> isoCountryNames() {
+        return Arrays.stream(Locale.getISOCountries())
+                .map(code -> new Locale("", code).getDisplayCountry(Locale.ENGLISH))
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
     }
 }

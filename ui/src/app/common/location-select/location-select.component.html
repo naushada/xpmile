@@ -1,0 +1,34 @@
+<div class="clr-row location-select">
+  <div class="clr-col-12 clr-col-md-4">
+    <clr-select-container>
+      <label>Country</label>
+      <select clrSelect [formControl]="countryControl">
+        <option value=""></option>
+        <option *ngIf="legacyCountry" [value]="legacyCountry">{{ legacyCountry }} (unknown)</option>
+        <option *ngFor="let c of countries" [value]="c.name">{{ c.name }}</option>
+      </select>
+    </clr-select-container>
+  </div>
+
+  <div class="clr-col-12 clr-col-md-4">
+    <clr-select-container>
+      <label>State</label>
+      <select clrSelect [formControl]="stateControl">
+        <option value=""></option>
+        <option *ngIf="legacyState" [value]="legacyState">{{ legacyState }} (unknown)</option>
+        <option *ngFor="let s of states" [value]="s.name">{{ s.name }}</option>
+      </select>
+    </clr-select-container>
+  </div>
+
+  <div class="clr-col-12 clr-col-md-4">
+    <clr-input-container>
+      <label>City</label>
+      <input clrInput [formControl]="cityControl" [attr.list]="uid + '-cities'" />
+      <datalist [id]="uid + '-cities'">
+        <option *ngIf="legacyCity" [value]="legacyCity">{{ legacyCity }} (unknown)</option>
+        <option *ngFor="let c of cities" [value]="c.name"></option>
+      </datalist>
+    </clr-input-container>
+  </div>
+</div>
