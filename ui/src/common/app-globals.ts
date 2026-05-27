@@ -283,7 +283,7 @@ export class ShipmentExcelRow {
     SenderName: string;
     
     constructor(ent: ShipmentExcelRow) {
-        this.AccountCode = ent.AccountCode;
+        this.AccountCode = String(ent.AccountCode ?? '');
         this.ReferenceNo = ent.ReferenceNo;
         this.Weight = ent.Weight;
         this.ReceiverCity = ent.ReceiverCity;
