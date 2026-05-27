@@ -100,6 +100,7 @@ export class CreateAccountComponent {
         contact:       '',
         email:         '',
         address:       '',
+        country:       '',
         city:          '',
         state:         '',
         postalCode:    '',

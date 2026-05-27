@@ -76,18 +76,11 @@
           <label>Company</label>
           <input clrInput name="companyName" formControlName="companyName" />
         </clr-input-container>
-        <clr-input-container>
-          <label>Country</label>
-          <input clrInput name="country" formControlName="country" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>City</label>
-          <input clrInput name="city" formControlName="city" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>State</label>
-          <input clrInput name="state" formControlName="state" />
-        </clr-input-container>
+        <app-location-select
+          [countryControl]="$any(modifyShipmentForm.get('senderInformation.country'))"
+          [stateControl]="$any(modifyShipmentForm.get('senderInformation.state'))"
+          [cityControl]="$any(modifyShipmentForm.get('senderInformation.city'))">
+        </app-location-select>
         <clr-input-container>
           <label>Address</label>
           <input clrInput name="address" formControlName="address" />
@@ -186,18 +179,11 @@
           <label>Name</label>
           <input clrInput name="name" formControlName="name" />
         </clr-input-container>
-        <clr-input-container>
-          <label>Country</label>
-          <input clrInput name="country" formControlName="country" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>City</label>
-          <input clrInput name="city" formControlName="city" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>State</label>
-          <input clrInput name="state" formControlName="state" />
-        </clr-input-container>
+        <app-location-select
+          [countryControl]="$any(modifyShipmentForm.get('receiverInformation.country'))"
+          [stateControl]="$any(modifyShipmentForm.get('receiverInformation.state'))"
+          [cityControl]="$any(modifyShipmentForm.get('receiverInformation.city'))">
+        </app-location-select>
         <clr-input-container>
           <label>Postal Code</label>
           <input clrInput name="postalCode" formControlName="postalCode" />

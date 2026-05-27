@@ -109,14 +109,11 @@
             <option *ngFor="let evtLoc of defVal?.EventLocation" [value]="evtLoc">{{evtLoc}}</option>
           </select>
         </clr-select-container>
-        <clr-input-container>
-          <label>City</label>
-          <input clrInput name="city" formControlName="city" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>State</label>
-          <input clrInput name="state" formControlName="state" />
-        </clr-input-container>
+        <app-location-select
+          [countryControl]="$any(accountForm.get('personalInfo.country'))"
+          [stateControl]="$any(accountForm.get('personalInfo.state'))"
+          [cityControl]="$any(accountForm.get('personalInfo.city'))">
+        </app-location-select>
         <clr-input-container>
           <label>Address</label>
           <input clrInput name="address" formControlName="address" />

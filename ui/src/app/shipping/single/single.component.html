@@ -83,20 +83,11 @@
           <label>Company</label>
           <input clrInput name="companyName" formControlName="companyName" />
         </clr-input-container>
-        <clr-select-container>
-          <label>Country</label>
-          <select clrSelect name="country" formControlName="country">
-            <option *ngFor="let cuntry of this.defValue?.CountryName" [value]="cuntry">{{cuntry}}</option>
-          </select>
-        </clr-select-container>
-        <clr-input-container>
-          <label>City</label>
-          <input clrInput name="city" formControlName="city" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>State</label>
-          <input clrInput name="state" formControlName="state" />
-        </clr-input-container>
+        <app-location-select
+          [countryControl]="$any(singleShipmentForm.get('senderInformation.country'))"
+          [stateControl]="$any(singleShipmentForm.get('senderInformation.state'))"
+          [cityControl]="$any(singleShipmentForm.get('senderInformation.city'))">
+        </app-location-select>
         <clr-input-container>
           <label>Address</label>
           <input clrInput name="address" formControlName="address" />
@@ -204,20 +195,11 @@
           <label>Name</label>
           <input clrInput name="name" formControlName="name" />
         </clr-input-container>
-        <clr-select-container>
-          <label>Country</label>
-          <select clrSelect name="country" formControlName="country">
-            <option *ngFor="let cuntry of this.defValue?.CountryName" [value]="cuntry">{{cuntry}}</option>
-          </select>
-        </clr-select-container>
-        <clr-input-container>
-          <label>City</label>
-          <input clrInput name="city" formControlName="city" />
-        </clr-input-container>
-        <clr-input-container>
-          <label>State</label>
-          <input clrInput name="state" formControlName="state" />
-        </clr-input-container>
+        <app-location-select
+          [countryControl]="$any(singleShipmentForm.get('receiverInformation.country'))"
+          [stateControl]="$any(singleShipmentForm.get('receiverInformation.state'))"
+          [cityControl]="$any(singleShipmentForm.get('receiverInformation.city'))">
+        </app-location-select>
         <clr-input-container>
           <label>Postal Code</label>
           <input clrInput name="postalCode" formControlName="postalCode" />

@@ -149,6 +149,7 @@ export class UpdateAccountComponent implements OnInit, OnDestroy {
         contact:       '',
         email:         '',
         address:       '',
+        country:       '',
         city:          '',
         state:         '',
         postalCode:    '',

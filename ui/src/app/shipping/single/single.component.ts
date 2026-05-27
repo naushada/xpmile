@@ -115,7 +115,7 @@ export class SingleComponent implements OnInit, OnDestroy {
         referenceNo:    '',
         name:           '',
         companyName:    '',
-        country:        this.defValue?.CountryName?.[0] ?? '',
+        country:        '',
         city:           '',
         state:          '',
         address:        '',
@@ -156,7 +156,7 @@ export class SingleComponent implements OnInit, OnDestroy {
 
       receiverInformation: this.fb.group({
         name:       '',
-        country:    this.defValue?.CountryName?.[0] ?? '',
+        country:    '',
         city:       '',
         state:      '',
         postalCode: '',
