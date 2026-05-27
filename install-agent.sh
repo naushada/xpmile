@@ -106,10 +106,20 @@ COMPOSE_CMD="$(detect_engine)"
 info "compose driver: $COMPOSE_CMD"
 
 # Sniff the underlying engine for cert-watcher socket guess.
+# Rootless podman puts the socket under $XDG_RUNTIME_DIR (typically
+# /run/user/<uid>/podman/podman.sock); rootful podman uses
+# /run/podman/podman.sock. Pi 3B default install is rootless. Without
+# this distinction the cert-watcher container's socket bind-mount
+# fails (`statfs /run/podman/podman.sock: no such file or directory`)
+# and cert-watcher never starts.
 if command -v podman >/dev/null 2>&1; then
   ENGINE=podman
-  DEFAULT_SOCKET=/run/podman/podman.sock
   STATUS_CMD="podman"
+  if [[ "$EUID" -ne 0 ]]; then
+    DEFAULT_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$EUID}/podman/podman.sock"
+  else
+    DEFAULT_SOCKET=/run/podman/podman.sock
+  fi
 elif command -v docker >/dev/null 2>&1; then
   ENGINE=docker
   DEFAULT_SOCKET=/var/run/docker.sock
