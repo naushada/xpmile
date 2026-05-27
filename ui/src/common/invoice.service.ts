@@ -37,7 +37,7 @@ export class InvoiceService {
         keywords: 'commercial invoice customs'
       },
       pageSize:    'A4',
-      pageMargins: [28, 24, 28, 24],
+      pageMargins: [24, 18, 24, 18],
       content,
       defaultStyle: { fontSize: 9 }
     }).download(filename);
@@ -73,9 +73,9 @@ export class InvoiceService {
         {
           table: {
             widths: ['*'],
-            body: [[ { text: 'Commercial Invoice', fontSize: 18, bold: true, margin: [6, 6, 6, 6] } ]]
+            body: [[ { text: 'Commercial Invoice', fontSize: 16, bold: true, margin: [4, 4, 4, 4] } ]]
           },
-          margin: [0, 0, 0, 14]
+          margin: [0, 0, 0, 8]
         },
 
         // 2. Date (left) + barcode (right)
@@ -86,12 +86,12 @@ export class InvoiceService {
               width: 260,
               alignment: 'right',
               stack: [
-                { image: this.code39(awbno), width: 240, alignment: 'right' },
-                { text: `*${awbno}*`, alignment: 'right', bold: true, fontSize: 11, margin: [0, 2, 0, 0] }
+                { image: this.code39(awbno), width: 200, alignment: 'right' },
+                { text: `*${awbno}*`, alignment: 'right', bold: true, fontSize: 10, margin: [0, 1, 0, 0] }
               ]
             }
           ],
-          margin: [0, 0, 0, 16]
+          margin: [0, 0, 0, 8]
         },
 
         // 3. SHIPPER + CONSIGNEE side-by-side
@@ -129,8 +129,8 @@ export class InvoiceService {
               ]
             }
           ],
-          columnGap: 28,
-          margin: [0, 0, 0, 16]
+          columnGap: 16,
+          margin: [0, 0, 0, 10]
         },
 
         // 4. Shipment-meta strip — Consignment Note + dims on the left,
@@ -157,15 +157,15 @@ export class InvoiceService {
               ]
             }
           ],
-          columnGap: 28,
-          margin: [0, 0, 0, 14]
+          columnGap: 16,
+          margin: [0, 0, 0, 8]
         },
 
         // 5. Items table
         {
           table: {
             widths: ['*', 110, 110],
-            heights: [22, 80],
+            heights: [18, 40],
             body: [
               [
                 { text: 'DESCRIPTION',    alignment: 'center', bold: true, fillColor: '#f2f2f2' },
@@ -179,7 +179,7 @@ export class InvoiceService {
               ]
             ]
           },
-          margin: [0, 0, 0, 12]
+          margin: [0, 0, 0, 8]
         },
 
         // 6. Total Invoice Value box, right-aligned
@@ -197,7 +197,7 @@ export class InvoiceService {
               }
             }
           ],
-          margin: [0, 0, 0, 16]
+          margin: [0, 0, 0, 8]
         },
 
         // 7. Reason For Export
@@ -210,7 +210,7 @@ export class InvoiceService {
             { text: sender.country || '__________', decoration: 'underline' },
             ' origin.'
           ],
-          margin: [0, 14, 0, 8]
+          margin: [0, 8, 0, 4]
         },
         {
           text: [
@@ -223,11 +223,11 @@ export class InvoiceService {
         },
 
         // 9. Signature blocks (visible underline lines so a printed copy is signable)
-        { text: ' ', margin: [0, 48, 0, 0] },
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 220, y2: 0, lineWidth: 0.7 }] },
-        { text: 'Designation of Authorised Signatory', margin: [0, 4, 0, 36] },
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 220, y2: 0, lineWidth: 0.7 }] },
-        { text: 'Signature / Stamp', margin: [0, 4, 0, 0] }
+        { text: ' ', margin: [0, 22, 0, 0] },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 0.7 }] },
+        { text: 'Designation of Authorised Signatory', margin: [0, 2, 0, 16] },
+        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 200, y2: 0, lineWidth: 0.7 }] },
+        { text: 'Signature / Stamp', margin: [0, 2, 0, 0] }
       ],
       // gets stamped on by buildCommercialInvoiceContent() between shipments
       pageBreak: undefined as 'after' | undefined
