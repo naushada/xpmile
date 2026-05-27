@@ -72,21 +72,34 @@ export class MainComponent implements OnInit, OnDestroy {
     //
     // The session cookie itself is still valid (HttpOnly, browser
     // kept it across refresh), so we re-hydrate by calling
-    // /sso/session → accountCode → getAccountInfo(accountCode).
+    // /sso/session → accountCode → getCustomerInfo(accountCode).
     // If the session has expired or never existed, /sso/session returns
     // 401 and we kick back to /login.
+    //
+    // IMPORTANT: use getCustomerInfo, NOT getAccountInfo. Despite the
+    // name, getAccountInfo() is actually the LOGIN endpoint
+    // (`POST /api/v1/account/login` with `{userId, password}`) — calling
+    // it without a password returns 400 "Missing userId or password",
+    // and we'd never re-hydrate loggedInUser. getCustomerInfo is the
+    // session-authenticated GET that returns the same Account shape.
     if (!this.loggedInUser?.loginCredentials?.accountCode) {
       this.http.getSession().subscribe({
         next: (sess) => {
           if (sess?.accountCode) {
-            this.http.getAccountInfo(sess.accountCode).subscribe({
+            this.http.getCustomerInfo(sess.accountCode).subscribe({
               next: (acct) => {
                 this.loggedInUser = acct;
                 // Re-publish so any other subscribers (sidebar widgets, etc.)
                 // see the restored user the same way they would on a fresh login.
                 this.pubsub.emit_accountInfo(acct);
               },
-              error: () => { /* leave loggedInUser unset — non-fatal */ }
+              error: (err) => {
+                // Make the failure VISIBLE in DevTools — the previous silent
+                // handler is exactly what masked the getAccountInfo bug for so
+                // long. Operator-facing UX is unchanged (still non-fatal — just
+                // an empty navbar — but at least we leave a breadcrumb).
+                console.warn('[session-restore] getCustomerInfo failed; navbar will render fallback', err);
+              }
             });
           } else {
             this.router.navigateByUrl('/login');
