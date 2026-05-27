@@ -121,6 +121,30 @@ podman cp agent-mongo:/tmp/dump ./mongo-backup-$(date +%Y%m%d)
 
 Restore via `mongorestore` against a fresh stack, or `podman volume import` if you took the tar route. The tar approach is byte-exact but coupled to mongo's storage format version (mongo 4.4 dumps can't be tar-restored into a mongo:7 volume without an intermediate mongodump/restore cycle).
 
+### Re-install downtime budget
+
+`./install-agent.sh` (or `./run-agent.sh start` on the legacy path) calls `start-stack.sh`, which serially `podman rm -f` and `up -d` each service. So a re-install of the running stack causes a **brief, staggered outage** — total sub-minute, with operator-visible impact concentrated in two adjacent windows.
+
+| Step | Service down | Marvel-side effect | Approx duration |
+|---|---|---|---|
+| Pull `:vX.Y.Z` images | none — containers keep running on the old tag while pull is in flight | none | 5–30 s (mostly layer-cached for patch releases) |
+| `rm -f agent-mongo` → `up -d mongodb` | `agent-mongo` | mongo gone → DB queries from marvel queue or fail; cold start + 20 s `start_period` healthcheck grace | ~7 s + 20 s grace |
+| `rm -f agent-wsdbagent` → `up -d wsdbagent` | `agent-wsdbagent` | wsdbagent disconnects from marvel; marvel-side WsDbServer retries the `/ws/db` upgrade until it reconnects | ~6 s + ~3 s InnerTLS handshake |
+| `rm -f xpmile-cert-watcher` → `up -d xpmile-cert-watcher` | `xpmile-cert-watcher` | none (cert-watcher is autopilot, doesn't serve user traffic) | n/a |
+| `rm -f agent-wsdbagent-idp` → `up -d wsdbagent-idp` | `agent-wsdbagent-idp` | idp Heroku app loses its `/ws/db`; `/api/v1/idp/*` flows that need mongo fail for the window | ~9 s |
+
+**Bottom-line operator expectations** for a routine `vX.Y.Z` → `vX.Y.(Z+1)` re-install:
+
+- **Marvel** users hitting the DB during the mongo or wsdbagent recreate window see brief 503s or stalls — total **~10–20 s** of degraded service. Browser sessions stay valid (cookies, JS state untouched); only in-flight DB-bound calls are affected.
+- **IdP (in-house OIDC)** users mid-SSO during the wsdbagent-idp window see `/authorize` or `/token` fail — **~10 s**. Re-tries succeed after the agent reconnects.
+- Already-loaded marvel UI continues rendering (`loggedInUser` is client-side state); only data fetches feel the blip.
+
+Mitigation if you need zero-downtime:
+
+- **Schedule** the re-install for a known-quiet window (operator-pi3b.md §10 covers cron + systemd timers).
+- **Operator pin** to a `:vX.Y.Z` image tag so re-installs don't accidentally roll forward to a newer image during the bring-up (PR #62's `XPMILE_RELEASE` env). The re-install then only rebuilds the .env + recreates the same containers — same downtime, but no surprise image change.
+- **Skip the re-install for patch releases that don't change agent code.** A v1.1.0 → v1.1.1 jump where only `install-agent.sh` changed is a no-op for the running stack: you only need to re-install if you want the new operator tooling. The agents themselves are byte-identical.
+
 ---
 
 ## Source layout
