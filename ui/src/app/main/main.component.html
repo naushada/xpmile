@@ -25,8 +25,13 @@
       </div>
 
       <div class="header-actions">
-        <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role === 'Customer'">{{this.loggedInUser?.customerInfo?.companyName}}</span>
-        <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role != 'Customer'">{{this.loggedInUser?.personalInfo?.name}}</span>
+        <!-- Display name fallback chain: personalInfo.name (preferred) → companyName for
+             Customer role → accountCode as last resort. Without the accountCode fallback,
+             accounts created with the `name` field left blank render an empty <span> next
+             to the user icon and the navbar looks broken. accountCode is guaranteed
+             non-empty by the login flow (it's the login key). -->
+        <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role === 'Customer'">{{this.loggedInUser?.customerInfo?.companyName || this.loggedInUser?.loginCredentials?.accountCode}}</span>
+        <span class="nav-link nav-text" *ngIf="this.loggedInUser?.personalInfo?.role !== 'Customer'">{{this.loggedInUser?.personalInfo?.name || this.loggedInUser?.loginCredentials?.accountCode}}</span>
         <clr-dropdown>
             <button type="button" class="nav-icon" clrDropdownTrigger aria-label="toggle settings menu">
                 <clr-icon shape="user" ></clr-icon>
