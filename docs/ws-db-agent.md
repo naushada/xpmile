@@ -61,6 +61,68 @@ does not forward client certificates to the dyno.
 
 ---
 
+## Data persistence + re-install safety
+
+The two questions operators ask first.
+
+### Where does MongoDB store its data on the host?
+
+The compose file mounts a **named podman volume** `mongo-data` (compose-project-prefixed to `xpmile-agent_mongo-data` when install-agent.sh writes the artifacts under `~/xpmile-agent/`) at the container's `/data/db`. On the host:
+
+| Engine mode | Host path |
+|---|---|
+| Rootless podman (default on Pi 3B / typical operator install) | `~/.local/share/containers/storage/volumes/xpmile-agent_mongo-data/_data/` |
+| Rootful podman / docker | `/var/lib/containers/storage/volumes/xpmile-agent_mongo-data/_data/` |
+
+Files in the volume are owned by the in-container `mongo` uid 999, which maps to host `<base>+999` under rootless user-namespacing (`100998` on a uid-1000 user, with the default `/etc/subuid` allocation `1000:100000:65536`). That's why `ls -la` as the operator's user shows some files as owned by `100998` — perfectly normal; do not `chown` them on the host.
+
+To **inspect the volume location yourself** on any host:
+
+```sh
+podman volume inspect xpmile-agent_mongo-data --format '{{.Mountpoint}}'
+```
+
+### Will re-running install-agent.sh (or run-agent.sh start) wipe my database?
+
+**No.** Re-install only touches the configuration files; the volume is preserved. Specifically:
+
+| File / state | Re-install behavior |
+|---|---|
+| `~/xpmile-agent/.env` | **Overwritten** from the install-time prompts/env vars. Back up first if you've tuned `MONGO_APP_PASS`, `MONGO_ROOT_PASS`, or any other field beyond what install-agent.sh writes. |
+| `~/xpmile-agent/docker-compose.agent.yml`, `start-stack.sh` | **Overwritten** (the install script regenerates these every run). |
+| `~/xpmile-agent/certs/cloud-issued/innertls/{ca,client}.{crt,key}` | **Re-extracted** (fresh from the wsdbagent image's `/opt/wsdbagent/baked-certs/`). |
+| `~/.config/systemd/user/xpmile-agent.service` | **Overwritten** (idempotent — same content unless the unit template itself changed). |
+| Linger state (`loginctl show-user --property=Linger`) | **Preserved** (already-on detected as a no-op). |
+| **podman volume `xpmile-agent_mongo-data`** | **PRESERVED.** This is where every `xpmile.account`, `idp.account`, `idp.idp_signing_keys`, `sso_config`, and every shipment document lives. |
+| Existing containers | `podman rm -f` then re-created from the (possibly-new) image. The new containers attach to the **same** persisted volume → mongo sees its old data the moment it starts up. |
+
+So a v1.1.x upgrade, a SERVER_HOST flip, a cert rotation — none of these touch the database. The volume only goes away if you **explicitly** run `podman volume rm xpmile-agent_mongo-data` (or `./run-agent.sh clean`, which DOES drop the volume). Those are the only two commands that wipe data.
+
+### Backing up the volume
+
+A simple file-level snapshot works for one-host deployments:
+
+```sh
+# stop mongo cleanly first so on-disk state is consistent
+systemctl --user stop xpmile-agent.service
+
+VOL=$(podman volume inspect xpmile-agent_mongo-data --format '{{.Mountpoint}}')
+sudo tar czf ~/xpmile-mongo-backup-$(date +%Y%m%d).tar.gz -C "$(dirname $VOL)" _data
+
+systemctl --user start xpmile-agent.service
+```
+
+For a logical backup (cross-arch portable, smaller, version-independent), use `mongodump` inside the container:
+
+```sh
+podman exec agent-mongo mongodump --uri "mongodb://root:changeme@localhost:27017/?authSource=admin" --out /tmp/dump
+podman cp agent-mongo:/tmp/dump ./mongo-backup-$(date +%Y%m%d)
+```
+
+Restore via `mongorestore` against a fresh stack, or `podman volume import` if you took the tar route. The tar approach is byte-exact but coupled to mongo's storage format version (mongo 4.4 dumps can't be tar-restored into a mongo:7 volume without an intermediate mongodump/restore cycle).
+
+---
+
 ## Source layout
 
 ```
