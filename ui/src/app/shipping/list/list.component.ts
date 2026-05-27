@@ -6,6 +6,7 @@ import { formatDate } from '@angular/common';
 import { SubSink } from 'subsink';
 import { PubsubsvcService } from 'src/common/pubsubsvc.service';
 import { InvoiceService } from 'src/common/invoice.service';
+import { LabelService } from 'src/common/label.service';
 
 import * as JsBarcode from 'jsbarcode';
 import pdfMake from 'pdfmake/build/pdfmake';
@@ -30,7 +31,6 @@ export class ListComponent implements OnInit, OnDestroy {
   // Mutated in place so the docDefinition content reference stays valid across builds
   private readonly a2Body:       object[] = [];
   private readonly a4Body:       object[] = [];
-  private readonly a6Body:       object[] = [];
 
   private readonly pdfStyles = {
     header:       { fontSize: 18, bold: true,  margin: [0, 0, 0, 10] as any },
@@ -51,7 +51,8 @@ export class ListComponent implements OnInit, OnDestroy {
     private fb: FormBuilder,
     private http: HttpsvcService,
     private subject: PubsubsvcService,
-    private invoice: InvoiceService
+    private invoice: InvoiceService,
+    private label: LabelService
   ) {
     this.shipmentListForm = this.fb.group({
       startDate: [formatDate(new Date(), 'MM/dd/yyyy', 'en')],
@@ -99,14 +100,8 @@ export class ListComponent implements OnInit, OnDestroy {
   }
 
   onCreateA6Label(): void {
-    this.buildA6Body();
-    pdfMake.createPdf({
-      info:        this.docInfo,
-      pageSize:    'A6',
-      pageMargins: 5,
-      content:     this.a6Body,
-      styles:      { ...this.pdfStyles, defaultStyle: { fontSize: 8 } } as any
-    }).download('A6-label');
+    if (!this.rowsSelected?.length) return;
+    this.label.downloadA6ShipmentLabel(this.rowsSelected);
   }
 
   onCreateInvoice(): void {
@@ -187,15 +182,6 @@ export class ListComponent implements OnInit, OnDestroy {
         ]
       }
     };
-  }
-
-  private buildA6Body(): void {
-    this.a6Body.length = 0;
-    this.rowsSelected.forEach((elm, idx, arr) => {
-      const table = this.buildLabelTable(elm, 110, 148, 65, 8) as any;
-      if (idx < arr.length - 1) { table.pageBreak = 'after'; }
-      this.a6Body.push([table]);
-    });
   }
 
   private buildA4Body(): void {
