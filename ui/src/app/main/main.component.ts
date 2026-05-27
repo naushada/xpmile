@@ -22,6 +22,11 @@ export class MainComponent implements OnInit, OnDestroy {
   today = this.formatToday();
   flashOn = false;
 
+  /** Bound to the About modal's `clrModalOpen` two-way binding. */
+  aboutOpen = false;
+  /** Read-only host string (e.g. "marvel-xxxx.herokuapp.com") shown in About. */
+  currentHost = window?.location?.host || '';
+
   subsink = new SubSink();
 
   constructor(private pubsub: PubsubsvcService, public stats: ShipmentStatsService,
