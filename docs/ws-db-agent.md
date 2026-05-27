@@ -22,11 +22,11 @@ does not forward client certificates to the dyno.
 │  uniservice  --remote-db                                 │
 │  └─ WsDbServer  /ws/db  (no dedicated port)              │
 └──────────────────────────────────────────────────────────┘
-          ▲  WSS  wss://myapp.herokuapp.com/ws/db
-          │  (TLS terminated by Heroku edge)
+          ▲  WSS  wss://marvel-<hash>.herokuapp.com/ws/db
+          │  (TLS terminated by Heroku edge; InnerTLS mTLS rides inside)
 ┌─────────┴────────────────────────────────────────────────┐
 │  MongoDB Machine (behind NAT)                            │
-│  wsdbagent  --server-host myapp.herokuapp.com            │
+│  wsdbagent  --server-host marvel-<hash>.herokuapp.com    │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -570,7 +570,7 @@ podman run -d --name mongodb \
 podman run -d --name wsdbagent \
   --network host \
   -v /path/to/certs:/certs:ro \
-  -e ARGS="--server-host myapp.herokuapp.com \
+  -e ARGS="--server-host marvel-<hash>.herokuapp.com \
            --tls-ca /certs/ca.crt \
            --tls-cert /certs/client.crt \
            --tls-key /certs/client.key \
