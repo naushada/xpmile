@@ -194,6 +194,10 @@ MONGO_ROOT_USER=$MONGO_ROOT_USER
 MONGO_ROOT_PASS=$MONGO_ROOT_PASS
 MONGO_APP_USER=$MONGO_APP_USER
 MONGO_APP_PASS=$MONGO_APP_PASS
+# WSDBAGENT_IMAGE propagated from install-time env so a pin like
+# WSDBAGENT_IMAGE=docker.io/naushada/xpmile-wsdbagent:v1.1.0 on the
+# install command actually shows up in compose's image: lookup.
+WSDBAGENT_IMAGE=$WSDBAGENT_IMAGE
 PODMAN_SOCKET=$DEFAULT_SOCKET
 EOF
 
