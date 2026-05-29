@@ -90,6 +90,7 @@ on:
       # gate edits behind GTest so a contradictory claim about the
       # build/deploy contract doesn't merge silently.
       - 'README.md'
+      - 'CHANGELOG.md'
       - 'CLAUDE.md'
       - 'codebase.md'
       - 'docs/**'
@@ -133,6 +134,7 @@ on:
       # gate edits behind GTest so a contradictory claim about the
       # build/deploy contract doesn't merge silently.
       - 'README.md'
+      - 'CHANGELOG.md'
       - 'CLAUDE.md'
       - 'codebase.md'
       - 'docs/**'
