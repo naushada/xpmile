@@ -25,6 +25,7 @@ include_directories(../modules/module/thirdparty)
 include_directories(../modules/module/wsdbproxy/inc)
 include_directories(../modules/module/wsdbproxy/test)
 include_directories(../modules/module/security/inc)
+include_directories(../modules/module/runcpull/inc)
 include_directories(/usr/local/ACE_TAO-7.0.0/include)
 include_directories(/usr/include/libxml2)
 
@@ -96,6 +97,12 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/inhouseidp/test/password_reset_test.cc"
     "../modules/module/wsdbagent/src/sign_jwt_on_prem.cpp"
     "../modules/module/wsdbagent/test/sign_jwt_dispatch_test.cc"
+    "../modules/module/runcpull/src/manifest.cpp"
+    "../modules/module/runcpull/src/image_config.cpp"
+    "../modules/module/runcpull/src/digest.cpp"
+    "../modules/module/runcpull/test/manifest_parse_test.cc"
+    "../modules/module/runcpull/test/image_config_parse_test.cc"
+    "../modules/module/runcpull/test/digest_test.cc"
     "../modules/module/mongodb/test/mongodbc_test.cc")
 
 # ── In-house IdP test RSA keypair fixture ─────────────────────────────────────
