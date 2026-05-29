@@ -4,7 +4,7 @@ This is an alternative install path for operators who don't want a full
 container engine (docker or podman) on the MongoDB host. It uses
 **`runc`** — the OCI low-level runtime that both docker and podman wrap
 underneath — directly, plus **systemd** for lifecycle management and
-**skopeo + umoci** for image fetch.
+**`xpmile-pull`** for image fetch.
 
 > **Audience.** This is the **advanced** path. If you don't already
 > understand the OCI runtime spec (`config.json`, mounts, namespaces),
@@ -21,7 +21,7 @@ Why it exists:
 - **No compose-layer.** Eliminates `podman-compose` (a Python wrapper
   with its own quirks on arm) and the cert-watcher Alpine sidecar
   (replaced with a 10-line systemd `path` unit).
-- **Smaller install footprint.** `runc` + `skopeo` + `umoci` is ~25 MB
+- **Smaller install footprint.** `runc` + `jq` + `xpmile-pull` is ~13 MB
   on disk vs ~250 MB for the full docker stack. On a 16 GB SD card this
   matters less than the RAM saving.
 
@@ -31,7 +31,44 @@ What you give up:
 - **No `./run-agent.sh`.** That script wraps `podman-compose`. With runc
   you drive lifecycle through `systemctl`.
 - **Image updates are manual** — no `pull_policy: always`. Re-running
-  `skopeo copy` + `umoci unpack` is the moral equivalent.
+  `xpmile-pull --force` is the moral equivalent.
+
+> **What is `xpmile-pull`?** A small in-house OCI image puller (~3 MB
+> binary, no daemon, no Go runtime, no Python). It does what
+> `skopeo copy` + `umoci unpack` used to do in one call — fetch a
+> Docker Hub image and write a ready-to-`runc` OCI bundle to disk.
+> Shipped with the operator tarball (see §0). Design + behaviour:
+> [`docs/design/runc-pull/`](./design/runc-pull/USAGE.md).
+
+---
+
+## 0. TL;DR — one-curl install (skip to §1 if you want the manual recipe)
+
+Since v1.3.0 there is a self-contained operator tarball that bundles
+`xpmile-pull` + every OCI `config.json` template + every systemd unit
++ a renderer script that wires it all together. If you just want a
+working runc stack with the same defaults this guide documents, run:
+
+```sh
+export SERVER_HOST="marvel-XXXXXXXX.herokuapp.com"
+export IDP_SERVER_HOST="idp-XXXXXXXX.herokuapp.com"   # optional second Heroku app
+export CERTS_DIR="$HOME/xpmile/certs/cloud-issued/innertls"
+curl -sSf https://raw.githubusercontent.com/naushada/xpmile/v1.3.0/install-agent-runc.sh | bash
+```
+
+That detects host arch, downloads
+`xpmile-runc-bundle-v1.3.0-{amd64,arm64}.tar.gz` from the
+[v1.3.0 GitHub Release](https://github.com/naushada/xpmile/releases/tag/v1.3.0),
+runs the bundled `install.sh`, and brings up the three systemd units
+(mongo + 2× wsdbagent + a cert-rotation path watcher). Update procedure
+becomes re-running the same one-liner with a fresh `XPMILE_RELEASE` env
+var.
+
+The rest of this guide is for operators who want to **own each step
+manually** — useful when you're customising the OCI config, debugging
+an install failure, or porting the recipe to a non-Bookworm host where
+the tarball's bundled libs don't fit. Everything below produces the same
+result as the one-liner.
 
 ---
 
@@ -60,11 +97,29 @@ here.
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y runc skopeo umoci jq        # ~25 MB total
+sudo apt-get install -y runc jq                      # ~10 MB total
 runc --version                                       # ≥ 1.1
-skopeo --version
-umoci --version
 ```
+
+Plus `xpmile-pull` — download the matching tarball from the latest
+GitHub Release and extract the binary + its bundled `.so` deps:
+
+```sh
+ARCH=$(uname -m); case "$ARCH" in x86_64) ARCH=amd64;; aarch64) ARCH=arm64;; esac
+TAG=v1.3.0   # or "latest"; pin for reproducible deploys
+mkdir -p ~/xpmile-runc
+curl -sSfL "https://github.com/naushada/xpmile/releases/download/$TAG/xpmile-runc-bundle-$TAG-$ARCH.tar.gz" \
+    | tar -xz -C ~/xpmile-runc --strip-components=1
+~/xpmile-runc/bin/xpmile-pull --version             # smoke-test the wrapper
+```
+
+`bin/xpmile-pull` is a 3-line `sh` wrapper that prepends `lib/` to
+`LD_LIBRARY_PATH` and execs `bin/xpmile-pull.real`. The real binary
+needs glibc ≥ 2.31 (Bullseye or newer); `libssl1.1 + libcrypto1.1 +
+libACE + libstdc++ + libgcc_s + libz` travel with the tarball under
+`~/xpmile-runc/lib/`, so you do **not** need to apt-install them. Debug
+by running `bin/xpmile-pull.real --version` directly + reading `ldd`
+output if something fails.
 
 User namespaces — required for rootless runc. Bookworm enables them by
 default; verify:
@@ -130,7 +185,7 @@ ls ./certs/cloud-issued/innertls/
 
 ---
 
-## 4. Image fetch — skopeo + umoci into OCI bundles
+## 4. Image fetch — `xpmile-pull` into OCI bundles
 
 We need three images on disk as runc-ready bundles. The layout we'll
 use lives under `/var/lib/xpmile/bundles/` (rootful runc) or
@@ -138,20 +193,26 @@ use lives under `/var/lib/xpmile/bundles/` (rootful runc) or
 consistent; the rest of this guide uses the rootful path.
 
 ```sh
-sudo mkdir -p /var/lib/xpmile/{bundles,oci-cache,mongo-data}
+sudo mkdir -p /var/lib/xpmile/{bundles,mongo-data}
 sudo chown -R "${USER}:${USER}" /var/lib/xpmile
+PULL=~/xpmile-runc/bin/xpmile-pull                  # the wrapper from §2
 ```
+
+`xpmile-pull <ref> --to <dir>` fetches the image from Docker Hub,
+verifies every SHA-256 digest, unpacks the layers honouring OCI
+whiteouts, and writes a runc-ready bundle at `<dir>/` (`rootfs/` +
+`config.json`). One call does what `skopeo copy` + `umoci unpack` used
+to take two. `--force` overwrites an existing bundle; without it the
+tool refuses and exits 5. See
+[`docs/design/runc-pull/USAGE.md`](./design/runc-pull/USAGE.md) for
+flags + exit codes.
 
 ### 4a. mongo:4.4 (upstream, no rebuild needed)
 
 ```sh
-skopeo copy \
-    docker://docker.io/library/mongo:4.4 \
-    oci:/var/lib/xpmile/oci-cache/mongo:4.4
-
-umoci unpack --rootless \
-    --image /var/lib/xpmile/oci-cache/mongo:4.4 \
-    /var/lib/xpmile/bundles/mongo
+sudo -E "$PULL" docker.io/library/mongo:4.4 \
+    --to /var/lib/xpmile/bundles/mongo \
+    --force
 ```
 
 We deliberately **skip** `docker/Dockerfile.mongo` (the custom
@@ -166,19 +227,20 @@ startup either way, so behaviour is identical.
 automatically on Pi)
 
 ```sh
-skopeo copy \
-    docker://docker.io/naushada/xpmile-wsdbagent:latest \
-    oci:/var/lib/xpmile/oci-cache/wsdbagent:latest
-
-umoci unpack --rootless \
-    --image /var/lib/xpmile/oci-cache/wsdbagent:latest \
-    /var/lib/xpmile/bundles/wsdbagent
+sudo -E "$PULL" docker.io/naushada/xpmile-wsdbagent:latest \
+    --to /var/lib/xpmile/bundles/wsdbagent-marvel \
+    --force
 ```
 
+The tool picks the matching arch entry from the multi-arch manifest
+automatically. Override with `--arch arm64` (or amd64) if needed; see
+USAGE.
+
 We use the same bundle for both `wsdbagent` and `wsdbagent-idp` —
-they're the same binary with different env vars. Two bundles means two
-copies of the 60 MB rootfs on disk and is a waste; we share one bundle
-and give each instance its own `config.json`.
+they're the same binary with different env vars. Two pulls means two
+copies of the 60 MB rootfs on disk and is a waste; we pull once into
+`wsdbagent-marvel`, hard-link clone to `wsdbagent-idp` (§6), and give
+each instance its own `config.json`.
 
 ### 4c. Pinning to a specific build
 
@@ -187,23 +249,27 @@ the tag:
 
 ```sh
 WSDBAGENT_TAG=sha-e1353c1
-skopeo copy \
-    docker://docker.io/naushada/xpmile-wsdbagent:${WSDBAGENT_TAG} \
-    oci:/var/lib/xpmile/oci-cache/wsdbagent:${WSDBAGENT_TAG}
+sudo -E "$PULL" docker.io/naushada/xpmile-wsdbagent:${WSDBAGENT_TAG} \
+    --to /var/lib/xpmile/bundles/wsdbagent-marvel \
+    --force
 ```
 
-The `oci-cache` directory keeps multiple versions side-by-side so you
-can roll back. The bundle dir always holds the **currently-deployed**
-version (re-unpack to swap).
+Rolling back is just re-pulling the previous tag into the same bundle
+dir. There is no separate `oci-cache/` step — `xpmile-pull` writes the
+bundle directly, so disk only carries the currently-deployed version
+per bundle. If you want to keep multiple versions side-by-side, pull
+into `bundles/wsdbagent-<tag>/` and update the systemd unit's
+`--bundle` path instead.
 
 ---
 
 ## 5. OCI bundle config — `config.json`
 
-Each running container needs its own `config.json`. `umoci unpack`
-created a stub at `bundles/<name>/config.json` — we'll overwrite each
-one with the spec we actually want. The stubs assume bridge networking
-and no bind mounts; both of those are wrong for this stack.
+Each running container needs its own `config.json`. `xpmile-pull`
+writes a minimal stub (env from the image config, args = the image's
+CMD/Entrypoint, host networking, no bind mounts) — enough for a
+sanity-check `runc run`, but not what we actually want. Overwrite each
+one with the specs below.
 
 ### 5a. `mongo` config.json
 
@@ -362,20 +428,21 @@ Same `/certs` bind-mount — both agents share the cert family by design
 
 ## 6. Per-instance bundle clone
 
-`umoci` unpacks one bundle. We run two wsdbagent **instances** off the
-same rootfs. The clean way is a hard-link clone of the rootfs:
+§4b pulled into `wsdbagent-marvel`. We run two wsdbagent **instances**
+off the same rootfs. The clean way is a hard-link clone of the rootfs:
 
 ```sh
 cd /var/lib/xpmile/bundles
-mv wsdbagent wsdbagent-marvel                        # rename the umoci output
+rm -rf wsdbagent-idp                                 # ensure target is clean
 cp -al wsdbagent-marvel wsdbagent-idp                # hard-link clone — same inodes, separate config.json
 # Now overwrite config.json in each with the spec from §5b and §5c.
 ```
 
 `cp -al` (archive + hard-links) means the two bundle dirs share rootfs
 inodes — disk cost is just one bundle plus two `config.json` files.
-Image updates via re-`umoci unpack` will need to repeat the
-`mv` + `cp -al` step.
+Image updates via re-`xpmile-pull --force` overwrite
+`wsdbagent-marvel/`; you then re-clone to `wsdbagent-idp/` and re-write
+its `config.json` — same recipe as initial install.
 
 ---
 
@@ -529,25 +596,23 @@ This replaces `./run-agent.sh refresh-certs && ./run-agent.sh stop &&
 ./run-agent.sh start` from path A/B.
 
 ```sh
-WSDBAGENT_TAG=latest      # or sha-<commit> to pin
+WSDBAGENT_TAG=latest                    # or sha-<commit> to pin
+PULL=~/xpmile-runc/bin/xpmile-pull      # the wrapper from §2
 
-# 10a. Pull the new image into oci-cache (does NOT touch the running bundle)
-skopeo copy \
-    docker://docker.io/naushada/xpmile-wsdbagent:${WSDBAGENT_TAG} \
-    oci:/var/lib/xpmile/oci-cache/wsdbagent:${WSDBAGENT_TAG}
-
-# 10b. Stop the agents (mongo keeps running — clients reconnect on resume)
+# 10a. Stop the agents (mongo keeps running — clients reconnect on resume)
 sudo systemctl stop xpmile-wsdbagent.service xpmile-wsdbagent-idp.service
 
-# 10c. Re-unpack into the bundle dirs (config.json is OUTSIDE rootfs and survives)
-sudo rm -rf /var/lib/xpmile/bundles/wsdbagent-marvel/rootfs
+# 10b. Re-pull into the marvel bundle (config.json outside rootfs survives;
+#       xpmile-pull preserves an existing config.json by design)
+sudo -E "$PULL" docker.io/naushada/xpmile-wsdbagent:${WSDBAGENT_TAG} \
+    --to /var/lib/xpmile/bundles/wsdbagent-marvel \
+    --force
+
+# 10c. Re-clone for the idp instance (rootfs is hard-linked; idp config.json
+#       is the one you wrote in §5c — re-write it from your saved copy)
 sudo rm -rf /var/lib/xpmile/bundles/wsdbagent-idp/rootfs
-sudo umoci unpack --rootless \
-    --image /var/lib/xpmile/oci-cache/wsdbagent:${WSDBAGENT_TAG} \
-    /tmp/wsdbagent-fresh
-sudo cp -al /tmp/wsdbagent-fresh/rootfs /var/lib/xpmile/bundles/wsdbagent-marvel/rootfs
-sudo mv      /tmp/wsdbagent-fresh/rootfs /var/lib/xpmile/bundles/wsdbagent-idp/rootfs
-sudo rm -rf  /tmp/wsdbagent-fresh
+sudo cp -al /var/lib/xpmile/bundles/wsdbagent-marvel/rootfs \
+            /var/lib/xpmile/bundles/wsdbagent-idp/rootfs
 
 # 10d. Bring both agents back
 sudo systemctl start xpmile-wsdbagent.service xpmile-wsdbagent-idp.service
@@ -557,8 +622,11 @@ sudo systemctl start xpmile-wsdbagent.service xpmile-wsdbagent-idp.service
 # (xpmile-certs.path fires the restart automatically — no manual action needed)
 ```
 
-You can wrap this in a small shell script (`./run-agent-runc.sh
-update`) once you've done it twice. Patches welcome.
+If you'd rather not maintain this by hand, the tarball's `install.sh`
+re-runs idempotently — `bash ~/xpmile-runc/install.sh` does the
+equivalent in one call (re-pulls both images with `--force`, re-clones,
+re-renders the configs, restarts the units). Most operators on the
+runc path use that route.
 
 ---
 
