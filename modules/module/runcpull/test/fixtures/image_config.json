@@ -1,0 +1,21 @@
+{
+  "architecture": "arm64",
+  "os": "linux",
+  "config": {
+    "Env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "LANG=C.UTF-8"
+    ],
+    "Entrypoint": ["/usr/local/bin/docker-entrypoint.sh"],
+    "Cmd": ["mongod", "--bind_ip_all"],
+    "WorkingDir": "/data/db"
+  },
+  "rootfs": {
+    "type": "layers",
+    "diff_ids": [
+      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    ]
+  }
+}
