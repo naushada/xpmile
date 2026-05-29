@@ -84,6 +84,27 @@ target):
 
 ---
 
+## Implementation status
+
+Snapshot — each shipped phase has a merge commit on `main` and a test count that actually landed. The pre-shipping plan numbers are in the per-phase summaries below.
+
+| Phase | Description                                                | Status      | Tests landed | PR  |
+|-------|------------------------------------------------------------|-------------|-------------:|-----|
+| A     | `sso::HttpClient` extensions (headers, redirect, streaming) | ✅ shipped  | 13           | #77 |
+| B     | Docker Hub registry client                                  | ✅ shipped  | 29           | #81 |
+| C     | Manifest + image-config + digest parsing                    | ✅ shipped  | 25           | #78 |
+| D     | Tar + gzip + whiteout + hardening                           | ✅ shipped  | 40           | #80 |
+| E     | Bundle writer (atomic rootfs + stub `config.json`)          | ✅ shipped  | 8            | #79 |
+| F     | Pull orchestrator (wires B + C + D + E end-to-end)          | ✅ shipped  | 12           | #82 |
+| G     | CLI parser + exit-code mapping                              | ✅ shipped  | 14           | #83 |
+| H     | `main.cpp` + static-build CI job + release tarball + smoke  | ⏳ pending  | 0 GTest, 1 smoke | —   |
+
+**141 / 141 GTest cases landed** across Phases A–G — the full plan minus Phase H's release-tarball + Hub-smoke. The C++ library is feature-complete; what's left is wiring `main.cpp` into a `xpmile-pull` executable, the CI build matrix, and the GitHub-release asset.
+
+How to consume what's shipped today is documented in [`USAGE.md`](USAGE.md).
+
+---
+
 ## Phase A — `sso::HttpClient` extensions
 
 ### Why first
