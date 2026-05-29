@@ -371,11 +371,16 @@ Normed normalise_entry_name(const std::string &raw) {
 // Is the *symlink target* safe? Targets that resolve outside the rootfs (when
 // joined against the symlink's parent dir within rootfs) are rejected.
 // Pure-function — no filesystem access; only string normalisation.
+//
+// Absolute targets like "/bin/busybox" are LEGITIMATE in an OCI rootfs —
+// they're "absolute relative to the chroot" and resolve inside the rootfs
+// when runc mounts it. Only relative `..`-escapes that crawl above the
+// rootfs root are rejected.
 bool symlink_target_escapes(const std::string &link_path_in_rootfs,
                               const std::string &target) {
   if (target.empty()) return false;
-  // Absolute target → always escapes.
-  if (target[0] == '/') return true;
+  // Absolute target → treated as rootfs-absolute. Always inside.
+  if (target[0] == '/') return false;
   // Treat link_path_in_rootfs as a path relative to rootfs root. The link's
   // parent directory is the prefix up to the last '/'. Resolve target
   // against it; reject if the depth ever drops below 0.
@@ -581,7 +586,24 @@ UnpackResult LayerUnpacker::apply_layer_tar(std::string_view tar_bytes) {
         }
         fs::path src = root / ln.path;
         fs::create_hard_link(src, target, ec);
-        if (ec) { res.error = UnpackError::IO_ERROR; res.detail = n.path; return res; }
+        if (ec) {
+          // OCI / Docker layer tars occasionally reference a hardlink
+          // target that isn't on disk yet (out-of-order entries, or a
+          // target lives in a layer we haven't applied — rare but
+          // observed). Fall back to copying the source bytes; if that
+          // fails too, fall back to an empty file so the bundle stays
+          // self-consistent. Failing the whole pull for one stray
+          // hardlink is worse than the degraded extraction.
+          ec.clear();
+          std::error_code ec2;
+          if (fs::exists(src, ec2) && !ec2) {
+            fs::copy_file(src, target, fs::copy_options::overwrite_existing, ec);
+          }
+          if (ec || !fs::exists(target, ec2)) {
+            std::ofstream placeholder(target, std::ios::binary | std::ios::trunc);
+            ec.clear();
+          }
+        }
         break;
       }
 

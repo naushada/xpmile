@@ -1,0 +1,15 @@
+[Unit]
+Description=xpmile wsdbagent — marvel (runc)
+After=xpmile-mongo.service
+Requires=xpmile-mongo.service
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/runc delete --force xpmile-wsdbagent
+ExecStart=/usr/bin/runc run --bundle __INSTALL_DIR__/bundles/wsdbagent-marvel xpmile-wsdbagent
+ExecStop=/usr/bin/runc kill xpmile-wsdbagent SIGTERM
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

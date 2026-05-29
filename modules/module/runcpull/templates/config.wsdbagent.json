@@ -1,0 +1,38 @@
+{
+  "ociVersion": "1.0.2",
+  "process": {
+    "terminal": false,
+    "user": { "uid": 0, "gid": 0 },
+    "args": ["/bin/sh", "-c", "/opt/wsdbagent/wsdbagent ${ARGS}"],
+    "env": [
+      "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "TZ=__TZ__",
+      "ARGS=--server-host __SERVER_HOST__ --server-port __SERVER_PORT__ --mongo-db-uri mongodb://__MONGO_APP_USER__:__MONGO_APP_PASS__@127.0.0.1:27017/xpmile?authSource=admin --mongo-db-name xpmile --mongo-db-connection-pool 10 --backoff 5 --tls-ca /certs/ca.crt --tls-cert /certs/client.crt --tls-key /certs/client.key"
+    ],
+    "cwd": "/opt/wsdbagent"
+  },
+  "root": { "path": "rootfs", "readonly": false },
+  "hostname": "agent-wsdbagent",
+  "mounts": [
+    { "destination": "/proc", "type": "proc", "source": "proc" },
+    { "destination": "/dev", "type": "tmpfs", "source": "tmpfs",
+      "options": ["nosuid", "strictatime", "mode=755", "size=65536k"] },
+    { "destination": "/dev/pts", "type": "devpts", "source": "devpts",
+      "options": ["nosuid", "noexec", "newinstance", "ptmxmode=0666", "mode=0620"] },
+    { "destination": "/sys", "type": "sysfs", "source": "sysfs",
+      "options": ["nosuid", "noexec", "nodev", "ro"] },
+    { "destination": "/etc/resolv.conf", "type": "bind",
+      "source": "/etc/resolv.conf", "options": ["rbind", "ro"] },
+    { "destination": "/certs", "type": "bind",
+      "source": "__CERTS_DIR__",
+      "options": ["rbind", "ro"] }
+  ],
+  "linux": {
+    "namespaces": [
+      { "type": "pid" },
+      { "type": "ipc" },
+      { "type": "uts" },
+      { "type": "mount" }
+    ]
+  }
+}

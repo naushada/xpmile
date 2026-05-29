@@ -1,0 +1,14 @@
+VERSION
+bin/xpmile-pull
+install.sh
+install-agent-runc.sh
+templates/README.md
+templates/config.mongo.json
+templates/config.wsdbagent-idp.json
+templates/config.wsdbagent.json
+templates/mongo-init.js
+templates/systemd/xpmile-certs-rotate.service
+templates/systemd/xpmile-certs.path
+templates/systemd/xpmile-mongo.service
+templates/systemd/xpmile-wsdbagent-idp.service
+templates/systemd/xpmile-wsdbagent.service

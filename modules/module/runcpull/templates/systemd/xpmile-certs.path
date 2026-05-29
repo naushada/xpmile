@@ -1,0 +1,10 @@
+[Unit]
+Description=xpmile InnerTLS cert directory watcher
+After=xpmile-wsdbagent.service
+
+[Path]
+PathChanged=__CERTS_DIR__
+Unit=xpmile-certs-rotate.service
+
+[Install]
+WantedBy=multi-user.target

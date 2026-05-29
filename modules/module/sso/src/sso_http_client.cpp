@@ -206,19 +206,26 @@ std::string encode_form(const std::map<std::string, std::string> &fields) {
 HttpClient::HttpClient(int timeout_secs) : m_timeout_secs(timeout_secs) {}
 
 HttpResponse HttpClient::get(const std::string &url) {
-  return request("GET", url, "", "");
+  return request("GET", url, "", "", {});
+}
+
+HttpResponse HttpClient::get(
+    const std::string &url,
+    const std::map<std::string, std::string> &headers) {
+  return request("GET", url, "", "", headers);
 }
 
 HttpResponse HttpClient::post_form(
     const std::string &url, const std::map<std::string, std::string> &fields) {
   return request("POST", url, encode_form(fields),
-                 "application/x-www-form-urlencoded");
+                 "application/x-www-form-urlencoded", {});
 }
 
 HttpResponse HttpClient::request(const std::string &method,
                                  const std::string &url,
                                  const std::string &body,
-                                 const std::string &content_type) {
+                                 const std::string &content_type,
+                                 const std::map<std::string, std::string> &extra_headers) {
   HttpResponse resp;  // status 0 by default == transport failure
 
   const ParsedUrl u = parse_https_url(url);
@@ -273,7 +280,20 @@ HttpResponse HttpClient::request(const std::string &method,
   std::string req = method + " " + u.path + " HTTP/1.1\r\n";
   req += "Host: " + u.host + "\r\n";
   req += "Connection: close\r\n";
-  req += "Accept: application/json\r\n";
+  // Default Accept is only added when the caller didn't override it.
+  bool caller_set_accept = false;
+  for (const auto &kv : extra_headers) {
+    std::string lkey = kv.first;
+    for (auto &c : lkey) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (lkey == "accept") { caller_set_accept = true; break; }
+  }
+  if (!caller_set_accept) req += "Accept: application/json\r\n";
+  for (const auto &kv : extra_headers) {
+    req += kv.first;
+    req += ": ";
+    req += kv.second;
+    req += "\r\n";
+  }
   if (method == "POST") {
     req += "Content-Type: " + content_type + "\r\n";
     req += "Content-Length: " + std::to_string(body.size()) + "\r\n";
@@ -305,6 +325,31 @@ HttpResponse HttpClient::request(const std::string &method,
   Http parsed(raw);
   resp.status = parsed.status();
   resp.body   = parsed.body();
+
+  // The Http parser stores headers in a private map without an enumerator.
+  // Phase A's runc-pull work needs `Www-Authenticate`, `Location`, and
+  // `Content-Type` on the response — walk the raw header block ourselves
+  // and populate `resp.headers` with lowercased keys (matches what the
+  // mock-based unit tests assert against).
+  const std::string &raw_hdr = parsed.header();
+  std::size_t hpos = raw_hdr.find("\r\n");
+  if (hpos != std::string::npos) hpos += 2;  // skip status line
+  while (hpos < raw_hdr.size()) {
+    const std::size_t end = raw_hdr.find("\r\n", hpos);
+    if (end == std::string::npos || end == hpos) break;
+    const std::string line = raw_hdr.substr(hpos, end - hpos);
+    const std::size_t colon = line.find(':');
+    if (colon != std::string::npos) {
+      std::string key = line.substr(0, colon);
+      std::string val = line.substr(colon + 1);
+      while (!key.empty() && std::isspace(static_cast<unsigned char>(key.back()))) key.pop_back();
+      while (!val.empty() && std::isspace(static_cast<unsigned char>(val.front()))) val.erase(0, 1);
+      while (!val.empty() && std::isspace(static_cast<unsigned char>(val.back())))  val.pop_back();
+      for (auto &c : key) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      resp.headers[key] = std::move(val);
+    }
+    hpos = end + 2;
+  }
   return resp;
 }
 
