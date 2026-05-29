@@ -1,5 +1,6 @@
 VERSION
 bin/xpmile-pull
+bin/xpmile-pull.real
 install.sh
 install-agent-runc.sh
 templates/README.md

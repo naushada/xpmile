@@ -7,9 +7,17 @@ stack on a memory-constrained host (Pi 3B class) without `docker`,
 ## Prerequisites
 
 - Debian Bookworm / Raspberry Pi OS Bookworm / Ubuntu 22.04+ on arm64 or
-  amd64. `cgroups v2` (the default since Bookworm).
+  amd64. `cgroups v2` (the default since Bookworm). glibc 2.31+ (Bullseye
+  or newer) — the bundled `xpmile-pull` binary expects this glibc level.
 - `runc` >= 1.1 (`sudo apt install runc`)
 - `sudo` access for the user running the installer.
+
+> The bundled `bin/xpmile-pull` is a tiny shell wrapper. It sets
+> `LD_LIBRARY_PATH=<bundle>/lib` and execs `bin/xpmile-pull.real` — so the
+> binary's libssl1.1 + libACE deps travel with the tarball and don't
+> require apt-installing anything beyond runc + glibc. If you need to
+> debug the linkage, run `bin/xpmile-pull.real --version` directly and
+> check `ldd` output.
 
 ## Install
 
