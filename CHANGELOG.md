@@ -14,6 +14,140 @@ Tag conventions:
 
 ---
 
+## [v1.3.0] — 2026-05-29
+
+The headline of this release is the **in-house Docker Hub puller**
+(`xpmile-pull`) and the self-contained operator tarball it ships in —
+a runc-only install path that needs nothing on the operator host
+beyond `runc + jq + glibc 2.31+`. Plus a **commercial-invoice + A6
+shipment-label** PDF refresh on the marvel UI, and a full
+**country/state/city dropdown** rollout across every shipment form.
+
+### Added
+
+- **xpmile-pull** — in-house Docker Hub registry client / OCI image
+  puller / runc-bundle assembler. Replaces the
+  `skopeo + umoci + jq` prerequisite chain in the runc operator path
+  with one ~3 MB binary. 141 GTest cases + 12 pytest, end-to-end TDD
+  across eight phases (A → H), real-Hub verified against
+  `docker.io/library/alpine:3.19` on amd64 and arm64. Design + TDD
+  plan: `docs/design/runc-pull/`. (#64, #77–#83)
+- **xpmile-runc-bundle tarballs** — per-arch operator tarballs published
+  as GitHub Release assets:
+  `xpmile-runc-bundle-v1.3.0-{amd64,arm64}.tar.gz` (~10 MB each).
+  Contains `bin/xpmile-pull` (sh wrapper) + `bin/xpmile-pull.real` +
+  `lib/*.so*` (libssl1.1, libcrypto1.1, libACE, libstdc++, libgcc_s,
+  libz, bundled for portability across libssl1.1 ↔ libssl3 hosts) +
+  `install.sh` + `install-agent-runc.sh` + per-bundle OCI `config.json`
+  templates + systemd units. (#85)
+- **One-curl operator install for the runc path**:
+  `SERVER_HOST=marvel-XXXXXXXX.herokuapp.com curl -sSf https://raw.githubusercontent.com/naushada/xpmile/v1.3.0/install-agent-runc.sh | bash`
+  — sibling to `install-agent.sh`. Detects host arch, resolves the
+  latest release tag, downloads the matching tarball, runs the
+  bundle's `install.sh`, which renders the OCI configs + installs the
+  systemd units + brings the stack up. (#85)
+- **Cascading country / state / city dropdowns** across every shipment
+  form (single, bulk, modify, collect-shipment). Sender + receiver
+  blocks are driven by a single reusable Angular component
+  (`LocationSelectComponent`) backed by the `country-state-city` npm
+  package (ISO 3166: 250 countries / ~5k states / ~150k cities, all
+  client-side, no backend dependency). Storage convention is the
+  human-readable name so legacy free-text data round-trips. Bulk
+  shipments now default sender country from
+  `account.personalInfo.country` and receiver state from a new
+  `ReceiverState` Excel column. (#68, #69, #70)
+- **`personalInfo.country` field** on `xpmile.account` — Vaadin
+  CreateAccount + UpdateAccount views gain a country `ComboBox`
+  (sourced from `Locale.getISOCountries()`); marvel UI reads the field
+  to seed bulk-shipment sender country. (#68)
+- **IATA airport-code lookup** baked into the A6 shipment label —
+  origin + destination airports are looked up from a built-in IATA
+  table and rendered next to the city name. Lookup is client-side; no
+  backend round trip. (#74)
+- **Shared `InvoiceService` + `LabelService`** — extracted the PDF
+  layout logic out of the two screens that generate commercial
+  invoices and the two that generate A6 labels, so the layout edits
+  in this release propagate from one place. (#71, #72)
+- **runc-pull CI release pipeline** — new `runc-bundle` matrix job in
+  `.github/workflows/publish-images.yml` (amd64 + arm64). amd64 leg
+  runs a smoke test against real Docker Hub on `ubuntu:22.04`
+  (libssl3-only host) so the bundled-libs portability story is
+  validated on every push. On tag pushes the tarballs are uploaded
+  to the matching GitHub Release via
+  `softprops/action-gh-release@v2`. (#85, #86, #87)
+
+### Changed
+
+- **Commercial invoice layout** — redesigned to operator-supplied
+  reference layout: tighter form lines, removed the per-line overflow
+  that was pushing the bottom totals onto a second A4 page, accepts
+  shipments whose stored date is `dd/MM/yyyy` instead of `dd-MM-yyyy`.
+  Single-A4-page guarantee. (#71, #73, #75, #76)
+- **A6 shipment label layout** — redesigned to operator-supplied
+  reference layout, shared service across both screens that render
+  it, accepts `dd/MM/yyyy` stored dates, IATA airport code under each
+  city. (#72, #73, #74, #75)
+- **City field is a dropdown** in the shipment forms — was previously
+  an autocomplete-on-type input whose suggestions appeared mid-edit
+  and lost focus on selection. Now a Clarity `clrCombobox` that
+  behaves like a real picker. (#70)
+- **Angular initial-bundle budget raised to 30 MB** to accommodate the
+  `country-state-city` package + the bundled IATA lookup table. The
+  prod build's `NODE_OPTIONS=--max_old_space_size=1536` was already
+  documented and remains unchanged. (#69)
+
+### Fixed
+
+- **xpmile-pull binary portability** — bootstrap base is Debian
+  Bullseye (libssl1.1) but every realistic operator target ships
+  libssl3 (Bookworm, Pi OS Bookworm, Ubuntu 22.04+). The runc-bundle
+  assembler now `ldd`-snapshots every non-glibc shared library the
+  binary needs, copies them into `lib/`, and ships a 3-line `sh`
+  wrapper at `bin/xpmile-pull` that prepends `lib/` to
+  `LD_LIBRARY_PATH` before exec'ing `xpmile-pull.real`. Excludes
+  glibc-family libs (`libc`, `libpthread`, `libdl`, `libm`, etc.) so
+  the operator host's NSS resolver isn't disturbed. Validated by the
+  CI smoke on `ubuntu:22.04` (libssl3-only). (#86)
+- **`bulk shipment` form blocked numeric AccountCodes** — operators
+  whose accountCode happens to be a pure-numeric string had Excel
+  parse it as a number, then the bulk handler tripped on
+  `code.startsWith()`. The Excel-row constructor now coerces
+  `AccountCode` to `String(…)` before storage. (#65)
+- **`install-agent.sh` did not propagate `WSDBAGENT_IMAGE`** from env
+  into the generated `.env`, so pinning a `sha-X` tag survived only
+  until the first stack restart. (#58)
+
+### Docs
+
+- New: `docs/design/runc-pull/runc-pull-design.md` (architecture +
+  resolved-question log), `docs/design/runc-pull/runc-pull-tdd-plan.md`
+  (the eight-phase TDD blueprint that this release executes against),
+  `docs/design/runc-pull/USAGE.md` (operator-facing usage guide). (#64,
+  #84)
+- Updated: `README.md` gains the runc-bundle one-curl install snippet
+  + a runc-pull-design pointer; `modules/module/runcpull/templates/README.md`
+  documents the wrapper + `lib/` portability pattern so operators can
+  debug `ldd` against `xpmile-pull.real` if needed (#84, #86); `CLAUDE.md`
+  gains a runc-pull architecture note alongside the existing
+  ws-db-agent + sso + inhouseidp notes (#84).
+- ws-db-agent docs refreshed: bake-certs-into-wsdbagent pattern, real
+  Heroku hostname examples, persistence + re-install safety + host
+  paths, re-install downtime budget. (#59, #60, #61, #63)
+
+### Notes for operators
+
+- The runc-bundle tarballs are **GitHub Release assets only** —
+  they aren't pushed to Docker Hub. Pin via
+  `XPMILE_RELEASE=v1.3.0` (or omit, default is `latest`).
+- The runc install path is still positioned as the
+  *memory-constrained* option (Pi 3B class, no daemon, no compose).
+  Most operators should stick with `install-agent.sh`. See
+  `docs/operator-runc.md` for the trade-off.
+- Image-tag scheme from v1.1.0 unchanged: pin to `:v1.3.0` for
+  reproducible deploys.
+
+---
+
 ## [v1.1.0] — 2026-05-27
 
 A focused release on the **operator install path** for the on-prem
