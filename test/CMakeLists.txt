@@ -100,9 +100,11 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/runcpull/src/manifest.cpp"
     "../modules/module/runcpull/src/image_config.cpp"
     "../modules/module/runcpull/src/digest.cpp"
+    "../modules/module/runcpull/src/bundle_writer.cpp"
     "../modules/module/runcpull/test/manifest_parse_test.cc"
     "../modules/module/runcpull/test/image_config_parse_test.cc"
     "../modules/module/runcpull/test/digest_test.cc"
+    "../modules/module/runcpull/test/bundle_writer_test.cc"
     "../modules/module/mongodb/test/mongodbc_test.cc")
 
 # ── In-house IdP test RSA keypair fixture ─────────────────────────────────────
