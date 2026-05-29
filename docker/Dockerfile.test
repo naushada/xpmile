@@ -55,7 +55,7 @@ RUN mkdir -p /src/certs && cd /src/certs \
 
 WORKDIR /src/build
 RUN cmake -DBUILD_TESTS=ON -DCMAKE_CXX_FLAGS="-fconcepts" .. \
- && make -j2 offtarget
+ && make -j2 offtarget xpmile-pull
 
 WORKDIR /src/build/test
 # Three tests depend on a live MongoDB (no Mongo fixture in CI yet),

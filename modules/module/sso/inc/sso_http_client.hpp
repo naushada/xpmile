@@ -141,6 +141,9 @@ public:
   explicit HttpClient(int timeout_secs = 5);
 
   HttpResponse get(const std::string &url) override;
+  HttpResponse get(
+      const std::string &url,
+      const std::map<std::string, std::string> &headers) override;
   HttpResponse post_form(
       const std::string &url,
       const std::map<std::string, std::string> &fields) override;
@@ -148,7 +151,8 @@ public:
 private:
   HttpResponse request(const std::string &method, const std::string &url,
                         const std::string &body,
-                        const std::string &content_type);
+                        const std::string &content_type,
+                        const std::map<std::string, std::string> &extra_headers);
 
   int m_timeout_secs;
 };

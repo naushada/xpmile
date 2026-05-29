@@ -82,7 +82,10 @@ on:
       - 'run-agent.sh'
       - 'run-idp.sh'
       - 'deploy-heroku.sh'
+      - 'install-agent.sh'
+      - 'install-agent-runc.sh'
       - 'scripts/**'
+      - 'tests/**'
       # Top-level docs that operators + contributors read first —
       # gate edits behind GTest so a contradictory claim about the
       # build/deploy contract doesn't merge silently.
@@ -122,7 +125,10 @@ on:
       - 'run-agent.sh'
       - 'run-idp.sh'
       - 'deploy-heroku.sh'
+      - 'install-agent.sh'
+      - 'install-agent-runc.sh'
       - 'scripts/**'
+      - 'tests/**'
       # Top-level docs that operators + contributors read first —
       # gate edits behind GTest so a contradictory claim about the
       # build/deploy contract doesn't merge silently.
@@ -513,3 +519,127 @@ jobs:
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: heroku container:release web --app "${HEROKU_APP_IDP}"
+
+  # ── Job 5 ── xpmile-pull binary + runc-bundle tarball ──────────────────
+  #
+  # Phase H of the runc-pull TDD plan. Builds the standalone xpmile-pull
+  # binary inside the bootstrap image (one matrix entry per architecture,
+  # so amd64 + arm64 share the same source path), runs a real-Hub smoke
+  # against alpine:3.19 on the amd64 leg only (saves QEMU minutes on the
+  # arm64 leg — the binary doesn't need per-arch runtime validation;
+  # cross-arch tests already verified the library in `offtarget`), and
+  # assembles xpmile-runc-bundle-<tag>-<arch>.tar.gz. On a tag push the
+  # tarballs upload to the GitHub release.
+  runc-bundle:
+    name: Build xpmile-pull + assemble runc-bundle tarball
+    needs: [bootstrap, test]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # for softprops/action-gh-release on a tag push
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU (for arm64 build)
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Resolve version tag (release tag or short sha)
+        id: version
+        run: |
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          elif [[ -f VERSION ]] && head -n1 VERSION | grep -E '^v[0-9]+\.' >/dev/null; then
+            echo "version=$(head -n1 VERSION)" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build xpmile-pull inside the bootstrap image
+        run: |
+          # The same Dockerfile.test image already builds xpmile-pull as
+          # part of its `make -j2 offtarget xpmile-pull` step. Re-use it
+          # here — saves a separate cross-build Dockerfile.
+          docker buildx build \
+              --platform "linux/${{ matrix.arch }}" \
+              --build-arg BUILDER_IMAGE=docker.io/naushada/xpmile-cpp-builder:bootstrap \
+              -f docker/Dockerfile.test \
+              -t xpmile-build:${{ matrix.arch }} \
+              --load \
+              .
+
+      - name: Extract the built xpmile-pull binary
+        run: |
+          docker create --platform "linux/${{ matrix.arch }}" \
+              --name extract xpmile-build:${{ matrix.arch }} \
+              true
+          mkdir -p artifacts
+          docker cp extract:/src/build/xpmile-pull artifacts/xpmile-pull
+          docker rm extract
+          file artifacts/xpmile-pull
+
+      - name: Smoke test (amd64 only — pulls real alpine:3.19 from Hub)
+        if: matrix.arch == 'amd64'
+        run: |
+          docker run --rm --network=host \
+              -v "$PWD/artifacts/xpmile-pull:/usr/local/bin/xpmile-pull:ro" \
+              -v "$PWD/tests/smoke:/smoke:ro" \
+              ubuntu:22.04 \
+              bash -c 'apt-get update >/dev/null && \
+                       apt-get install -y --no-install-recommends ca-certificates >/dev/null && \
+                       PULL_BIN=/usr/local/bin/xpmile-pull /smoke/xpmile-pull-smoke.sh'
+
+      - name: Assemble xpmile-runc-bundle tarball
+        id: tarball
+        run: |
+          VER="${{ steps.version.outputs.version }}"
+          STAGE="xpmile-runc-bundle-${VER}-${{ matrix.arch }}"
+          mkdir -p "stage/$STAGE/bin" "stage/$STAGE/templates/systemd"
+          echo "$VER" > "stage/$STAGE/VERSION"
+          install -m 0755 artifacts/xpmile-pull "stage/$STAGE/bin/xpmile-pull"
+          install -m 0755 modules/module/runcpull/templates/install.sh "stage/$STAGE/install.sh"
+          install -m 0755 install-agent-runc.sh "stage/$STAGE/install-agent-runc.sh"
+          install -m 0644 modules/module/runcpull/templates/README.md "stage/$STAGE/templates/README.md"
+          install -m 0644 modules/module/runcpull/templates/config.mongo.json "stage/$STAGE/templates/config.mongo.json"
+          install -m 0644 modules/module/runcpull/templates/config.wsdbagent.json "stage/$STAGE/templates/config.wsdbagent.json"
+          install -m 0644 modules/module/runcpull/templates/config.wsdbagent-idp.json "stage/$STAGE/templates/config.wsdbagent-idp.json"
+          install -m 0644 modules/module/runcpull/templates/mongo-init.js "stage/$STAGE/templates/mongo-init.js"
+          install -m 0644 modules/module/runcpull/templates/systemd/xpmile-mongo.service "stage/$STAGE/templates/systemd/"
+          install -m 0644 modules/module/runcpull/templates/systemd/xpmile-wsdbagent.service "stage/$STAGE/templates/systemd/"
+          install -m 0644 modules/module/runcpull/templates/systemd/xpmile-wsdbagent-idp.service "stage/$STAGE/templates/systemd/"
+          install -m 0644 modules/module/runcpull/templates/systemd/xpmile-certs.path "stage/$STAGE/templates/systemd/"
+          install -m 0644 modules/module/runcpull/templates/systemd/xpmile-certs-rotate.service "stage/$STAGE/templates/systemd/"
+          ( cd stage && tar czf "../${STAGE}.tar.gz" "$STAGE" )
+          echo "name=${STAGE}.tar.gz" >> "$GITHUB_OUTPUT"
+          ls -la "${STAGE}.tar.gz"
+
+      - name: Assert tarball layout matches tests/expected-tarball-layout.txt
+        run: |
+          # List files only (-tzf returns dirs too; we only assert on
+          # files). Strip the top-level staging dir prefix.
+          tar -tzf "${{ steps.tarball.outputs.name }}" \
+              | sed -E "s|^xpmile-runc-bundle-[^/]+/||" \
+              | grep -v '/$' \
+              | grep -v '^$' \
+              | sort > /tmp/got.txt
+          sort tests/expected-tarball-layout.txt > /tmp/expected.txt
+          diff -u /tmp/expected.txt /tmp/got.txt
+
+      - name: Upload as workflow artifact (always)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.tarball.outputs.name }}
+          path: ${{ steps.tarball.outputs.name }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload to GitHub Release (on tag push only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.tarball.outputs.name }}
+          fail_on_unmatched_files: true

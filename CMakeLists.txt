@@ -77,3 +77,31 @@ target_link_libraries(wsdbagent ACE_SSL)
 target_link_libraries(wsdbagent ssl crypto)
 target_link_libraries(wsdbagent mongodbcxx)
 target_link_libraries(wsdbagent z)
+
+# ── xpmile-pull — in-house Docker Hub puller for the runc operator path ────
+#
+# Phase H of the runc-pull TDD plan. Deliberately tiny dependency surface:
+# pthread + ssl + crypto + z only — no ACE, no mongo-cxx-driver, no xmlsec.
+# That's the whole reason for this binary (replaces skopeo + umoci which
+# bring their own Go runtime). Reuses the extended sso::HttpClient from
+# Phase A for its ACE_SOCK + OpenSSL networking.
+add_executable(xpmile-pull
+    modules/module/runcpull/src/main.cpp
+    modules/module/runcpull/src/registry_client.cpp
+    modules/module/runcpull/src/manifest.cpp
+    modules/module/runcpull/src/image_config.cpp
+    modules/module/runcpull/src/digest.cpp
+    modules/module/runcpull/src/layer_unpack.cpp
+    modules/module/runcpull/src/bundle_writer.cpp
+    modules/module/runcpull/src/pull_orchestrator.cpp
+    modules/module/runcpull/src/cli.cpp
+    modules/module/sso/src/sso_http_client.cpp
+    modules/module/http/src/http_parser.cpp
+)
+target_include_directories(xpmile-pull PRIVATE
+    modules/module/runcpull/inc
+    modules/module/sso/inc
+    modules/module/thirdparty
+    modules/module/http/inc
+)
+target_link_libraries(xpmile-pull pthread ssl crypto z ACE)

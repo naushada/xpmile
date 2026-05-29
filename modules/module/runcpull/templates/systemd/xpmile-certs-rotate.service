@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart both wsdbagents after a cert rotation
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart xpmile-wsdbagent.service xpmile-wsdbagent-idp.service

@@ -1,0 +1,16 @@
+[Unit]
+Description=xpmile MongoDB (runc)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStartPre=-/usr/bin/runc delete --force xpmile-mongo
+ExecStart=/usr/bin/runc run --bundle __INSTALL_DIR__/bundles/mongo xpmile-mongo
+ExecStop=/usr/bin/runc kill xpmile-mongo SIGTERM
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
