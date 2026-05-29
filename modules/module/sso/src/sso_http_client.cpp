@@ -83,7 +83,114 @@ ParsedUrl parse_https_url(const std::string &url) {
   return p;
 }
 
+// ── URL parsing for redirect_step / url_same_origin ────────────────────────
+//
+// Just enough URL splitting to compare origins and resolve a redirect
+// `Location:` header. Not a general-purpose URL parser — we only deal with
+// http/https and treat anything else as opaque. Path/query/fragment are not
+// individually parsed; everything after the host:port is one string.
+
+struct UrlParts {
+  std::string scheme;  ///< lowercased ("http" or "https"), or empty on failure
+  std::string host;    ///< lowercased
+  std::string port;    ///< explicit port, or empty (default 80/443 implied)
+  std::string rest;    ///< path + query + fragment, starts with "/" or empty
+};
+
+std::string lower(std::string s) {
+  for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return s;
+}
+
+UrlParts parse_url(const std::string &url) {
+  UrlParts p;
+  const auto schemeEnd = url.find("://");
+  if (schemeEnd == std::string::npos) return p;
+  p.scheme = lower(url.substr(0, schemeEnd));
+  if (p.scheme != "http" && p.scheme != "https") {
+    p.scheme.clear();
+    return p;
+  }
+  const auto authStart = schemeEnd + 3;
+  const auto pathStart = url.find('/', authStart);
+  const std::string authority =
+      url.substr(authStart, pathStart == std::string::npos ? std::string::npos
+                                                            : pathStart - authStart);
+  const auto colon = authority.find(':');
+  if (colon == std::string::npos) {
+    p.host = lower(authority);
+  } else {
+    p.host = lower(authority.substr(0, colon));
+    p.port = authority.substr(colon + 1);
+  }
+  p.rest = (pathStart == std::string::npos) ? "" : url.substr(pathStart);
+  return p;
+}
+
+std::string normalised_port(const UrlParts &p) {
+  if (!p.port.empty()) return p.port;
+  if (p.scheme == "https") return "443";
+  if (p.scheme == "http")  return "80";
+  return p.port;
+}
+
 } // namespace
+
+bool url_same_origin(const std::string &a, const std::string &b) {
+  const UrlParts pa = parse_url(a);
+  const UrlParts pb = parse_url(b);
+  if (pa.scheme.empty() || pb.scheme.empty()) return false;
+  return pa.scheme == pb.scheme
+      && pa.host  == pb.host
+      && normalised_port(pa) == normalised_port(pb);
+}
+
+RedirectStep redirect_step(
+    const std::string &current_url,
+    long status,
+    const std::string &location_header,
+    const std::map<std::string, std::string> &headers_in) {
+  RedirectStep step;
+  if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) {
+    return step;
+  }
+  if (location_header.empty()) return step;
+
+  // Absolute Location? Starts with "http://" or "https://". Otherwise resolve
+  // against current_url's scheme + host + (root-relative path).
+  if (location_header.rfind("http://", 0) == 0 || location_header.rfind("https://", 0) == 0) {
+    step.next_url = location_header;
+  } else {
+    const UrlParts cur = parse_url(current_url);
+    if (cur.scheme.empty()) return step;  // malformed current_url → can't resolve
+    std::string base = cur.scheme + "://" + cur.host;
+    if (!cur.port.empty()) {
+      base += ':';
+      base += cur.port;
+    }
+    if (!location_header.empty() && location_header[0] == '/') {
+      step.next_url = base + location_header;
+    } else {
+      // Path-relative against the directory of current_url's path. Resolve by
+      // taking everything up to and including the last '/' of cur.rest, then
+      // appending location_header. If cur.rest has no '/', the base path is
+      // "/".
+      std::string dir = "/";
+      const auto lastSlash = cur.rest.rfind('/');
+      if (lastSlash != std::string::npos) dir = cur.rest.substr(0, lastSlash + 1);
+      step.next_url = base + dir + location_header;
+    }
+  }
+
+  step.follow = true;
+  step.headers = headers_in;
+  if (!url_same_origin(current_url, step.next_url)) {
+    step.headers.erase("Authorization");
+    step.headers.erase("authorization");
+  }
+  if (status == 303) step.downgrade_to_get = true;
+  return step;
+}
 
 std::string encode_form(const std::map<std::string, std::string> &fields) {
   std::string out;
