@@ -103,6 +103,7 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/runcpull/src/bundle_writer.cpp"
     "../modules/module/runcpull/src/layer_unpack.cpp"
     "../modules/module/runcpull/src/registry_client.cpp"
+    "../modules/module/runcpull/src/pull_orchestrator.cpp"
     "../modules/module/runcpull/test/manifest_parse_test.cc"
     "../modules/module/runcpull/test/image_config_parse_test.cc"
     "../modules/module/runcpull/test/digest_test.cc"
@@ -115,6 +116,7 @@ file(GLOB SOURCES "*.cc"
     "../modules/module/runcpull/test/registry_token_test.cc"
     "../modules/module/runcpull/test/host_arch_test.cc"
     "../modules/module/runcpull/test/registry_client_test.cc"
+    "../modules/module/runcpull/test/pull_orchestrator_test.cc"
     "../modules/module/mongodb/test/mongodbc_test.cc")
 
 # ── In-house IdP test RSA keypair fixture ─────────────────────────────────────
