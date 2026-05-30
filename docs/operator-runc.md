@@ -444,6 +444,16 @@ Image updates via re-`xpmile-pull --force` overwrite
 `wsdbagent-marvel/`; you then re-clone to `wsdbagent-idp/` and re-write
 its `config.json` — same recipe as initial install.
 
+> **Why hardlink-clone, not overlayfs?** `xpmile-pull` merges the
+> image's layers into a single flat `rootfs/` at *pull time* — there is
+> no overlay graph driver at runtime, no FUSE, no kernel `overlayfs`
+> dependency. That's deliberate for 1 GB Pi-class hosts where the
+> overlay-mount metadata isn't worth carrying for two long-running
+> containers. The cost is that re-pull rewrites the whole rootfs
+> (`xpmile-pull --force` ~50 MB for wsdbagent) instead of swapping a
+> single layer. Acceptable when image rotations are weekly. Full
+> rationale + comparison table: [`docs/design/runc-pull/runc-pull-design.md`](./design/runc-pull/runc-pull-design.md#6a-merge-model--flat-rootfs-no-overlay-at-runtime).
+
 ---
 
 ## 7. systemd units

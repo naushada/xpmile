@@ -167,8 +167,64 @@ Reference normalisation:
 
 ## 6. Layer extraction & whiteouts
 
-The OCI whiteout spec (image-spec/layer.md) is the only non-obvious
-part of tar extraction. Three cases:
+### 6a. Merge model — flat `rootfs/`, no overlay at runtime
+
+xpmile-pull does **not** mount layers; it merges them into one flat
+directory at pull time. An OCI image is a list of compressed tar
+blobs (the "layers") whose order matters — each adds, overwrites, or
+deletes paths on top of the previous. The pull pipeline applies them
+sequentially into a single `bundle/rootfs/` tree:
+
+```
+fetch token              fetch manifest (or list → platform-pick)
+        │                          │
+        ▼                          ▼
+fetch image config (SHA-256 verify, parse env/cmd/entrypoint)
+        │
+        ▼
+for each layer in declared order:
+    GET blob   →   GzipInflater   →   TarReader
+                                            │
+                                            ▼
+                                   LayerUnpacker:
+                                     regular file  → write at <rootfs>/<path>
+                                     whiteout      → delete earlier-layer path
+                                     opaque whiteout → clear earlier-layer dir
+        │
+        ▼
+write bundle/config.json from image config (operator overwrites in §5
+of operator-runc.md with the real runtime spec).
+```
+
+After the last layer is applied, `bundle/rootfs/` is the merged
+filesystem. `runc run --bundle <dir>` pivots into that tree and
+execs the configured args. There is **no overlayfs**, **no FUSE**,
+**no layer cache at runtime** — the layers existed only as a
+transient construct during the pull.
+
+That's a deliberate trade-off vs docker/podman:
+
+| Concern | Docker / podman | xpmile-pull + runc |
+|---|---|---|
+| Disk per container | layers shared via the overlay graph driver | one merged `rootfs/` per bundle (hardlink-cloned with `cp -al` for multi-instance) |
+| Kernel feature | needs `overlayfs` | no overlay, no FUSE, no graph driver |
+| Pull → ready | pull → graph driver registers layers | pull → write flat rootfs |
+| Multi-instance same image | overlay clones cost zero extra disk | hardlink clone via `cp -al` — same inodes, separate dentries (see operator-runc.md §6) |
+| Layer-level update | swap a single layer in the overlay | re-pull + re-merge (`xpmile-pull --force`) |
+
+We picked flat-merge because the target host is a 1 GB Pi 3B with
+2 bundles (mongo + 2× wsdbagent). Overlay graph drivers are tuned for
+"100 containers off one base image" — they cost overlay-mount metadata
+and a kernel feature we'd rather not depend on. With three running
+containers, `cp -al` hardlink-clone hits the same disk-sharing target
+with no graph driver in the loop. The cost is that a layer update
+re-pulls the whole image (~50 MB for wsdbagent), not just the changed
+layer — acceptable when image updates are weekly, not per-deploy.
+
+### 6b. Whiteout mechanics
+
+The OCI whiteout spec ([`image-spec/layer.md`](https://github.com/opencontainers/image-spec/blob/main/layer.md))
+is the only non-obvious part of tar extraction. Three cases:
 
 1. **Regular entry** `path/foo` → write to `bundle/rootfs/path/foo`,
    honouring tar header mode (mask off setuid/setgid — we don't ship
