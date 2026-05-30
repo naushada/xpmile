@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup } from '@angular/forms';
+import { Country } from 'country-state-city';
 import { Account, AppGlobals, AppGlobalsDefault, Shipment } from 'src/common/app-globals';
 import { HttpsvcService } from 'src/common/httpsvc.service';
 import {formatDate} from '@angular/common';
@@ -15,13 +16,14 @@ export class DetailedReportComponent implements OnInit {
   defValue: AppGlobals;
   shipments: Shipment[] = [];
   accounts: Account[] = [];
+  countries: string[] = Country.getAllCountries().map(c => c.name).sort();
   detailedReportForm: FormGroup;
   isButtonDisabled:boolean = true;
 
   constructor(private http:HttpsvcService, private fb: FormBuilder, private excel: ExcelsvcService) {
     this.http.getAccountInfoList().subscribe(
-      (rsp:Account[]) => { rsp.forEach(elm => {this.accounts?.push(elm);});}, 
-      error => {}, 
+      (rsp:Account[]) => { rsp.forEach(elm => {this.accounts?.push(elm);});},
+      error => {},
       () => {});
 
     this.defValue = {...AppGlobalsDefault};
