@@ -189,9 +189,10 @@ vs path A/B on a Pi 3B and removes the cert-watcher sidecar entirely
 
 The trade-off is operator complexity: no `docker ps`, no
 `./run-agent.sh`, hand-edited `config.json` files per container,
-image updates are manual `skopeo copy` + `umoci unpack` calls. Worth it
-when memory pressure is the binding constraint; not worth it on a Pi 4
-with 4 GB RAM. Most operators should pick A or B.
+image updates are manual `xpmile-pull --force` calls (the in-house
+puller shipped in v1.3.0 — see [`operator-runc.md`](./operator-runc.md)).
+Worth it when memory pressure is the binding constraint; not worth it
+on a Pi 4 with 4 GB RAM. Most operators should pick A or B.
 
 Full walkthrough — install, image pipeline, per-container `config.json`,
 systemd units, cert-rotation `path` unit, update procedure,
