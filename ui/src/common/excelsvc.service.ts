@@ -106,9 +106,7 @@ export class ExcelsvcService {
                                   codamount: ent.shipment.shipmentInformation.codAmount, currency: ent.shipment.shipmentInformation.currency, 
                                   sku: ent.shipment.shipmentInformation.skuNo,
                                   hscode: ent.shipment.shipmentInformation.hsCode,
-                                  receivername: ent.shipment.receiverInformation.name,
-                                  receivercountry: ent.shipment.receiverInformation.country,
-                                  receiveraddress: ent.shipment.receiverInformation.address, receivercity: ent.shipment.receiverInformation.city,
+                                  receivername: ent.shipment.receiverInformation.name, receiveraddress: ent.shipment.receiverInformation.address, receivercity: ent.shipment.receiverInformation.city, 
                                   receiverstate: ent.shipment.receiverInformation.state, receiverpostalcode: ent.shipment.receiverInformation.postalCode, receivercontact: ent.shipment.receiverInformation.contact, 
                                   receiverphone: ent.shipment.receiverInformation.phone, 
                                   receiveremail: ent.shipment.receiverInformation.email 

@@ -196,7 +196,6 @@ export const AppGlobalsDefault: AppGlobals = {
         "SKU",
         "HSCode",
         "Receiver Name",
-        "Receiver Country",
         "Receiver Address",
         "Receiver City",
         "Receiver State",
