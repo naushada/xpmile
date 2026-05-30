@@ -35,7 +35,8 @@
         <clr-select-container>
           <label>Receiver Country</label>
           <select clrSelect name="receiverCountry" formControlName="receiverCountry">
-            <option *ngFor="let country of defValue.CountryName" [value]="country">{{country}}</option>
+            <option value="">(any)</option>
+            <option *ngFor="let country of countries" [value]="country">{{country}}</option>
           </select>
         </clr-select-container>
         <clr-select-container>
@@ -95,6 +96,7 @@
     <clr-dg-column>SKU</clr-dg-column>
     <clr-dg-column>HS Code</clr-dg-column>
     <clr-dg-column>Receiver Name</clr-dg-column>
+    <clr-dg-column>Receiver Country</clr-dg-column>
     <clr-dg-column>Receiver Address</clr-dg-column>
     <clr-dg-column>Receiver City</clr-dg-column>
     <clr-dg-column>Receiver State</clr-dg-column>
@@ -134,6 +136,7 @@
         <clr-dg-cell>{{sh.shipment.shipmentInformation.skuNo}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.shipmentInformation.hsCode}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.receiverInformation.name}}</clr-dg-cell>
+        <clr-dg-cell>{{sh.shipment.receiverInformation.country}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.receiverInformation.address}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.receiverInformation.city}}</clr-dg-cell>
         <clr-dg-cell>{{sh.shipment.receiverInformation.state}}</clr-dg-cell>
