@@ -194,22 +194,58 @@ Every other piece (provider id, client id, scopes, default role, etc.) is overri
 
 ## Verifying the deploy
 
+Layered smoke test — fix any failure before moving to the next probe.
+
 ```sh
-# 1) Discovery doc should be a fully-formed OIDC config.
-curl -s https://idp-63c97365e6ef.herokuapp.com/.well-known/openid-configuration | jq
+# ── IdP-only checks (no marvel involvement) ─────────────────────────────────
 
-# 2) JWKS should list every non-expired key.
-curl -s https://idp-63c97365e6ef.herokuapp.com/api/v1/idp/jwks | jq
+# 1) Discovery at the path-bearing URL (the one marvel actually fetches per
+#    OIDC core §4 — the bare-root /.well-known also works for tooling).
+curl -s https://idp-63c97365e6ef.herokuapp.com/api/v1/idp/.well-known/openid-configuration | jq '.issuer, .authorization_endpoint, .jwks_uri'
+# → issuer + all endpoint URLs, every path under /api/v1/idp/*.
+# If 501 "IdP route not yet wired" → release without PR #35.
+# If 503 "wsdbagent not connected" → on-prem wsdbagent-idp isn't talking
+#   to the idp dyno; check `podman logs agent-wsdbagent-idp`.
 
-# 3) The login portal should serve real HTML at /idp/login.
-curl -s -o /dev/null -w '%{http_code}\n' https://idp-63c97365e6ef.herokuapp.com/idp/login
-# → 200
+# 2) JWKS should list the active signing key (NOT empty).
+curl -s https://idp-63c97365e6ef.herokuapp.com/api/v1/idp/jwks | jq '.keys[0] | {kid, alg, kty}'
+# → { kid: "k-…", alg: "RS256", kty: "RSA" }
+# If `{"keys":[]}` → Vaadin "Generate" never ran, or the cloud-side reload
+#   poll hasn't fired yet (~60 s).
 
-# 4) A bare visit to / on the idp app stays as-is (no SPA mounted at root;
-#    everything user-visible lives under /idp/*). Marvel's root unchanged.
+# 3) IdP login portal serves the Angular SPA at /idp/login (NOT the
+#    marvel SPA — title should be "Sign in — xpmile", base href /idp/).
+curl -s https://idp-63c97365e6ef.herokuapp.com/idp/login | grep -E '<title>|<base'
+
+# ── Marvel ↔ IdP wiring ─────────────────────────────────────────────────────
+
+# 4) Marvel knows about the inhouse provider (loaded from xpmile.sso_config).
+curl -s https://marvel-3a78bd953f5f.herokuapp.com/api/v1/sso/providers | jq
+# → contains { id: "inhouse", displayName: "xpmile IdP", protocol: "oidc" }.
+
+# 5) The login dispatch redirects to the IdP's /authorize with full PKCE.
+curl -sS -o /dev/null -w 'HTTP %{http_code}  → %{redirect_url}\n' \
+     --max-redirs 0 \
+     'https://marvel-3a78bd953f5f.herokuapp.com/api/v1/sso/login?provider=inhouse&return_to=/'
+# → 302 with Location:
+#     https://idp-…/api/v1/idp/authorize?client_id=xpmile-spa&code_challenge=…
+#     &code_challenge_method=S256&nonce=…&redirect_uri=https%3A%2F%2Fmarvel-…%2Fapi%2Fv1%2Fsso%2Fcallback%2Finhouse
+#     &response_type=code&scope=openid%20email%20profile&state=…
+# If `HTTP 400 unknown provider` → marvel's reload_sso failed to fetch
+#   discovery; bump the dyno (heroku restart --app marvel) then re-probe
+#   after ~30 s. Look for "SSO config loaded — N OIDC provider(s) ready"
+#   in `heroku logs --app marvel`.
+
+# ── Browser end-to-end (only after 1–5 are green) ──────────────────────────
+#
+# Open https://marvel-3a78bd953f5f.herokuapp.com/ in a fresh window.
+# Login screen renders "Sign in with xpmile IdP" alongside the password form.
+# Click it → bounced to https://idp-…/idp/login (your branded portal).
+# Enter admin / admin@123 → bounced back to marvel, /webui/main loads
+# (xpmile_session cookie set).
 ```
 
-End-to-end: have the marvel app's `sso_config` reference the in-house IdP as one provider (the on-prem `SsoConfigView` already supports adding OIDC providers — just point it at `https://idp-63c97365e6ef.herokuapp.com/api/v1/idp` as the issuer + reuse the `xpmile-spa` clientId + the same redirect_uri).
+End-to-end: have the marvel app's `sso_config` reference the in-house IdP as one provider (the on-prem `SsoConfigView` already supports adding OIDC providers — just point it at `https://idp-63c97365e6ef.herokuapp.com/api/v1/idp` as the issuer + reuse the `xpmile-spa` clientId + the same redirect_uri). Or use `./scripts/seed-default-idp-sso.sh` to do it in one mongosh call.
 
 ---
 
@@ -266,6 +302,38 @@ Check `heroku logs --app idp` for `ACE_ERROR …SMTP_FROM_EMAIL or SMTP_FROM_PAS
 The migration unsets `xpmile.account.loginCredentials.passwordHash` and puts the hash in `idp.account`. The marvel uniservice falls back to a cross-DB read for this case (Phase K, commit `22a2bad`). If you see 401 anyway, confirm:
 - `migrate-account-split.py` actually created the `idp.account` doc — `db.idp.account.findOne({accountCode: '…'})` should return a doc with `passwordHash`.
 - The marvel-side wsdbagent is on the post-Phase-K image (i.e. CI has run since merge).
+
+### Marvel browser flow: `…/webui/login?error=callback_failed` after a successful IdP login
+This catch-all comes from `sso_complete_callback` and hides every specific error from `OidcProvider::handle_callback` (token-exchange failure, malformed token response, missing id_token, JWKS-fetch failure, signature verification failure, iss/aud/exp/nonce mismatch). To find the actual cause:
+
+1. Look at the IdP dyno logs — the response from `/token` is the smoking gun: `heroku logs --app idp --num 200 | grep -E '/token|sign|kid'`. A 500 with `signing failed:` means the wsdbagent's `sign_jwt_on_prem` rejected the request.
+2. Look at the on-prem `agent-wsdbagent-idp` logs for the SIGN_JWT op (op=13): `podman logs agent-wsdbagent-idp | grep 'op=13'`. A line ending `ok=0` is a sign failure with the reason in the very next `errmsg` field.
+3. If `/token` returned 200 but marvel still failed: the JWKS verification likely tripped. Inspect the id_token header (`echo "<id_token>" | cut -d. -f1 | base64 -d`) — its `kid` MUST match a key in `https://<idp>/api/v1/idp/jwks`.
+
+Historically (PR #36) the render switch in `handle_idp` mapped any non-{302/400/401} into HTTP 200 with the JSON error body, so a 500 from `/token` reached marvel as a fake 200 and marvel logged the generic `callback_failed`. The switch now explicitly branches on 403/404/500/503. **Do not shrink that switch.** Any new 5xx the IdP can return needs an explicit case or the failure becomes invisible again.
+
+### `agent-wsdbagent` / `agent-wsdbagent-idp` is running an outdated image after a Heroku release
+`docker-compose.agent.yml` sets `pull_policy: always` on both wsdbagent services, but that only fires at the initial `podman-compose up`. The cert-watcher restart (which fires when `./run-agent.sh refresh-certs` rotates the cert family) uses `podman container restart` under the hood — **that does NOT re-pull the image**. So after a CI release that ships a new `xpmile-wsdbagent:latest`, the on-prem agents keep running the old binary forever.
+
+Symptom: a bug fixed in the latest CI image (e.g. the kid-field fix in PR #36) still reproduces on-prem. `podman inspect agent-wsdbagent-idp --format '{{.Image}}'` shows an older digest than `podman pull docker.io/naushada/xpmile-wsdbagent:latest && podman image inspect …:latest --format '{{.Id}}'`.
+
+Fix (run after every CI release that touches `Dockerfile.wsdbagent`):
+
+```sh
+podman pull docker.io/naushada/xpmile-wsdbagent:latest
+./run-agent.sh stop && ./run-agent.sh start
+```
+
+`./run-agent.sh start` brings the containers up via `podman-compose up -d`, which honours `pull_policy: always` and picks up the freshly-pulled image. Without the `stop && start`, only `refresh-certs` runs and the binary stays stale.
+
+### Signing-key reader sees `{"$oid":"…"}` instead of the kid string
+Vaadin's `IdpSigningKeyService.generate()` writes the signing-key doc with `_id` as an auto-generated `new ObjectId()` and stores the domain `kid` in its OWN top-level field — NOT as the `_id`. Canonical-JSON serialisation of an ObjectId is `{"$oid":"…"}` (an object), so any code that does `row.value("_id", string{})` throws `json::type_error.302` ("type must be string, but is object") and either aborts the dyno or returns the default empty string and signs with kid=`""`. Both end with marvel failing to verify the id_token.
+
+The cloud-side (`idp_jwks.cpp`) and on-prem side (`sign_jwt_on_prem.cpp`) both used to read `_id` (PRs #33 and #36 fixed them). Any future code that reads from `idp.idp_signing_keys` must:
+- Project `{"_id":0, "kid":1, …}` (drop `_id`, include `kid`).
+- Read the kid from the `kid` field, not from `_id`.
+
+Same pattern applies to `IdpClientService` writes — but there `_id` IS the clientId (deliberate; the registry's natural key). Keep the distinction in mind when wiring new collections.
 
 ### IdP login for a NEW account (created via Vaadin) returns `invalid_credentials`
 **Known limitation today.** The Vaadin **Accounts** view POSTs to marvel's `/api/v1/account` endpoint, which writes the new account to `xpmile.account` (nested `loginCredentials.passwordHash`) but **not** to `idp.account`. Symptoms:
